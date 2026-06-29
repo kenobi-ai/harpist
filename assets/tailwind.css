@@ -1,0 +1,7 @@
+@import url("https://fonts.googleapis.com/css2?family=Jacquard+24&family=Rosario:ital,wght@0,300..700;1,300..700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Jacquard 24", serif;
+  --font-sans: "Rosario", sans-serif;
+}
