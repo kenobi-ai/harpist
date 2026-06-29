@@ -1,13 +1,13 @@
 const metrics = [
-  { label: 'Rules active', value: '12' },
-  { label: 'Pages scanned', value: '248' },
-  { label: 'Actions queued', value: '3' },
+  { label: "Rules active", value: "12" },
+  { label: "Pages scanned", value: "248" },
+  { label: "Actions queued", value: "3" },
 ];
 
 const activity = [
-  'Popup moved to Tailwind utilities',
-  'Options dashboard registered with WXT',
-  'Shared Tailwind import added for React entrypoints',
+  "Popup moved to Tailwind utilities",
+  "Options dashboard registered with WXT",
+  "Shared Tailwind import added for React entrypoints",
 ];
 
 function Dashboard() {
@@ -17,7 +17,7 @@ function Dashboard() {
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-200 pb-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
-              Harp
+              Harpist
             </p>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal">
               Dashboard
