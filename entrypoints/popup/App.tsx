@@ -1,5 +1,6 @@
 import {
   BookOpenTextIcon,
+  BridgeIcon,
   BroadcastIcon,
   CheckCircleIcon,
   CopyIcon,
@@ -286,24 +287,24 @@ const workflowStatus = (
 function StatusBadge({ status }: { status: WorkflowStatus }) {
   const statusView = {
     "Bridge active": {
-      Icon: PlugIcon,
-      className: "bg-emerald-50 text-emerald-700",
+      Icon: BridgeIcon,
+      className: "bg-emerald-900/10 text-emerald-700",
     },
     Complete: {
       Icon: CheckCircleIcon,
-      className: "bg-emerald-50 text-emerald-700",
+      className: "bg-emerald-900/10 text-emerald-700",
     },
     "No recording": {
       Icon: RecordIcon,
-      className: "bg-zinc-100 text-zinc-700",
+      className: "bg-zinc-900/10 text-zinc-700",
     },
     "Recording in progress": {
       Icon: BroadcastIcon,
-      className: "bg-rose-50 text-rose-700",
+      className: "bg-rose-900/10 text-rose-700",
     },
     "Waiting for handoff": {
       Icon: WarningCircleIcon,
-      className: "bg-amber-100 text-amber-900",
+      className: "bg-amber-900/10 text-amber-900",
     },
   } satisfies Record<
     WorkflowStatus,
