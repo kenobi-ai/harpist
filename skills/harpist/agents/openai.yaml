@@ -1,0 +1,6 @@
+interface:
+  display_name: "Harpist"
+  short_description: "Refine website recordings into replayable APIs."
+  default_prompt: "Use $harpist to sync the latest recording, run the generic refine pass, apply careful endpoint documentation, review the docs, and expose replayable auth curl commands for the selected website profile."
+policy:
+  allow_implicit_invocation: true

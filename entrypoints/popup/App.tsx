@@ -1,103 +1,388 @@
-import { useState } from "react";
-import reactLogo from "@/assets/react.svg";
-import wxtLogo from "/wxt.svg";
-import { RecordIcon, VoicemailIcon } from "@phosphor-icons/react";
+import {
+	BookOpenIcon,
+	CheckCircleIcon,
+	CopyIcon,
+	FingerprintIcon,
+	GlobeIcon,
+	KeyIcon,
+	PencilSimpleLineIcon,
+	RecordIcon,
+	ShieldWarningIcon,
+	StopCircleIcon,
+	WarningCircleIcon,
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useState } from "react";
+import { browser } from "#imports";
+import {
+	authMethodsForProfile,
+	capturedAuthDetailLabel,
+	type BackgroundResponse,
+	buildAgentHandoffText,
+	hostLabel,
+	messageOf,
+	normaliseServerUrl,
+	type PopupState,
+	type ProfileAccessMethod,
+	type SiteProfile,
+	type StopResult,
+} from "../../lib/profiles";
+
+const sendMessage = async <T,>(
+	message: object,
+): Promise<BackgroundResponse<T>> =>
+	(await browser.runtime.sendMessage(message)) as BackgroundResponse<T>;
+
+type WorkflowStatus =
+	| "Bridge active"
+	| "Complete"
+	| "No recording"
+	| "Recording in progress"
+	| "Waiting for handoff";
 
 function App() {
-  const [count, setCount] = useState(0);
+	const [state, setState] = useState<PopupState | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	const [busy, setBusy] = useState(false);
+	const [handoffCopied, setHandoffCopied] = useState(false);
 
-  return (
-    <main
-      className="flex min-h-[520px] w-[360px] flex-col items-start justify-start border-2 border-amber-950"
-      style={{
-        backgroundColor: "var(--color-teal-950)",
-        backgroundImage: "url(https://assets.magiceyes.dev/grain.svg)",
-        backgroundBlendMode: "soft-light",
-        backgroundSize: "160px 160px",
-      }}
-    >
-      <section className="w-full px-4 py-2 flex items-center justify-start">
-        <span className="font-display text-4xl text-white">
-          <span className="">H</span>arpist
-        </span>
-        <div className="rounded-xs bg-rose-500 px-2 pr-2.5 py-1.5 gap-1.5 ml-auto flex items-center">
-          <VoicemailIcon size={22} className="text-white" weight="duotone" />
-          <span className="text-white font-sans font-bold text-base leading-0">
-            Record
-          </span>
-        </div>
-      </section>
-      <section className="flex min-h-0 w-full flex-1 flex-col p-4 pt-2">
-        <section className="w-full flex-1 bg-olive-100 rounded-sm border-amber-950 border-2">
-          hello
-        </section>
-      </section>
-      {/*<section className="flex size-full flex-1 items-center justify-center">
-        <div className="size-28 rounded-full bg-rose-700" />
-      </section>*/}
-      {/*<section className="flex h-full flex-col gap-5">
-        <div className="flex items-center justify-between">
-          <a
-            href="https://wxt.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="group flex size-12 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 transition hover:border-emerald-400/70"
-          >
-            <img src={wxtLogo} className="size-7" alt="WXT logo" />
-          </a>
-          <a
-            href="https://react.dev"
-            target="_blank"
-            rel="noreferrer"
-            className="group flex size-12 items-center justify-center rounded-md border border-zinc-800 bg-zinc-900 transition hover:border-sky-400/70"
-          >
-            <img src={reactLogo} className="size-7" alt="React logo" />
-          </a>
-        </div>
+	const load = useCallback(async () => {
+		const response = await sendMessage<PopupState>({
+			type: "GET_STATE",
+		});
+		if (!response.ok || !response.data) {
+			throw new Error(response.error ?? "Could not read Harpist state.");
+		}
+		setState(response.data);
+		setError(null);
+	}, []);
 
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
-            Extension popup
-          </p>
-          <h1 className="text-3xl font-semibold tracking-normal text-white">
-            WXT + React
-          </h1>
-          <p className="text-sm leading-6 text-zinc-400">
-            A clean popup shell using Tailwind utilities instead of local
-            component stylesheets.
-          </p>
-        </div>
+	useEffect(() => {
+		void load().catch((loadError: unknown) => setError(messageOf(loadError)));
+		const timer = window.setInterval(() => {
+			void load().catch(() => undefined);
+		}, 1500);
+		return () => window.clearInterval(timer);
+	}, [load]);
 
-        <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-zinc-200">
-                Template counter
-              </p>
-              <p className="text-xs text-zinc-500">
-                Keep the starter behavior while swapping the styling layer.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setCount((count) => count + 1)}
-              className="h-10 rounded-md bg-emerald-400 px-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-zinc-950"
-            >
-              {count}
-            </button>
-          </div>
-        </div>
+	const activeHost = state?.activePage?.host ?? null;
+	const activeProfile = activeHost ? state?.profiles[activeHost] : undefined;
+	const latestProfile = state
+		? Object.values(state.profiles).sort((left, right) =>
+				right.updatedAt.localeCompare(left.updatedAt),
+			)[0]
+		: undefined;
+	const profile = activeHost ? activeProfile : latestProfile;
+	const isRecording = state?.capture.recording ?? false;
+	const profileHost = profile?.host ?? null;
+	useEffect(() => {
+		setHandoffCopied(false);
+	}, [profileHost]);
+	const status = workflowStatus(
+		isRecording,
+		state?.bridge.active ?? false,
+		profile,
+		handoffCopied,
+	);
+	const endpointCount =
+		profile?.derivedEndpointCount || profile?.scannedEndpointCount || 0;
+	const authMethods = authMethodsForProfile(profile);
+	const capturedAuthDetail = capturedAuthDetailLabel(profile);
+	const host = isRecording
+		? state?.activeRecording?.host
+		: (activeHost ?? profile?.host);
+	const bridgeMessage =
+		activeHost && !profile
+			? state?.bridge.active
+				? "No recording for this site"
+				: "Bridge not checked"
+			: (profile?.lastBridgeMessage ??
+				state?.bridge.message ??
+				"Bridge not checked");
 
-        <button
-          type="button"
-          onClick={() => void browser.runtime.openOptionsPage()}
-          className="mt-auto h-11 rounded-md border border-zinc-700 px-4 text-sm font-medium text-zinc-100 transition hover:border-zinc-500 hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-zinc-400 focus:ring-offset-2 focus:ring-offset-zinc-950"
-        >
-          Open dashboard
-        </button>
-      </section>*/}
-    </main>
-  );
+	const runRecordingAction = async () => {
+		setBusy(true);
+		setError(null);
+		try {
+			if (isRecording) {
+				const response = await sendMessage<StopResult>({
+					type: "STOP_RECORDING",
+				});
+				if (!response.ok) {
+					throw new Error(response.error ?? "Could not stop recording.");
+				}
+			} else {
+				const response = await sendMessage<PopupState>({
+					type: "START_RECORDING",
+				});
+				if (!response.ok) {
+					throw new Error(response.error ?? "Could not start recording.");
+				}
+				setHandoffCopied(false);
+			}
+			await load();
+		} catch (actionError) {
+			setError(messageOf(actionError));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const openDocs = async (selected?: SiteProfile) => {
+		if (!selected) {
+			return;
+		}
+		const hash = `#${encodeURIComponent(selected.host)}`;
+		await browser.tabs.create({
+			url:
+				selected.remoteDocsUrl ??
+				(state?.bridge.active
+					? `${normaliseServerUrl(
+							state.settings.serverUrl,
+						)}/profiles/${encodeURIComponent(selected.host)}/docs`
+					: browser.runtime.getURL(`/dashboard.html${hash}`)),
+		});
+	};
+
+	const copyHandoff = async () => {
+		if (!profile || !state) {
+			return;
+		}
+		const syncResponse = await sendMessage<PopupState>({
+			type: "SYNC_BRIDGE",
+		});
+		const nextState =
+			syncResponse.ok && syncResponse.data ? syncResponse.data : state;
+		if (syncResponse.ok && syncResponse.data) {
+			setState(syncResponse.data);
+		}
+		await navigator.clipboard.writeText(
+			buildAgentHandoffText(
+				nextState.profiles[profile.host] ?? profile,
+				nextState.settings,
+			),
+		);
+		setHandoffCopied(true);
+	};
+
+	return (
+		<main className="w-[360px] bg-[#f7f2e8] p-3 text-zinc-950">
+			<section className="rounded-md border border-zinc-300 bg-white shadow-sm">
+				<header className="border-zinc-200 border-b px-4 py-3">
+					<div className="flex items-start justify-between gap-3">
+						<div className="min-w-0">
+							<p className="font-display text-3xl leading-none">Harpist</p>
+							<p className="mt-1 truncate text-sm text-zinc-500">
+								{hostLabel(host)}
+							</p>
+						</div>
+						<StatusBadge status={status} />
+					</div>
+				</header>
+
+				<div className="space-y-3 p-4">
+					{error ? (
+						<div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-900 text-sm">
+							<WarningCircleIcon className="mt-0.5 shrink-0" size={16} />
+							<span>{error}</span>
+						</div>
+					) : null}
+
+					<button
+						type="button"
+						onClick={() => void runRecordingAction()}
+						disabled={busy || (!state?.activePage && !isRecording)}
+						className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-zinc-950 px-3 font-semibold text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45"
+					>
+						{isRecording ? (
+							<StopCircleIcon size={18} weight="fill" />
+						) : (
+							<RecordIcon size={18} weight="fill" />
+						)}
+						<span>
+							{busy
+								? "Working"
+								: isRecording
+									? "Finish recording"
+									: "Add recording"}
+						</span>
+					</button>
+
+					<div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
+						<PanelPiece label="Endpoints" value={String(endpointCount)} />
+						<MethodsPiece
+							hint={capturedAuthDetail}
+							methods={authMethods}
+						/>
+					</div>
+					<p className="truncate text-xs text-zinc-500">{bridgeMessage}</p>
+
+					<div className="grid grid-cols-2 gap-2">
+						<button
+							type="button"
+							onClick={() => void openDocs(profile)}
+							disabled={!profile}
+							className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white font-semibold text-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-45"
+						>
+							<BookOpenIcon size={16} />
+							<span>Docs</span>
+						</button>
+						<button
+							type="button"
+							onClick={() => void copyHandoff()}
+							disabled={!profile}
+							className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white font-semibold text-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-45"
+						>
+							{handoffCopied ? (
+								<CheckCircleIcon size={16} weight="fill" />
+							) : (
+								<CopyIcon size={16} />
+							)}
+							<span>{handoffCopied ? "Copied" : "Handoff"}</span>
+						</button>
+					</div>
+				</div>
+			</section>
+		</main>
+	);
+}
+
+const workflowStatus = (
+	isRecording: boolean,
+	bridgeActive: boolean,
+	profile?: SiteProfile,
+	handoffCopied?: boolean,
+): WorkflowStatus => {
+	if (isRecording) {
+		return "Recording in progress";
+	}
+	if (!profile) {
+		return "No recording";
+	}
+	if (handoffCopied) {
+		return "Complete";
+	}
+	if (bridgeActive) {
+		return "Bridge active";
+	}
+	return "Waiting for handoff";
+};
+
+function StatusBadge({ status }: { status: WorkflowStatus }) {
+	const className =
+		status === "Recording in progress"
+			? "bg-rose-50 text-rose-700"
+			: status === "Bridge active"
+				? "bg-sky-50 text-sky-700"
+				: status === "Complete"
+					? "bg-emerald-50 text-emerald-700"
+					: "bg-zinc-100 text-zinc-700";
+
+	return (
+		<div
+			className={`shrink-0 rounded-md px-2.5 py-1.5 text-right font-semibold text-[11px] leading-tight ${className}`}
+		>
+			{status}
+		</div>
+	);
+}
+
+function PanelPiece({ label, value }: { label: string; value: string }) {
+	return (
+		<div className="min-h-[86px] rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5">
+			<p className="text-[11px] text-zinc-500 uppercase">{label}</p>
+			<p className="mt-3 truncate font-semibold text-2xl">{value}</p>
+		</div>
+	);
+}
+
+const accessMethodView = (method: ProfileAccessMethod) => {
+	if (method.label === "Browser session") {
+		return {
+			Icon: FingerprintIcon,
+			label: "Browser session",
+		};
+	}
+	if (method.label === "Browser context write") {
+		return {
+			Icon: PencilSimpleLineIcon,
+			label: "Browser writes",
+		};
+	}
+	if (method.label === "Browser context") {
+		return {
+			Icon: GlobeIcon,
+			label: "Browser reads",
+		};
+	}
+	if (method.label === "Browser challenge") {
+		return {
+			Icon: ShieldWarningIcon,
+			label: "Challenge",
+		};
+	}
+	if (method.label === "Public client key") {
+		return {
+			Icon: KeyIcon,
+			label: "Client key",
+		};
+	}
+	if (method.type === "session-cookie" || method.type === "cookie-csrf") {
+		return {
+			Icon: FingerprintIcon,
+			label: "Session cookie",
+		};
+	}
+	return {
+		Icon: KeyIcon,
+		label: method.label,
+	};
+};
+
+function MethodsPiece({
+	hint,
+	methods,
+}: {
+	hint?: string;
+	methods: ProfileAccessMethod[];
+}) {
+	return (
+		<div className="min-h-[86px] rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5">
+			<p className="text-[11px] text-zinc-500 uppercase">Authentication</p>
+			<div className="mt-2 grid gap-1">
+				{methods.length === 0 ? (
+					<p className="truncate font-semibold text-base">Not analyzed</p>
+				) : (
+					methods.slice(0, 3).map((method) => {
+						const { Icon, label } = accessMethodView(method);
+						return (
+							<div
+								key={`${method.type}:${method.label}`}
+								className="flex min-w-0 items-center gap-2"
+								title={method.label}
+							>
+								<Icon className="shrink-0 text-zinc-500" size={14} />
+								<span className="min-w-0 flex-1 truncate font-semibold text-[12px] leading-4">
+									{label}
+								</span>
+								{method.count > 0 ? (
+									<span className="shrink-0 rounded-sm bg-zinc-200 px-1.5 py-0.5 text-[10px] leading-none text-zinc-600">
+										{method.count}
+									</span>
+								) : null}
+							</div>
+						);
+					})
+				)}
+			</div>
+			{methods.length > 3 ? (
+				<p className="mt-1 text-[11px] text-zinc-500">
+					+{methods.length - 3} more
+				</p>
+			) : hint ? (
+				<p className="mt-1 truncate text-[11px] text-zinc-500">{hint}</p>
+			) : null}
+		</div>
+	);
 }
 
 export default App;

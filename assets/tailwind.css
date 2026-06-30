@@ -2,6 +2,24 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Jacquard 24", serif;
-  --font-sans: "Rosario", sans-serif;
+	--font-display: "Jacquard 24", serif;
+	--font-sans: "Rosario", sans-serif;
+	--font-mono:
+		"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+}
+
+@layer base {
+	:root {
+		color-scheme: light;
+	}
+
+	body {
+		margin: 0;
+		font-family: var(--font-sans);
+	}
+
+	button,
+	input {
+		font: inherit;
+	}
 }
