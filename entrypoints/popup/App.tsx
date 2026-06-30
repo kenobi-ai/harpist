@@ -103,6 +103,7 @@ function App() {
 			: (profile?.lastBridgeMessage ??
 				state?.bridge.message ??
 				"Bridge not checked");
+	const supportingContentLocked = isRecording || !profile;
 
 	const runRecordingAction = async () => {
 		setBusy(true);
@@ -172,9 +173,9 @@ function App() {
 	return (
 		<main className="w-[360px] bg-olive-900 p-3 text-zinc-950 font-sans">
 			<section className="rounded-xs bg-amber-50 border border-emerald-800">
-				<header className="relative overflow-hidden border-emerald-950/20 border-b bg-emerald-950 px-4 py-3 text-white before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:130px_130px] before:opacity-45 before:mix-blend-overlay before:content-['']">
+				<header className="relative overflow-hidden text-white border-b border-emerald-950 bg-emerald-900 before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:130px_130px] before:opacity-45 before:mix-blend-overlay before:content-[''] p-1">
 					<div className="relative z-10 flex items-start justify-between gap-3">
-						<div className="min-w-0">
+						<div className="min-w-0 pl-4 py-2">
 							<p className="font-display text-4xl leading-none text-amber-50">
 								Harpist
 							</p>
@@ -182,7 +183,7 @@ function App() {
 								{hostLabel(host)}
 							</p>
 						</div>
-						<div className="flex size-16 shrink-0 items-center justify-center overflow-hidden">
+						<div className="flex size-20 shrink-0 items-center justify-center overflow-hidden bg-amber-50 rounded-xs p-1">
 							<img
 								src={logoIllustrationUrl}
 								alt=""
@@ -192,7 +193,7 @@ function App() {
 					</div>
 				</header>
 
-				<div className="space-y-3 p-4">
+				<div className="space-y-4 p-4">
 					{error ? (
 						<div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-900 text-sm">
 							<WarningCircleIcon className="mt-0.5 shrink-0" size={16} />
@@ -220,45 +221,55 @@ function App() {
 						</span>
 					</button>
 
-					<div className="grid grid-cols-[94px_minmax(0,1fr)] gap-2">
-						<PanelPiece label="Endpoints" value={String(endpointCount)} />
-						<MethodsPiece hint={capturedAuthDetail} methods={authMethods} />
-					</div>
+					<div
+						aria-hidden={supportingContentLocked}
+						className={`space-y-4 transition-[filter,opacity] duration-200 ease-out ${
+							supportingContentLocked
+								? "pointer-events-none select-none blur-[2px] opacity-55"
+								: ""
+						}`}
+					>
+						<MetadataLine
+							authHint={capturedAuthDetail}
+							endpointCount={String(endpointCount)}
+							methods={authMethods}
+						/>
 
-					<div className="grid grid-cols-2 gap-2">
-						<button
-							type="button"
-							onClick={() => void openDocs(profile)}
-							disabled={!profile}
-							className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
-						>
-							<span className="relative z-10 inline-flex items-center gap-2">
-								<BookOpenTextIcon size={16} />
-								Docs
-							</span>
-						</button>
-						<button
-							type="button"
-							onClick={() => void copyHandoff()}
-							disabled={!profile}
-							className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/30 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_4px_0_#78350f,0_7px_12px_rgb(120_53_15/0.12),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_3px_0_#78350f,0_5px_9px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_#78350f,0_3px_6px_rgb(120_53_15/0.1),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
-						>
-							<span className="relative z-10 inline-flex items-center gap-2">
-								{handoffCopied ? (
-									<CheckCircleIcon size={16} weight="fill" />
-								) : (
-									<CopyIcon size={16} />
-								)}
-								{handoffCopied ? "Copied" : "Handoff"}
-							</span>
-						</button>
-					</div>
+						<div className="grid grid-cols-2 gap-2">
+							<button
+								type="button"
+								onClick={() => void openDocs(profile)}
+								disabled={!profile || supportingContentLocked}
+								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
+							>
+								<span className="relative z-10 inline-flex items-center gap-2">
+									<BookOpenTextIcon size={16} />
+									Docs
+								</span>
+							</button>
+							<button
+								type="button"
+								onClick={() => void copyHandoff()}
+								disabled={!profile || supportingContentLocked}
+								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
+							>
+								<span className="relative z-10 inline-flex items-center gap-2">
+									{handoffCopied ? (
+										<CheckCircleIcon size={16} weight="fill" />
+									) : (
+										<CopyIcon size={16} />
+									)}
+									{handoffCopied ? "Copied" : "Handoff"}
+								</span>
+							</button>
+						</div>
 
-					<div className="flex items-center justify-between gap-2 pt-1">
-						<p className="min-w-0 truncate text-xs text-amber-900/70">
-							{bridgeMessage}
-						</p>
-						<StatusBadge status={status} />
+						<div className="flex items-center justify-between gap-2 pt-1">
+							<p className="min-w-0 truncate text-xs text-amber-900/70">
+								{bridgeMessage}
+							</p>
+							<StatusBadge status={status} />
+						</div>
 					</div>
 				</div>
 			</section>
@@ -328,17 +339,6 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
 	);
 }
 
-function PanelPiece({ label, value }: { label: string; value: string }) {
-	return (
-		<div className="flex min-h-[86px] flex-col rounded-md border border-amber-900/25 bg-amber-50 px-3 py-2.5 text-amber-900">
-			<p className="text-[11px] uppercase">{label}</p>
-			<p className="flex flex-1 items-center justify-center truncate font-semibold text-3xl">
-				{value}
-			</p>
-		</div>
-	);
-}
-
 const accessMethodView = (method: ProfileAccessMethod) => {
 	if (method.label === "Browser session") {
 		return {
@@ -382,50 +382,56 @@ const accessMethodView = (method: ProfileAccessMethod) => {
 	};
 };
 
-function MethodsPiece({
-	hint,
+function MetadataLine({
+	authHint,
+	endpointCount,
 	methods,
 }: {
-	hint?: string;
+	authHint?: string;
+	endpointCount: string;
 	methods: ProfileAccessMethod[];
 }) {
+	const primaryMethod = methods[0];
+	const methodView = primaryMethod ? accessMethodView(primaryMethod) : null;
+	const MethodIcon = methodView?.Icon;
 	return (
-		<div className="min-h-[86px] rounded-md border border-amber-900/25 bg-amber-50 px-3 py-2.5 text-amber-900">
-			<p className="text-[11px] uppercase">Authentication</p>
-			<div className="mt-2 grid gap-1">
-				{methods.length === 0 ? (
-					<p className="truncate font-semibold text-base">Not analyzed</p>
-				) : (
-					methods.slice(0, 3).map((method) => {
-						const { Icon, label } = accessMethodView(method);
-						return (
-							<div
-								key={`${method.type}:${method.label}`}
-								className="flex min-w-0 items-center gap-2"
-								title={method.label}
-							>
-								<Icon className="shrink-0 text-amber-900/70" size={14} />
-								<span className="min-w-0 flex-1 truncate font-semibold text-[12px] leading-4">
-									{label}
-								</span>
-								{method.count > 0 ? (
-									<span className="shrink-0 rounded-sm bg-amber-900/10 px-1.5 py-0.5 text-[10px] leading-none text-amber-900/75">
-										{method.count}
-									</span>
-								) : null}
-							</div>
-						);
-					})
-				)}
-			</div>
-			{methods.length > 3 ? (
-				<p className="mt-1 text-[11px] text-amber-900/70">
-					+{methods.length - 3} more
+		<section className="grid min-w-0 grid-cols-[1fr_2fr] gap-3 py-2 text-amber-900">
+			<div className="min-w-0">
+				<p className="text-center font-semibold text-[9px] text-amber-900/60 uppercase">
+					~~ Endpoints ~~
 				</p>
-			) : hint ? (
-				<p className="mt-1 truncate text-[11px] text-amber-900/70">{hint}</p>
-			) : null}
-		</div>
+				<p className="mt-1 text-center font-bold text-xl leading-none">
+					{endpointCount}
+				</p>
+			</div>
+			<div className="min-w-0">
+				<p className="text-left font-semibold text-[9px] text-amber-900/60 uppercase">
+					~~ Authentication ~~
+				</p>
+				<div className="mt-1 flex min-w-0 items-center gap-1.5">
+					{MethodIcon ? (
+						<MethodIcon className="shrink-0 text-amber-900/70" size={13} />
+					) : null}
+					<span className="min-w-0 break-words font-semibold text-[13px] leading-4">
+						{methodView?.label ?? "Not analyzed"}
+					</span>
+					{primaryMethod && primaryMethod.count > 0 ? (
+						<span className="shrink-0 rounded-sm bg-amber-900/10 px-1.5 py-0.5 text-[9px] leading-none text-amber-900/75">
+							{primaryMethod.count}
+						</span>
+					) : null}
+				</div>
+				{methods.length > 1 ? (
+					<p className="mt-1 text-[10px] text-amber-900/60">
+						+{methods.length - 1} more
+					</p>
+				) : authHint ? (
+					<p className="mt-1 break-words text-[10px] text-amber-900/60 leading-snug">
+						{authHint}
+					</p>
+				) : null}
+			</div>
+		</section>
 	);
 }
 
