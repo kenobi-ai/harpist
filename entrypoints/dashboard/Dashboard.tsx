@@ -13,9 +13,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { browser } from "#imports";
 import {
 	authMethodsForProfile,
-	capturedAuthDetailLabel,
 	type BackgroundResponse,
 	buildAgentHandoffText,
+	capturedAuthDetailLabel,
 	DEFAULT_SETTINGS,
 	type HarpistSettings,
 	hostLabel,
@@ -121,21 +121,21 @@ function Dashboard() {
 	return (
 		<main className="min-h-screen bg-[#f7f2e8] text-zinc-950">
 			<div className="mx-auto grid min-h-screen w-full max-w-7xl grid-rows-[auto_1fr] px-6 py-6">
-				<header className="flex flex-wrap items-center justify-between gap-4 border-zinc-300 border-b pb-5">
-					<div>
-						<p className="font-semibold text-emerald-800 text-xs uppercase">
+				<header className="relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-md border border-emerald-950/20 bg-[#075f4a] px-5 py-4 text-white shadow-sm before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:130px_130px] before:opacity-45 before:mix-blend-overlay before:content-['']">
+					<div className="relative z-10">
+						<p className="font-semibold text-emerald-50/75 text-xs uppercase">
 							Harpist
 						</p>
 						<h1 className="mt-2 font-display text-4xl tracking-normal">
 							Docs & Profiles
 						</h1>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="relative z-10 flex items-center gap-2">
 						<a
 							href={`${normaliseServerUrl(settings.serverUrl)}/openapi`}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 font-semibold text-sm transition hover:bg-zinc-50"
+							className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 bg-white/90 px-3 font-semibold text-sm text-zinc-950 transition hover:bg-white"
 						>
 							<BookOpenIcon size={16} />
 							<span>Bridge API</span>
@@ -457,9 +457,7 @@ function AuthMethodsCard({
 				)}
 			</div>
 			{methods.length > 4 ? (
-				<p className="mt-1 text-sm text-zinc-500">
-					+{methods.length - 4} more
-				</p>
+				<p className="mt-1 text-sm text-zinc-500">+{methods.length - 4} more</p>
 			) : detail ? (
 				<p className="mt-1 truncate text-sm text-zinc-500">{detail}</p>
 			) : null}

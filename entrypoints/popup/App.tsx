@@ -1,13 +1,13 @@
 import {
-  BookOpenIcon,
   BookOpenTextIcon,
-  CassetteTapeIcon,
+  BroadcastIcon,
   CheckCircleIcon,
   CopyIcon,
   FingerprintIcon,
   GlobeIcon,
   KeyIcon,
   PencilSimpleLineIcon,
+  PlugIcon,
   RecordIcon,
   ShieldWarningIcon,
   StopCircleIcon,
@@ -16,11 +16,12 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { browser } from "#imports";
+import logoIllustrationUrl from "../../assets/logo_illustration.png";
 import {
   authMethodsForProfile,
-  capturedAuthDetailLabel,
   type BackgroundResponse,
   buildAgentHandoffText,
+  capturedAuthDetailLabel,
   hostLabel,
   messageOf,
   normaliseServerUrl,
@@ -77,6 +78,7 @@ function App() {
   const profile = activeHost ? activeProfile : latestProfile;
   const isRecording = state?.capture.recording ?? false;
   const profileHost = profile?.host ?? null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Reset copied state whenever the selected profile changes.
   useEffect(() => {
     setHandoffCopied(false);
   }, [profileHost]);
@@ -168,17 +170,25 @@ function App() {
   };
 
   return (
-    <main className="w-[360px] bg-emerald-950 p-3 text-zinc-950 font-sans">
-      <section className="rounded-xs border border-zinc-300 bg-white shadow-sm">
-        <header className="border-zinc-200 border-b px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
+    <main className="w-[360px] bg-olive-900 p-3 text-zinc-950 font-sans">
+      <section className="rounded-xs bg-amber-50 border border-emerald-800">
+        <header className="relative overflow-hidden border-emerald-950/20 border-b bg-emerald-950 px-4 py-3 text-white before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:130px_130px] before:opacity-45 before:mix-blend-overlay before:content-['']">
+          <div className="relative z-10 flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="font-display text-3xl leading-none">Harpist</p>
-              <p className="mt-1 truncate text-sm text-zinc-500">
+              <p className="font-display text-4xl leading-none text-amber-50">
+                Harpist
+              </p>
+              <p className="mt-1 truncate text-sm text-emerald-50/75">
                 {hostLabel(host)}
               </p>
             </div>
-            <StatusBadge status={status} />
+            <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden">
+              <img
+                src={logoIllustrationUrl}
+                alt=""
+                className="size-full object-contain"
+              />
+            </div>
           </div>
         </header>
 
@@ -214,14 +224,13 @@ function App() {
             <PanelPiece label="Endpoints" value={String(endpointCount)} />
             <MethodsPiece hint={capturedAuthDetail} methods={authMethods} />
           </div>
-          <p className="truncate text-xs text-zinc-500">{bridgeMessage}</p>
 
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => void openDocs(profile)}
               disabled={!profile}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-900 bg-amber-100 font-semibold text-sm transition hover:bg-amber-50 text-amber-900 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-900 bg-amber-800 font-semibold text-sm transition hover:bg-amber-700 text-amber-50 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
             >
               <BookOpenTextIcon size={16} />
               <span>Docs</span>
@@ -230,7 +239,7 @@ function App() {
               type="button"
               onClick={() => void copyHandoff()}
               disabled={!profile}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white font-semibold text-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-amber-900 bg-amber-50 font-semibold text-sm transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-45 cursor-pointer"
             >
               {handoffCopied ? (
                 <CheckCircleIcon size={16} weight="fill" />
@@ -239,6 +248,13 @@ function App() {
               )}
               <span>{handoffCopied ? "Copied" : "Handoff"}</span>
             </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <p className="min-w-0 truncate text-xs text-amber-900/70">
+              {bridgeMessage}
+            </p>
+            <StatusBadge status={status} />
           </div>
         </div>
       </section>
@@ -268,19 +284,41 @@ const workflowStatus = (
 };
 
 function StatusBadge({ status }: { status: WorkflowStatus }) {
-  const className =
-    status === "Recording in progress"
-      ? "bg-rose-50 text-rose-700"
-      : status === "Bridge active"
-        ? "bg-emerald-50 text-emerald-700"
-        : status === "Complete"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-zinc-100 text-zinc-700";
+  const statusView = {
+    "Bridge active": {
+      Icon: PlugIcon,
+      className: "bg-emerald-50 text-emerald-700",
+    },
+    Complete: {
+      Icon: CheckCircleIcon,
+      className: "bg-emerald-50 text-emerald-700",
+    },
+    "No recording": {
+      Icon: RecordIcon,
+      className: "bg-zinc-100 text-zinc-700",
+    },
+    "Recording in progress": {
+      Icon: BroadcastIcon,
+      className: "bg-rose-50 text-rose-700",
+    },
+    "Waiting for handoff": {
+      Icon: WarningCircleIcon,
+      className: "bg-amber-100 text-amber-900",
+    },
+  } satisfies Record<
+    WorkflowStatus,
+    {
+      Icon: typeof CheckCircleIcon;
+      className: string;
+    }
+  >;
+  const { Icon, className } = statusView[status];
 
   return (
     <div
-      className={`shrink-0 rounded-md px-2.5 py-1.5 text-right font-semibold text-[11px] leading-tight ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 font-semibold text-[11px] leading-tight ${className}`}
     >
+      <Icon className="shrink-0" size={13} weight="fill" />
       {status}
     </div>
   );
@@ -288,9 +326,11 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
 
 function PanelPiece({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-h-[86px] rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5">
-      <p className="text-[11px] text-zinc-500 uppercase">{label}</p>
-      <p className="mt-3 truncate font-semibold text-2xl">{value}</p>
+    <div className="flex min-h-[86px] flex-col rounded-md border border-amber-900/25 bg-amber-50 px-3 py-2.5 text-amber-900">
+      <p className="text-[11px] uppercase">{label}</p>
+      <p className="flex flex-1 items-center justify-center truncate font-semibold text-3xl">
+        {value}
+      </p>
     </div>
   );
 }
@@ -346,8 +386,8 @@ function MethodsPiece({
   methods: ProfileAccessMethod[];
 }) {
   return (
-    <div className="min-h-[86px] rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2.5">
-      <p className="text-[11px] text-zinc-500 uppercase">Authentication</p>
+    <div className="min-h-[86px] rounded-md border border-amber-900/25 bg-amber-50 px-3 py-2.5 text-amber-900">
+      <p className="text-[11px] uppercase">Authentication</p>
       <div className="mt-2 grid gap-1">
         {methods.length === 0 ? (
           <p className="truncate font-semibold text-base">Not analyzed</p>
@@ -360,12 +400,12 @@ function MethodsPiece({
                 className="flex min-w-0 items-center gap-2"
                 title={method.label}
               >
-                <Icon className="shrink-0 text-zinc-500" size={14} />
+                <Icon className="shrink-0 text-amber-900/70" size={14} />
                 <span className="min-w-0 flex-1 truncate font-semibold text-[12px] leading-4">
                   {label}
                 </span>
                 {method.count > 0 ? (
-                  <span className="shrink-0 rounded-sm bg-zinc-200 px-1.5 py-0.5 text-[10px] leading-none text-zinc-600">
+                  <span className="shrink-0 rounded-sm bg-amber-900/10 px-1.5 py-0.5 text-[10px] leading-none text-amber-900/75">
                     {method.count}
                   </span>
                 ) : null}
@@ -375,11 +415,11 @@ function MethodsPiece({
         )}
       </div>
       {methods.length > 3 ? (
-        <p className="mt-1 text-[11px] text-zinc-500">
+        <p className="mt-1 text-[11px] text-amber-900/70">
           +{methods.length - 3} more
         </p>
       ) : hint ? (
-        <p className="mt-1 truncate text-[11px] text-zinc-500">{hint}</p>
+        <p className="mt-1 truncate text-[11px] text-amber-900/70">{hint}</p>
       ) : null}
     </div>
   );
