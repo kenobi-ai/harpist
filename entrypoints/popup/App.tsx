@@ -16,7 +16,6 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { browser } from "#imports";
-import logoIllustrationUrl from "../../assets/logo_illustration.png";
 import {
 	authMethodsForProfile,
 	type BackgroundResponse,
@@ -43,11 +42,42 @@ type WorkflowStatus =
 	| "Recording in progress"
 	| "Waiting for handoff";
 
+const DEFAULT_SPRITE_FRAME = 12;
+const FIRST_SPRITE_FRAME = 1;
+const SPRITE_PATHS = [
+	"/sprites/harpist-1.webp",
+	"/sprites/harpist-2.webp",
+	"/sprites/harpist-3.webp",
+	"/sprites/harpist-4.webp",
+	"/sprites/harpist-5.webp",
+	"/sprites/harpist-6.webp",
+	"/sprites/harpist-7.webp",
+	"/sprites/harpist-8.webp",
+	"/sprites/harpist-9.webp",
+	"/sprites/harpist-10.webp",
+	"/sprites/harpist-11.webp",
+	"/sprites/harpist-12.webp",
+	"/sprites/harpist-13.webp",
+	"/sprites/harpist-14.webp",
+	"/sprites/harpist-15.webp",
+	"/sprites/harpist-16.webp",
+] as const;
+const LAST_SPRITE_FRAME = SPRITE_PATHS.length;
+
+const spritePathForFrame = (frame: number) =>
+	SPRITE_PATHS[
+		Math.min(Math.max(frame, FIRST_SPRITE_FRAME), LAST_SPRITE_FRAME) - 1
+	] ?? SPRITE_PATHS[DEFAULT_SPRITE_FRAME - 1];
+
 function App() {
 	const [state, setState] = useState<PopupState | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [handoffCopied, setHandoffCopied] = useState(false);
+	const [spriteState, setSpriteState] = useState({
+		direction: 1,
+		frame: DEFAULT_SPRITE_FRAME,
+	});
 
 	const load = useCallback(async () => {
 		const response = await sendMessage<PopupState>({
@@ -78,6 +108,46 @@ function App() {
 	const profile = activeHost ? activeProfile : latestProfile;
 	const isRecording = state?.capture.recording ?? false;
 	const profileHost = profile?.host ?? null;
+	useEffect(() => {
+		for (const path of SPRITE_PATHS) {
+			const image = new Image();
+			image.src = browser.runtime.getURL(path);
+		}
+	}, []);
+	useEffect(() => {
+		if (!isRecording) {
+			setSpriteState({
+				direction: 1,
+				frame: DEFAULT_SPRITE_FRAME,
+			});
+			return undefined;
+		}
+		setSpriteState({
+			direction: 1,
+			frame: DEFAULT_SPRITE_FRAME,
+		});
+		const timer = window.setInterval(() => {
+			setSpriteState((current) => {
+				if (current.frame >= LAST_SPRITE_FRAME) {
+					return {
+						direction: -1,
+						frame: LAST_SPRITE_FRAME - 1,
+					};
+				}
+				if (current.frame <= FIRST_SPRITE_FRAME) {
+					return {
+						direction: 1,
+						frame: FIRST_SPRITE_FRAME + 1,
+					};
+				}
+				return {
+					direction: current.direction,
+					frame: current.frame + current.direction,
+				};
+			});
+		}, 120);
+		return () => window.clearInterval(timer);
+	}, [isRecording]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset copied state whenever the selected profile changes.
 	useEffect(() => {
 		setHandoffCopied(false);
@@ -104,6 +174,9 @@ function App() {
 				state?.bridge.message ??
 				"Bridge not checked");
 	const supportingContentLocked = isRecording || !profile;
+	const spriteUrl = browser.runtime.getURL(
+		spritePathForFrame(spriteState.frame),
+	);
 
 	const runRecordingAction = async () => {
 		setBusy(true);
@@ -185,7 +258,7 @@ function App() {
 						</div>
 						<div className="flex size-20 shrink-0 items-center justify-center overflow-hidden bg-amber-50 rounded-xs p-1">
 							<img
-								src={logoIllustrationUrl}
+								src={spriteUrl}
 								alt=""
 								className="size-full object-contain"
 							/>
