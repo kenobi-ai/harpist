@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="assets/logo_illustration.png" alt="Harpist" width="420" />
+  <img src="assets/logo_illustration.png" alt="Harpist" width="256" />
 </p>
+
+# Harpist
 
 Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable auth curl commands, and oRPC/OpenAPI artifacts.
 
