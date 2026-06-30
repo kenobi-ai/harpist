@@ -1,30 +1,39 @@
-# Harpist
+<p align="center">
+  <img src="assets/logo_illustration.png" alt="Harpist" width="420" />
+</p>
 
-Harpist records website traffic in a Chrome extension and lets agents refine those recordings into oRPC/OpenAPI contracts through a local bridge.
+Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable auth curl commands, and oRPC/OpenAPI artifacts.
 
-## Shape
-
-- Extension: records HAR data, stores a local outbox, and shows profile summaries.
-- Bridge/CLI: owns the canonical local cache while active and exposes oRPC/OpenAPI/docs.
-- Skill: starts or reuses the bridge, waits for extension sync, then mutates profiles through the bridge.
-
-The extension works without the bridge. When the bridge is active, the extension syncs recordings up and mirrors canonical profile data back down.
-
-Recordings capture an auth bundle by default. If a session credential was not captured, the profile reports `Recapture auth`; make one fresh recording while signed in, then run refinement again.
-
-## Commands
+## Run
 
 ```sh
+bun install
 bun dev
 bun run bridge
+```
+
+The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `.harpist-data`.
+
+## Workflow
+
+1. Open the website in the Harpist dev browser.
+2. Click **Add recording** in the extension.
+3. Use the website normally, then stop recording.
+4. Ask an agent with the Harpist skill to refine that host.
+5. Open the generated docs:
+
+```sh
+bun run harpist docs <host>
+```
+
+## Useful CLI
+
+```sh
 bun run harpist profiles list
 bun run harpist recordings latest <host>
 bun run harpist refine latest <host>
-bun run harpist auth replay <host> [templateKey|operationName]
-bun run harpist contract get <host>
-bun run harpist openapi get <host>
+bun run harpist docs review <host>
+bun run harpist auth replay <host> <operationName-or-templateKey>
 ```
 
-Use `--full` with `recordings latest` or `recordings get` only when an agent needs the raw HAR.
-
-The bridge listens on `127.0.0.1:4277` by default. Override with `HARPIST_HOST`, `HARPIST_PORT`, and `HARPIST_DATA_DIR`.
+`auth replay` prints a runnable curl command with captured browser credentials applied.
