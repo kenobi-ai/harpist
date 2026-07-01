@@ -28,6 +28,7 @@
     "reportUnused": "warn"
   },
   "rules": {
+    "repo/harpist-surface-parity": "error",
     "repo/no-root-source-files": "error",
     "structure/max-file-lines": ["error", { "max": 350 }]
   },

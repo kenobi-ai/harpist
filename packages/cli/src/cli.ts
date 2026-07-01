@@ -11,6 +11,7 @@ import { refineLatestProfile } from "./refine";
 import { buildReplayBundle } from "./replay";
 import { createHarpistBridgeServer } from "./server";
 import { createBridgeStore } from "./store";
+import { renderHarpistCliUsage } from "./surface";
 
 declare const Bun: {
 	stdin: {
@@ -87,27 +88,7 @@ const readInputFile = async (path: string) =>
 	path === "-" ? Bun.stdin.text() : readFile(path, "utf8");
 
 const usage = () => {
-	console.log(`Usage:
-  harpist bridge
-  harpist profiles list
-  harpist profiles latest [host]
-  harpist profiles get <host>
-  harpist recordings latest [host]
-  harpist recordings latest [host] --full
-  harpist recordings get <host> <id> [--full]
-  harpist refine latest [host]
-  harpist auth replay <host> [templateKey|operationName]
-  harpist contract get <host>
-  harpist openapi get <host>
-  harpist docs <host>
-  harpist docs apply <host> <docs.json|->
-  harpist docs review <host>
-  harpist handoff [host]
-
-Environment:
-  HARPIST_PORT      default 4277
-  HARPIST_HOST      default 127.0.0.1
-  HARPIST_DATA_DIR  default <caller-cwd>/.harpist-data`);
+	console.log(renderHarpistCliUsage());
 };
 
 const serveBridge = () => {

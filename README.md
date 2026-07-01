@@ -36,12 +36,24 @@ bun run harpist docs <host>
 
 ## Useful CLI
 
+<!-- harpist:cli-commands:start -->
 ```sh
+bun run harpist bridge
 bun run harpist profiles list
-bun run harpist recordings latest <host>
-bun run harpist refine latest <host>
+bun run harpist profiles latest [host]
+bun run harpist profiles get <host>
+bun run harpist recordings latest [host]
+bun run harpist recordings latest [host] --full
+bun run harpist recordings get <host> <id> [--full]
+bun run harpist refine latest [host]
+bun run harpist auth replay <host> [templateKey|operationName]
+bun run harpist contract get <host>
+bun run harpist openapi get <host>
+bun run harpist docs <host>
+bun run harpist docs apply <host> <docs.json|->
 bun run harpist docs review <host>
-bun run harpist auth replay <host> <operationName-or-templateKey>
+bun run harpist handoff [host]
 ```
+<!-- harpist:cli-commands:end -->
 
 `auth replay` prints a runnable curl command with captured browser credentials applied.

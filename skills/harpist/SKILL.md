@@ -94,34 +94,38 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 
 ## Useful Commands
 
+<!-- harpist:cli-commands:start -->
 ```sh
 harpist bridge
 harpist profiles list
-harpist profiles latest
+harpist profiles latest [host]
 harpist profiles get <host>
-harpist recordings latest <host>
-harpist recordings get <host> <recording-id>
-harpist refine latest <host>
+harpist recordings latest [host]
+harpist recordings latest [host] --full
+harpist recordings get <host> <id> [--full]
+harpist refine latest [host]
 harpist auth replay <host> [templateKey|operationName]
 harpist contract get <host>
 harpist openapi get <host>
 harpist docs <host>
 harpist docs apply <host> <docs.json|->
 harpist docs review <host>
-harpist handoff <host>
+harpist handoff [host]
 ```
+<!-- harpist:cli-commands:end -->
 
 ## Contract Surface
 
-Use these bridge methods for agent work:
+Bridge methods exposed by the contract:
 
+<!-- harpist:bridge-methods:start -->
 - `bridge.health`
-- `sync.pushExtensionSnapshot`
-- `sync.pullExtensionState`
-- `handoff.get`
+- `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
+- `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`
+- `endpoints.annotate`, `endpoints.remove`, `endpoints.upsert`
 - `auth.replay`
-- `profiles.list`, `profiles.latest`, `profiles.get`, `profiles.update`, `profiles.setAuth`, `profiles.setArtifacts`
-- `recordings.list`, `recordings.latest`, `recordings.get`, `recordings.markProcessed`
-- `endpoints.upsert`, `endpoints.annotate`, `endpoints.remove`
+- `handoff.get`
+- `sync.pullExtensionState`, `sync.pushExtensionSnapshot`
+<!-- harpist:bridge-methods:end -->
 
 The bridge is the canonical cache while active. The extension remains the recording UI and local outbox.
