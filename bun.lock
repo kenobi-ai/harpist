@@ -4,27 +4,50 @@
   "workspaces": {
     "": {
       "name": "wxt-react-starter",
-      "dependencies": {
+      "devDependencies": {
         "@biomejs/biome": "^2.5.1",
-        "@orpc/client": "^1.14.6",
-        "@orpc/contract": "^1.14.6",
+        "pokayoke": "^0.0.6",
+        "typescript": "^5.9.3",
+      },
+    },
+    "packages/cli": {
+      "name": "@harpist/cli",
+      "version": "0.0.0",
+      "bin": {
+        "harpist": "./src/cli.ts",
+      },
+      "dependencies": {
+        "@harpist/core": "workspace:*",
         "@orpc/openapi": "^1.14.6",
         "@orpc/server": "^1.14.6",
         "@orpc/zod": "^1.14.6",
-        "@phosphor-icons/react": "^2.1.10",
         "hono": "^4.12.27",
+      },
+    },
+    "packages/core": {
+      "name": "@harpist/core",
+      "version": "0.0.0",
+      "dependencies": {
+        "@orpc/client": "^1.14.6",
+        "@orpc/contract": "^1.14.6",
+        "zod": "^4.4.3",
+      },
+    },
+    "packages/extension": {
+      "name": "@harpist/extension",
+      "version": "0.0.0",
+      "dependencies": {
+        "@harpist/core": "workspace:*",
+        "@phosphor-icons/react": "^2.1.10",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
-        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@tailwindcss/vite": "^4.3.1",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
         "@wxt-dev/module-react": "^1.1.5",
-        "pokayoke": "^0.0.6",
         "tailwindcss": "^4.3.1",
-        "typescript": "^5.9.3",
         "wxt": "0.20.26",
       },
     },
@@ -127,6 +150,12 @@
     "@esbuild/win32-ia32": ["@esbuild/win32-ia32@0.27.7", "", { "os": "win32", "cpu": "ia32" }, "sha512-SmwKXe6VHIyZYbBLJrhOoCJRB/Z1tckzmgTLfFYOfpMAx63BJEaL9ExI8x7v0oAO3Zh6D/Oi1gVxEYr5oUCFhw=="],
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.7", "", { "os": "win32", "cpu": "x64" }, "sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg=="],
+
+    "@harpist/cli": ["@harpist/cli@workspace:packages/cli"],
+
+    "@harpist/core": ["@harpist/core@workspace:packages/core"],
+
+    "@harpist/extension": ["@harpist/extension@workspace:packages/extension"],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

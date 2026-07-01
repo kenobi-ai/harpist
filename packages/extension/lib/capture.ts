@@ -1,5 +1,5 @@
 import { browser } from "#imports";
-import type { CapturedCookie, PendingEntry } from "./har";
+import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
 
 type RequestWillBeSent = {
 	request: {

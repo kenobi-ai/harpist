@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo_illustration.png" alt="Harpist" width="256" />
+  <img src="packages/extension/assets/logo_illustration.png" alt="Harpist" width="256" />
 </p>
 
 # Harpist
@@ -14,7 +14,13 @@ bun dev
 bun run bridge
 ```
 
-The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `.harpist-data`.
+The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `.harpist-data` from the directory where the CLI is run.
+
+## Workspace
+
+- `packages/extension`: WXT browser extension
+- `packages/cli`: Harpist CLI and local bridge service
+- `packages/core`: shared contracts, profiles, and HAR utilities
 
 ## Workflow
 

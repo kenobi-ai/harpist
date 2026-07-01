@@ -1,10 +1,10 @@
-import type { CapturedCookie, PendingEntry } from "../lib/har";
+import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
 import {
 	type AuthBundle,
 	deriveAuthBundle,
 	type EndpointSummary,
 	type SiteProfile,
-} from "../lib/profiles";
+} from "@harpist/core/profiles";
 import type { StoredRecording } from "./store";
 
 type ReplayHeader = {

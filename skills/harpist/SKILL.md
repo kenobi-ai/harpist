@@ -5,7 +5,7 @@ description: Use when a user asks an agent to inspect, refine, or generate an AP
 
 # Harpist
 
-Harpist turns website traffic recorded by the Chrome extension into agent-usable API contracts and replayable requests. The extension records and mirrors data locally; the bridge/CLI owns the canonical local cache while this skill is running.
+Harpist turns website traffic recorded by the Chrome extension into agent-usable API contracts and replayable requests. The extension records and mirrors data locally; the CLI owns the canonical local cache while this skill is running.
 
 ## Core Model
 

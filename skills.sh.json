@@ -1,0 +1,11 @@
+{
+	"$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+	"notGrouped": "bottom",
+	"groupings": [
+		{
+			"title": "Harpist",
+			"description": "Skills for turning Harpist recordings into API docs, contracts, and replayable requests.",
+			"skills": ["harpist"]
+		}
+	]
+}

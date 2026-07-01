@@ -4,16 +4,17 @@
   "localRules": [".pokayoke/rules/**/*.rule.ts"],
   "files": [
     "README.md",
+    "skills.sh.json",
     "skills/**/*.md",
-    "bridge/**/*.ts",
-    "entrypoints/**/*.ts",
-    "entrypoints/**/*.tsx",
-    "lib/**/*.ts",
+    "packages/**/*.ts",
+    "packages/**/*.tsx",
     ".pokayoke/rules/**/*.ts",
     "biome.json",
     "package.json",
+    "packages/*/package.json",
+    "packages/*/tsconfig.json",
     "tsconfig.json",
-    "wxt.config.ts"
+    "packages/extension/wxt.config.ts"
   ],
   "ignores": ["**/node_modules/**", "**/dist/**", "**/*.d.ts"],
   "suppressions": {
@@ -27,15 +28,15 @@
   },
   "baseline": {
     "structure/max-file-lines": [
-      "bridge/docs.ts:351",
-      "bridge/refine.ts:351",
-      "bridge/replay.ts:351",
-      "bridge/store.ts:351",
-      "entrypoints/background.ts:351",
-      "entrypoints/dashboard/Dashboard.tsx:351",
-      "entrypoints/popup/App.tsx:351",
-      "lib/bridge-contract.ts:351",
-      "lib/profiles.ts:351"
+      "packages/cli/src/docs.ts:351",
+      "packages/cli/src/refine.ts:351",
+      "packages/cli/src/replay.ts:351",
+      "packages/cli/src/store.ts:351",
+      "packages/core/src/bridge-contract.ts:351",
+      "packages/core/src/profiles.ts:351",
+      "packages/extension/entrypoints/background.ts:351",
+      "packages/extension/entrypoints/dashboard/Dashboard.tsx:351",
+      "packages/extension/entrypoints/popup/App.tsx:351"
     ]
   }
 }

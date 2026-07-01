@@ -2,8 +2,8 @@ import { browser, defineBackground } from "#imports";
 import {
 	createHarpistBridgeClient,
 	type HarpistBridgeClient,
-} from "../lib/bridge-client";
-import { buildHar, hostOfEntries, type PendingEntry } from "../lib/har";
+} from "@harpist/core/bridge-client";
+import { buildHar, hostOfEntries, type PendingEntry } from "@harpist/core/har";
 import {
 	type ActiveRecording,
 	activePageFromTab,
@@ -22,7 +22,7 @@ import {
 	type StopResult,
 	type SyncResult,
 	summariseRecording,
-} from "../lib/profiles";
+} from "@harpist/core/profiles";
 import {
 	getRecordings,
 	putRecording,

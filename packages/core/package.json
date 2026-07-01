@@ -1,0 +1,23 @@
+{
+	"name": "@harpist/core",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./bridge-client": "./src/bridge-client.ts",
+		"./bridge-contract": "./src/bridge-contract.ts",
+		"./har": "./src/har.ts",
+		"./orpc": "./src/orpc.ts",
+		"./orpc-types": "./src/orpc-types.ts",
+		"./profiles": "./src/profiles.ts"
+	},
+	"scripts": {
+		"compile": "tsc --noEmit -p tsconfig.json"
+	},
+	"dependencies": {
+		"@orpc/client": "^1.14.6",
+		"@orpc/contract": "^1.14.6",
+		"zod": "^4.4.3"
+	}
+}

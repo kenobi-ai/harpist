@@ -4,9 +4,9 @@ import type {
 	EndpointSummary,
 	ProfileArtifacts,
 	SiteProfile,
-} from "../lib/profiles";
-import { deriveAuthBundle, deriveAuthSummary } from "../lib/profiles";
-import type { CapturedCookie, PendingEntry } from "../lib/har";
+} from "@harpist/core/profiles";
+import { deriveAuthBundle, deriveAuthSummary } from "@harpist/core/profiles";
+import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
 import type { BridgeStore, StoredRecording } from "./store";
 
 type EndpointDecision = {

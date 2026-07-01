@@ -5,7 +5,7 @@ import {
 	buildAgentHandoffText,
 	DEFAULT_SETTINGS,
 	normaliseServerUrl,
-} from "../lib/profiles";
+} from "@harpist/core/profiles";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
 import { refineLatestProfile } from "./refine";
 import { buildReplayBundle } from "./replay";
@@ -25,8 +25,9 @@ declare const Bun: {
 
 const port = Number(process.env.HARPIST_PORT ?? 4277);
 const hostname = process.env.HARPIST_HOST ?? "127.0.0.1";
+const workingDirectory = process.env.INIT_CWD ?? process.cwd();
 const dataDir =
-	process.env.HARPIST_DATA_DIR ?? join(process.cwd(), ".harpist-data");
+	process.env.HARPIST_DATA_DIR ?? join(workingDirectory, ".harpist-data");
 const bridgeUrl = `http://${hostname}:${port}`;
 const store = createBridgeStore(dataDir);
 
@@ -106,7 +107,7 @@ const usage = () => {
 Environment:
   HARPIST_PORT      default 4277
   HARPIST_HOST      default 127.0.0.1
-  HARPIST_DATA_DIR  default ./.harpist-data`);
+  HARPIST_DATA_DIR  default <caller-cwd>/.harpist-data`);
 };
 
 const serveBridge = () => {

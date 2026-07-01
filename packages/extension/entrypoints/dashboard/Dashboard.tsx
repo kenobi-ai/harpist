@@ -24,7 +24,7 @@ import {
 	type PopupState,
 	type ProfileAccessMethod,
 	type SiteProfile,
-} from "../../lib/profiles";
+} from "@harpist/core/profiles";
 
 const sendMessage = async <T,>(
 	message: object,

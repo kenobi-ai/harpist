@@ -2,7 +2,7 @@ import type {
 	EndpointSummary,
 	ProfileArtifacts,
 	SiteProfile,
-} from "../lib/profiles";
+} from "@harpist/core/profiles";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
 

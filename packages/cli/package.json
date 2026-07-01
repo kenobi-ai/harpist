@@ -1,0 +1,21 @@
+{
+	"name": "@harpist/cli",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"bin": {
+		"harpist": "./src/cli.ts"
+	},
+	"scripts": {
+		"bridge": "bun run src/cli.ts bridge",
+		"compile": "tsc --noEmit -p tsconfig.json",
+		"harpist": "bun run src/cli.ts"
+	},
+	"dependencies": {
+		"@harpist/core": "workspace:*",
+		"@orpc/openapi": "^1.14.6",
+		"@orpc/server": "^1.14.6",
+		"@orpc/zod": "^1.14.6",
+		"hono": "^4.12.27"
+	}
+}

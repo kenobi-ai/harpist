@@ -1,4 +1,4 @@
-import type { RecordingArchive, RecordingsStore } from "./profiles";
+import type { RecordingArchive, RecordingsStore } from "@harpist/core/profiles";
 
 const DATABASE_NAME = "harpist-recordings";
 const DATABASE_VERSION = 1;

@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { CapturedCookie, HarArchive, PendingEntry } from "../lib/har";
+import type { CapturedCookie, HarArchive, PendingEntry } from "@harpist/core/har";
 import {
 	type ActiveRecording,
 	type AuthSummary,
@@ -12,7 +12,7 @@ import {
 	type RecordingSummary,
 	type SiteProfile,
 	summariseRecording,
-} from "../lib/profiles";
+} from "@harpist/core/profiles";
 
 export type StoredRecording = RecordingSummary & {
 	har: HarArchive;

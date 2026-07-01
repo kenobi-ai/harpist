@@ -12,8 +12,9 @@ declare const Bun: {
 
 const port = Number(process.env.HARPIST_PORT ?? 4277);
 const hostname = process.env.HARPIST_HOST ?? "127.0.0.1";
+const workingDirectory = process.env.INIT_CWD ?? process.cwd();
 const dataDir =
-	process.env.HARPIST_DATA_DIR ?? join(process.cwd(), ".harpist-data");
+	process.env.HARPIST_DATA_DIR ?? join(workingDirectory, ".harpist-data");
 const bridgeUrl = `http://${hostname}:${port}`;
 const store = createBridgeStore(dataDir);
 const app = createHarpistBridgeServer({

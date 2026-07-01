@@ -4,43 +4,24 @@
 	"private": true,
 	"version": "0.0.0",
 	"type": "module",
-	"bin": {
-		"harpist": "./bridge/cli.ts"
-	},
+	"workspaces": ["packages/*"],
 	"scripts": {
-		"bridge": "bun run bridge/cli.ts bridge",
-		"harpist": "bun run bridge/cli.ts",
-		"dev": "wxt",
-		"dev:firefox": "wxt -b firefox",
-		"build": "wxt build",
-		"build:firefox": "wxt build -b firefox",
-		"zip": "wxt zip",
-		"zip:firefox": "wxt zip -b firefox",
-		"compile": "tsc --noEmit",
+		"bridge": "bun run --filter @harpist/cli bridge",
+		"build": "bun run --filter @harpist/extension build",
+		"build:firefox": "bun run --filter @harpist/extension build:firefox",
 		"check": "bun run compile && bun test ./.pokayoke/rules/*.test.ts && bun run pokayoke check",
-		"postinstall": "wxt prepare"
-	},
-	"dependencies": {
-		"@biomejs/biome": "^2.5.1",
-		"@orpc/client": "^1.14.6",
-		"@orpc/contract": "^1.14.6",
-		"@orpc/openapi": "^1.14.6",
-		"@orpc/server": "^1.14.6",
-		"@orpc/zod": "^1.14.6",
-		"@phosphor-icons/react": "^2.1.10",
-		"hono": "^4.12.27",
-		"react": "^19.2.4",
-		"react-dom": "^19.2.4",
-		"zod": "^4.4.3"
+		"cli": "bun run --filter @harpist/cli harpist",
+		"compile": "bun run --workspaces --sequential compile",
+		"dev": "bun run --filter @harpist/extension dev",
+		"dev:firefox": "bun run --filter @harpist/extension dev:firefox",
+		"harpist": "bun run --filter @harpist/cli harpist",
+		"postinstall": "bun run --filter @harpist/extension prepare",
+		"zip": "bun run --filter @harpist/extension zip",
+		"zip:firefox": "bun run --filter @harpist/extension zip:firefox"
 	},
 	"devDependencies": {
-		"@tailwindcss/vite": "^4.3.1",
-		"@types/react": "^19.2.14",
-		"@types/react-dom": "^19.2.3",
-		"@wxt-dev/module-react": "^1.1.5",
+		"@biomejs/biome": "^2.5.1",
 		"pokayoke": "^0.0.6",
-		"tailwindcss": "^4.3.1",
-		"typescript": "^5.9.3",
-		"wxt": "0.20.26"
+		"typescript": "^5.9.3"
 	}
 }
