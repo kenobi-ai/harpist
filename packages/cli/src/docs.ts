@@ -1,8 +1,5 @@
-import type {
-	EndpointSummary,
-	ProfileArtifacts,
-	SiteProfile,
-} from "@harpist/core/profiles";
+import type { ProfileArtifacts, SiteProfile } from "@harpist/core/profiles";
+import { buildRecordedSiteArtifacts } from "./artifacts";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
 
@@ -11,10 +8,6 @@ type OpenApiOperation = Record<string, unknown> & {
 	operationId?: string;
 	summary?: string;
 	tags?: string[];
-};
-
-type OpenApiDocument = Record<string, unknown> & {
-	paths?: Record<string, Record<string, OpenApiOperation>>;
 };
 
 type EndpointDocInput = {
@@ -65,8 +58,6 @@ const placeholderPatterns = [
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
-
-const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const optionalString = (value: unknown, field: string) => {
 	if (value === undefined) {
@@ -199,149 +190,6 @@ const matchEndpoint = (profile: SiteProfile, doc: EndpointDocInput) => {
 	return matches[0];
 };
 
-const pathParameters = (template: string) =>
-	[
-		...new Set([...template.matchAll(/\{([^}]+)\}/g)].map((match) => match[1])),
-	].map((name) => ({
-		in: "path",
-		name,
-		required: true,
-		schema: {
-			type: "string",
-		},
-	}));
-
-const responseObject = (endpoint: EndpointSummary) => {
-	const statuses = endpoint.statuses.length > 0 ? endpoint.statuses : [200];
-	return Object.fromEntries(
-		statuses.map((status) => [
-			String(status),
-			{
-				description: status >= 400 ? "Error response" : "Observed response",
-			},
-		]),
-	);
-};
-
-const openApiDocument = (profile: SiteProfile): OpenApiDocument => {
-	if (isRecord(profile.artifacts?.openapi)) {
-		return cloneJson(profile.artifacts.openapi) as OpenApiDocument;
-	}
-	return {
-		info: {
-			description: `Generated from Harpist recordings for ${profile.host}.`,
-			title: `${profile.displayName} API`,
-			version: "0.1.0",
-		},
-		openapi: "3.1.0",
-		paths: {},
-		"x-harpist": {
-			host: profile.host,
-			source: "harpist docs apply",
-		},
-	};
-};
-
-const findOperation = (
-	openapi: OpenApiDocument,
-	endpoint: EndpointSummary,
-	operationName?: string,
-): OperationRef | null => {
-	for (const [path, pathItem] of Object.entries(openapi.paths ?? {})) {
-		if (!isRecord(pathItem)) {
-			continue;
-		}
-		for (const method of httpMethods) {
-			const operation = pathItem[method];
-			if (!isRecord(operation)) {
-				continue;
-			}
-			const harpist = operation["x-harpist"];
-			const endpointKey =
-				isRecord(harpist) && typeof harpist.endpointKey === "string"
-					? harpist.endpointKey
-					: undefined;
-			if (
-				method === endpoint.method.toLowerCase() &&
-				(endpointKey === endpoint.templateKey ||
-					operation.operationId === operationName ||
-					operation.operationId === endpoint.operationName ||
-					path === endpoint.template)
-			) {
-				return {
-					method,
-					operation: operation as OpenApiOperation,
-					path,
-				};
-			}
-		}
-	}
-	return null;
-};
-
-const ensureOperation = (
-	openapi: OpenApiDocument,
-	endpoint: EndpointSummary,
-	operationName: string,
-) => {
-	openapi.paths ??= {};
-	const method = endpoint.method.toLowerCase();
-	openapi.paths[endpoint.template] ??= {};
-	const existing = findOperation(openapi, endpoint, operationName);
-	if (existing) {
-		return existing;
-	}
-	openapi.paths[endpoint.template][method] = {
-		operationId: operationName,
-		parameters: pathParameters(endpoint.template),
-		responses: responseObject(endpoint),
-		servers: [
-			{
-				url: `https://${endpoint.host}`,
-			},
-		],
-		"x-harpist": {
-			access: endpoint.access,
-			endpointKey: endpoint.templateKey,
-		},
-	};
-	return {
-		method,
-		operation: openapi.paths[endpoint.template][method],
-		path: endpoint.template,
-	};
-};
-
-const removeOperation = (
-	openapi: OpenApiDocument,
-	endpoint: EndpointSummary,
-) => {
-	const existing = findOperation(openapi, endpoint, endpoint.operationName);
-	if (!existing || !openapi.paths?.[existing.path]) {
-		return;
-	}
-	delete openapi.paths[existing.path][existing.method];
-	if (Object.keys(openapi.paths[existing.path]).length === 0) {
-		delete openapi.paths[existing.path];
-	}
-};
-
-const replayInstruction = (host: string, selector: string) =>
-	`Replay with captured credentials: \`harpist auth replay ${host} ${selector}\`.`;
-
-const descriptionWithReplay = (
-	description: string,
-	host: string,
-	selector: string,
-) => {
-	if (
-		/harpist auth replay|auth\.replay|captured credentials/i.test(description)
-	) {
-		return description;
-	}
-	return `${description}\n\n${replayInstruction(host, selector)}`;
-};
-
 const buildCliArtifact = (profile: SiteProfile) =>
 	[
 		`# ${profile.host}`,
@@ -357,35 +205,6 @@ const buildCliArtifact = (profile: SiteProfile) =>
 		"Use `harpist docs review <host>` to check documentation quality.",
 		"Use `harpist auth replay <host> <operationName-or-templateKey>` to get a runnable curl command with captured credentials.",
 	].join("\n");
-
-const buildContractArtifact = (profile: SiteProfile) => {
-	const lines = [
-		'import { z } from "zod";',
-		"",
-		`export const ${profile.host.replace(/[^a-zA-Z0-9]/g, "_")}Contract = {`,
-	];
-	for (const endpoint of profile.endpoints.filter(
-		(item) => item.included !== false,
-	)) {
-		const operationName =
-			endpoint.operationName ??
-			endpoint.templateKey.replace(/[^a-zA-Z0-9_$]/g, "_");
-		lines.push(
-			`  ${operationName}: {`,
-			`    method: "${endpoint.method}",`,
-			`    host: "${endpoint.host}",`,
-			`    path: "${endpoint.template}",`,
-			"    input: z.record(z.string(), z.unknown()).optional(),",
-			"    output: z.unknown(),",
-			`    description: "${(endpoint.notes ?? endpoint.description ?? "")
-				.replace(/\\/g, "\\\\")
-				.replace(/"/g, '\\"')}",`,
-			"  },",
-		);
-	}
-	lines.push("};", "");
-	return lines.join("\n");
-};
 
 export const applyProfileDocs = async (
 	store: BridgeStore,
@@ -403,8 +222,7 @@ export const applyProfileDocs = async (
 	}
 	const profile = await store.requireProfile(options.host);
 	const now = new Date().toISOString();
-	const openapi = openApiDocument(profile);
-	const source = input.source ?? "harpist skill";
+	const source = input.source ?? "harpist docs apply";
 	const nextEndpoints = [...profile.endpoints];
 	const applied: string[] = [];
 
@@ -427,65 +245,38 @@ export const applyProfileDocs = async (
 			operationName,
 			tags,
 		};
-		if (!included) {
-			removeOperation(openapi, endpoint);
-			applied.push(endpoint.templateKey);
-			continue;
-		}
-		const operation = ensureOperation(
-			openapi,
-			endpoint,
-			operationName,
-		).operation;
-		const harpist = isRecord(operation["x-harpist"])
-			? operation["x-harpist"]
-			: {};
-		operation.description = descriptionWithReplay(
-			doc.description,
-			profile.host,
-			operationName,
-		);
-		operation.operationId = operationName;
-		operation.summary = doc.summary;
-		operation.tags = tags && tags.length > 0 ? tags : ["api"];
-		operation["x-harpist"] = {
-			...harpist,
-			access: endpoint.access,
-			documentationSource: source,
-			documentationUpdatedAt: now,
-			endpointKey: endpoint.templateKey,
-			replayCommand: `harpist auth replay ${profile.host} ${operationName}`,
-		};
 		applied.push(endpoint.templateKey);
 	}
 
 	const includedEndpoints = nextEndpoints.filter(
 		(endpoint) => endpoint.included !== false,
 	);
-	const nextProfile: SiteProfile = {
+	const artifactProfile: SiteProfile = {
 		...profile,
-		agentNotes:
-			input.agentNotes ??
-			`${profile.host} docs refined by ${source}; endpoint descriptions are profile metadata.`,
-		artifacts: {
-			...profile.artifacts,
-			cli: buildCliArtifact({
-				...profile,
-				endpoints: nextEndpoints,
-			}),
-			contract: buildContractArtifact({
-				...profile,
-				endpoints: nextEndpoints,
-			}),
-			openapi,
-			status: input.status ?? "ready",
-			updatedAt: now,
-		},
 		derivedEndpointCount: includedEndpoints.length,
 		endpointTemplateKeys: includedEndpoints.map(
 			(endpoint) => endpoint.templateKey,
 		),
 		endpoints: nextEndpoints,
+	};
+	const generatedArtifacts = await buildRecordedSiteArtifacts(artifactProfile, {
+		auth:
+			profile.artifacts?.auth ??
+			profile.authBundle?.label ??
+			profile.auth.label,
+		cli: buildCliArtifact(artifactProfile),
+		paths: store.getSiteArtifactPaths(profile.host),
+		source,
+		status: input.status ?? "ready",
+		updatedAt: now,
+	});
+	await store.writeSiteArtifacts(profile.host, generatedArtifacts.files);
+	const nextProfile: SiteProfile = {
+		...artifactProfile,
+		agentNotes:
+			input.agentNotes ??
+			`${profile.host} docs refined by ${source}; endpoint descriptions are profile metadata.`,
+		artifacts: generatedArtifacts.profileArtifacts,
 		lastBridgeMessage: input.lastBridgeMessage ?? `Docs refined by ${source}`,
 		remoteDocsUrl: `${options.bridgeUrl}/profiles/${encodeURIComponent(
 			profile.host,
@@ -553,15 +344,36 @@ export const reviewProfileDocs = async (
 	},
 ) => {
 	const profile = await store.requireProfile(options.host);
-	const operations = operationsFromOpenApi(profile.artifacts?.openapi);
+	const openapi = await store.readProfileOpenApi(profile.host);
+	const contractSource = await store.readProfileContract(profile.host);
+	const operations = operationsFromOpenApi(openapi);
 	const includedEndpoints = profile.endpoints.filter(
 		(endpoint) => endpoint.included !== false,
 	);
 	const issues: string[] = [];
 	const warnings: string[] = [];
 
-	if (!profile.artifacts?.openapi) {
+	if (!openapi) {
 		issues.push("No OpenAPI artifact has been written.");
+	}
+	if (
+		!contractSource ||
+		!profile.artifacts?.contractPath ||
+		profile.artifacts.contractFormat !== "orpc-typescript-source" ||
+		profile.artifacts.generatedFrom !== "profile" ||
+		!contractSource.includes('from "@orpc/contract"') ||
+		!contractSource.includes(".route(")
+	) {
+		issues.push("Contract artifact is not oRPC contract source.");
+	}
+	const rootHarpist = isRecord(openapi) ? openapi["x-harpist"] : undefined;
+	if (
+		profile.artifacts?.openapiSource !== "contract-file" ||
+		!profile.artifacts.openapiPath ||
+		!isRecord(rootHarpist) ||
+		rootHarpist.sourceArtifact !== "contract.ts"
+	) {
+		issues.push("OpenAPI artifact was not generated from contract.ts.");
 	}
 	if (operations.length === 0) {
 		issues.push("OpenAPI artifact has no operations.");

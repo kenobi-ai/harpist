@@ -5,8 +5,8 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { type BridgeContext, harpistRouter } from "./router";
 import { buildReplayBundle } from "./replay";
+import { type BridgeContext, harpistRouter } from "./router";
 import type { BridgeStore } from "./store";
 
 const shouldLog = (error: unknown) =>
@@ -73,27 +73,20 @@ const docsPage = (host: string) =>
 		"</html>",
 	].join("\n");
 
-const httpMethods = [
-	"delete",
-	"get",
-	"head",
-	"options",
-	"patch",
-	"post",
-	"put",
-	"trace",
-] as const;
+const httpMethods = ["delete", "get", "head", "options", "patch", "post", "put", "trace"] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
-const cloneJson = <T>(value: T): T =>
-	JSON.parse(JSON.stringify(value)) as T;
+const cloneJson = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const replaySource = (warnings: string[], curl: string) =>
+	[...warnings.map((warning) => `# warning: ${warning}`), curl].join("\n");
+
+const replayCommandSource = (command: string) =>
 	[
-		...warnings.map((warning) => `# warning: ${warning}`),
-		curl,
+		"# Uses the latest Harpist auth at runtime; no credential values are stored in contract.ts.",
+		command,
 	].join("\n");
 
 const openApiWithReplayExamples = async (input: {
@@ -126,6 +119,10 @@ const openApiWithReplayExamples = async (input: {
 			if (!endpointKey) {
 				continue;
 			}
+			const replayCommand =
+				isRecord(harpist) && typeof harpist.replayCommand === "string"
+					? harpist.replayCommand
+					: `harpist auth replay ${input.profile.host} ${endpointKey}`;
 			try {
 				const bundle = buildReplayBundle({
 					profile: input.profile,
@@ -134,17 +131,44 @@ const openApiWithReplayExamples = async (input: {
 				});
 				const examples = [
 					{
-						label: "Harpist auth curl",
+						label: "Harpist replay command",
+						lang: "Shell",
+						source: replayCommandSource(replayCommand),
+					},
+					{
+						label:
+							bundle.authValueSource === "latest-auth"
+								? "Latest auth curl"
+								: "Recorded auth curl",
 						lang: "Shell",
 						source: replaySource(bundle.warnings, bundle.curl),
 					},
 				];
 				operation["x-codeSamples"] = examples;
 				operation["x-scalar-examples"] = examples;
+				const runtimeAuth =
+					isRecord(harpist) && isRecord(harpist.runtimeAuth)
+						? harpist.runtimeAuth
+						: {};
+				operation["x-harpist"] = {
+					...(isRecord(harpist) ? harpist : {}),
+					runtimeAuth: {
+						...runtimeAuth,
+						bindsCredentialValues: false,
+						latestAuth: bundle.latestAuth,
+						source: bundle.authValueSource,
+						warnings: bundle.warnings,
+					},
+				};
 			} catch (error) {
 				operation["x-codeSamples"] = [
 					{
-						label: "Harpist replay unavailable",
+						label: "Harpist replay command",
+						lang: "Shell",
+						source: replayCommandSource(replayCommand),
+					},
+					{
+						label: "Latest auth unavailable",
 						lang: "Shell",
 						source: `# ${error instanceof Error ? error.message : String(error)}`,
 					},
@@ -254,13 +278,19 @@ export const createHarpistBridgeServer = (options: {
 					: "";
 			return c.text(`${warnings}${bundle.curl}`);
 		} catch (error) {
-			return c.text(error instanceof Error ? error.message : String(error), 400);
+			return c.text(
+				error instanceof Error ? error.message : String(error),
+				400,
+			);
 		}
 	});
 
 	app.get("/profiles/:host/openapi.json", async (c) => {
-		const profile = await options.store.getProfile(c.req.param("host"));
-		const openapi = profile?.artifacts?.openapi;
+		const host = c.req.param("host");
+		const profile = await options.store.getProfile(host);
+		const openapi = profile
+			? await options.store.readProfileOpenApi(host)
+			: null;
 		if (!openapi) {
 			return c.json(
 				{
@@ -273,8 +303,11 @@ export const createHarpistBridgeServer = (options: {
 	});
 
 	app.get("/profiles/:host/openapi.scalar.json", async (c) => {
-		const profile = await options.store.getProfile(c.req.param("host"));
-		const openapi = profile?.artifacts?.openapi;
+		const host = c.req.param("host");
+		const profile = await options.store.getProfile(host);
+		const openapi = profile
+			? await options.store.readProfileOpenApi(host)
+			: null;
 		if (!openapi) {
 			return c.json(
 				{

@@ -3,6 +3,8 @@ import {
 	type AuthBundle,
 	deriveAuthBundle,
 	type EndpointSummary,
+	redactLatestAuth,
+	type RedactedLatestAuth,
 	type SiteProfile,
 } from "@harpist/core/profiles";
 import type { StoredRecording } from "./store";
@@ -21,6 +23,7 @@ type ReplayCookie = CapturedCookie & {
 
 export type ReplayBundle = {
 	authBundle: AuthBundle;
+	authValueSource: "latest-auth" | "recording";
 	body?: string;
 	contentType?: string;
 	cookies: ReplayCookie[];
@@ -28,6 +31,7 @@ export type ReplayBundle = {
 	curl: string;
 	endpoint: EndpointSummary;
 	headers: ReplayHeader[];
+	latestAuth?: RedactedLatestAuth;
 	method: string;
 	recordingId: string;
 	redactedCurl: string;
@@ -157,6 +161,73 @@ const rootDomain = (host: string) => {
 const sameSiteHost = (candidate: string, profileHost: string) => {
 	const root = rootDomain(profileHost);
 	return candidate === profileHost || candidate.endsWith(`.${root}`);
+};
+
+const cookieDomainMatches = (domain: string, host: string) => {
+	const cleanDomain = domain.replace(/^\./, "").toLowerCase();
+	const cleanHost = host.toLowerCase();
+	return cleanHost === cleanDomain || cleanHost.endsWith(`.${cleanDomain}`);
+};
+
+const authValueMatchesHost = (
+	value: NonNullable<SiteProfile["latestAuth"]>["values"][number],
+	host: string,
+) => {
+	if (value.domain) {
+		return cookieDomainMatches(value.domain, host);
+	}
+	if (value.host) {
+		return sameSiteHost(value.host, host);
+	}
+	return true;
+};
+
+const latestAuthEntryForEndpoint = (
+	profile: SiteProfile,
+	endpoint: EndpointSummary,
+): PendingEntry | null => {
+	const latestAuth = profile.latestAuth;
+	if (!latestAuth || latestAuth.values.length === 0) {
+		return null;
+	}
+	const values = latestAuth.values.filter(
+		(value) =>
+			value.replayable &&
+			value.value &&
+			authValueMatchesHost(value, endpoint.host),
+	);
+	if (values.length === 0) {
+		return null;
+	}
+	const requestCookies: CapturedCookie[] = values
+		.filter((value) => value.kind === "cookie")
+		.map((value) => ({
+			domain: value.domain,
+			expiresAt: value.expiresAt,
+			httpOnly: value.httpOnly,
+			name: value.name,
+			sameSite: value.sameSite,
+			secure: value.secure,
+			session: value.session,
+			value: value.value,
+		}));
+	const requestHeaders = Object.fromEntries(
+		values
+			.filter((value) => value.kind === "header")
+			.map((value) => [value.name, value.value]),
+	);
+	const cookieHeader = cookieHeaderFromCookies(requestCookies);
+	if (cookieHeader) {
+		requestHeaders.Cookie = cookieHeader;
+	}
+	return {
+		method: endpoint.method,
+		requestCookies: requestCookies.length > 0 ? requestCookies : undefined,
+		requestHeaders,
+		startedDateTime:
+			latestAuth.capturedAt ?? values[0]?.capturedAt ?? new Date().toISOString(),
+		url: `https://${endpoint.host}${endpoint.path}`,
+	};
 };
 
 const selectedEndpoints = (
@@ -567,9 +638,11 @@ export const buildReplayBundle = (input: {
 	if (!endpoint || !entry || !sampleRecording) {
 		throw new Error("No sampled request was found for this endpoint.");
 	}
+	const latestAuthEntry = latestAuthEntryForEndpoint(input.profile, endpoint);
+	const authValueSource = latestAuthEntry ? "latest-auth" : "recording";
 	entry = withCredentialMaterial(
 		entry,
-		credentialEntryForEndpoint(recordings, endpoint),
+		latestAuthEntry ?? credentialEntryForEndpoint(recordings, endpoint),
 	);
 	const headers = replayHeaders(entry, {
 		includeSecrets: true,
@@ -581,6 +654,16 @@ export const buildReplayBundle = (input: {
 	const warnings: string[] = [];
 	if (authBundle.status !== "ready") {
 		warnings.push("Auth bundle needs recapture.");
+	}
+	if (authValueSource === "latest-auth" && input.profile.latestAuth) {
+		if (input.profile.latestAuth.status === "expired") {
+			warnings.push("Latest auth values are expired; recapture auth.");
+		} else if (input.profile.latestAuth.status === "validation-needed") {
+			warnings.push("Latest auth values need validation.");
+		}
+		for (const warning of input.profile.latestAuth.warnings ?? []) {
+			warnings.push(warning);
+		}
 	}
 	if (entry.status !== undefined && entry.status >= 400) {
 		warnings.push(
@@ -604,6 +687,7 @@ export const buildReplayBundle = (input: {
 	}
 	return {
 		authBundle,
+		authValueSource,
 		body,
 		contentType: entry.postDataMime,
 		cookies: replayCookies(entry.requestCookies, {
@@ -618,6 +702,7 @@ export const buildReplayBundle = (input: {
 		}),
 		endpoint,
 		headers,
+		latestAuth: redactLatestAuth(input.profile.latestAuth),
 		method: entry.method,
 		recordingId: sampleRecording.id,
 		redactedCurl: curlFrom({

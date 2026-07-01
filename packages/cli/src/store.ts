@@ -1,10 +1,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { CapturedCookie, HarArchive, PendingEntry } from "@harpist/core/har";
+import type {
+	CapturedCookie,
+	HarArchive,
+	PendingEntry,
+} from "@harpist/core/har";
 import {
 	type ActiveRecording,
 	type AuthSummary,
 	type EndpointSummary,
+	type LatestAuth,
 	mergeProfile,
 	normaliseServerUrl,
 	type ProfileArtifacts,
@@ -13,6 +18,7 @@ import {
 	type SiteProfile,
 	summariseRecording,
 } from "@harpist/core/profiles";
+import type { SiteArtifactFiles, SiteArtifactPaths } from "./artifacts";
 
 export type StoredRecording = RecordingSummary & {
 	har: HarArchive;
@@ -46,6 +52,13 @@ const writeJson = async (file: string, value: unknown) => {
 	await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 };
 
+const writeText = async (file: string, value: string) => {
+	await mkdir(dirname(file), {
+		recursive: true,
+	});
+	await writeFile(file, value, "utf8");
+};
+
 const slug = (value: string) =>
 	encodeURIComponent(value).replace(/%/g, "_").replace(/\./g, "-");
 
@@ -67,7 +80,9 @@ const headersFromHar = (headers: unknown): Record<string, string> => {
 	return next;
 };
 
-const requestCookiesFromHar = (request: unknown): CapturedCookie[] | undefined => {
+const requestCookiesFromHar = (
+	request: unknown,
+): CapturedCookie[] | undefined => {
 	if (typeof request !== "object" || request === null) {
 		return undefined;
 	}
@@ -75,7 +90,8 @@ const requestCookiesFromHar = (request: unknown): CapturedCookie[] | undefined =
 	if (typeof harpist !== "object" || harpist === null) {
 		return undefined;
 	}
-	const requestCookies = (harpist as { requestCookies?: unknown }).requestCookies;
+	const requestCookies = (harpist as { requestCookies?: unknown })
+		.requestCookies;
 	if (!Array.isArray(requestCookies)) {
 		return undefined;
 	}
@@ -89,8 +105,7 @@ const requestCookiesFromHar = (request: unknown): CapturedCookie[] | undefined =
 				return null;
 			}
 			return {
-				domain:
-					typeof cookie.domain === "string" ? cookie.domain : undefined,
+				domain: typeof cookie.domain === "string" ? cookie.domain : undefined,
 				expiresAt:
 					typeof cookie.expiresAt === "string" ? cookie.expiresAt : undefined,
 				httpOnly:
@@ -204,6 +219,21 @@ const refreshEndpointCounts = (profile: SiteProfile): SiteProfile => {
 	};
 };
 
+const newestLatestAuth = (
+	left?: LatestAuth,
+	right?: LatestAuth,
+): LatestAuth | undefined => {
+	if (!left) {
+		return right;
+	}
+	if (!right) {
+		return left;
+	}
+	return (right.capturedAt ?? "").localeCompare(left.capturedAt ?? "") > 0
+		? right
+		: left;
+};
+
 const mergeProfileSnapshot = (
 	existing: SiteProfile | undefined,
 	incoming: SiteProfile,
@@ -230,6 +260,7 @@ const mergeProfileSnapshot = (
 	for (const recording of existing?.recordings ?? []) {
 		recordingById.set(recording.id, recording);
 	}
+	const latestAuth = newestLatestAuth(existing?.latestAuth, incoming.latestAuth);
 	return refreshEndpointCounts({
 		...base,
 		agentNotes: existing?.agentNotes ?? incoming.agentNotes,
@@ -238,6 +269,7 @@ const mergeProfileSnapshot = (
 			left.templateKey.localeCompare(right.templateKey),
 		),
 		lastBridgeMessage: "Bridge synced",
+		latestAuth,
 		recordings: [...recordingById.values()]
 			.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
 			.slice(0, 20),
@@ -251,6 +283,15 @@ export const createBridgeStore = (dataDir: string) => {
 	const indexFile = join(dataDir, "profiles.json");
 	const recordingFile = (host: string, id: string) =>
 		join(dataDir, "recordings", slug(host), `${id}.json`);
+	const siteArtifactPaths = (host: string): SiteArtifactPaths => {
+		const directory = join("sites", slug(host));
+		return {
+			contractPath: join(directory, "contract.ts"),
+			metadataPath: join(directory, "metadata.json"),
+			openapiPath: join(directory, "openapi.json"),
+		};
+	};
+	const artifactFile = (path: string) => join(dataDir, path);
 
 	const readIndex = async (): Promise<StoreIndex> =>
 		(await readJsonOrNull<StoreIndex>(indexFile)) ?? {
@@ -278,6 +319,30 @@ export const createBridgeStore = (dataDir: string) => {
 
 	const readRecording = (host: string, id: string) =>
 		readJsonOrNull<StoredRecording>(recordingFile(host, id));
+
+	const readProfileArtifactText = async (
+		host: string,
+		pathKey: "contractPath",
+	) => {
+		const profile = await requireProfile(host);
+		const path = profile.artifacts?.[pathKey];
+		if (!path) {
+			return null;
+		}
+		return readFile(artifactFile(path), "utf8");
+	};
+
+	const readProfileArtifactJson = async <T>(
+		host: string,
+		pathKey: "metadataPath" | "openapiPath",
+	) => {
+		const profile = await requireProfile(host);
+		const path = profile.artifacts?.[pathKey];
+		if (!path) {
+			return null;
+		}
+		return readJsonOrNull<T>(artifactFile(path));
+	};
 
 	const ingestRecording = async (input: {
 		bridgeUrl: string;
@@ -400,6 +465,7 @@ export const createBridgeStore = (dataDir: string) => {
 			return saveProfile(refreshEndpointCounts({ ...profile, endpoints }));
 		},
 		getProfile,
+		getSiteArtifactPaths: siteArtifactPaths,
 		getRecording: readRecording,
 		ingestRecording,
 		ingestExtensionSnapshot,
@@ -456,6 +522,12 @@ export const createBridgeStore = (dataDir: string) => {
 			);
 		},
 		requireProfile,
+		readProfileContract: (host: string) =>
+			readProfileArtifactText(host, "contractPath"),
+		readProfileMetadata: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "metadataPath"),
+		readProfileOpenApi: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "openapiPath"),
 		saveProfile,
 		setArtifacts: async (host: string, artifacts: ProfileArtifacts) => {
 			const profile = await requireProfile(host);
@@ -506,6 +578,13 @@ export const createBridgeStore = (dataDir: string) => {
 					),
 				}),
 			);
+		},
+		writeSiteArtifacts: async (host: string, files: SiteArtifactFiles) => {
+			const paths = siteArtifactPaths(host);
+			await writeText(artifactFile(paths.contractPath), files.contractSource);
+			await writeJson(artifactFile(paths.metadataPath), files.metadata);
+			await writeJson(artifactFile(paths.openapiPath), files.openapi);
+			return paths;
 		},
 	};
 };

@@ -69,8 +69,8 @@ const refineSummary = (
 ) => ({
 	artifacts: result.profile.artifacts
 		? {
-				contract: Boolean(result.profile.artifacts.contract),
-				openapi: Boolean(result.profile.artifacts.openapi),
+				contract: result.profile.artifacts.contractPath,
+				openapi: result.profile.artifacts.openapiPath,
 				status: result.profile.artifacts.status,
 				updatedAt: result.profile.artifacts.updatedAt,
 			}
@@ -203,7 +203,7 @@ if (command === "bridge") {
 		process.exit(1);
 	}
 	const profile = await profileForHost(hostArg(args[1]));
-	const contract = profile.artifacts?.contract;
+	const contract = await store.readProfileContract(profile.host);
 	if (!contract) {
 		fail(`No contract artifact for '${profile.host}'.`);
 	}
@@ -214,7 +214,7 @@ if (command === "bridge") {
 		process.exit(1);
 	}
 	const profile = await profileForHost(hostArg(args[1]));
-	const openapi = profile.artifacts?.openapi;
+	const openapi = await store.readProfileOpenApi(profile.host);
 	if (!openapi) {
 		fail(`No OpenAPI artifact for '${profile.host}'.`);
 	}

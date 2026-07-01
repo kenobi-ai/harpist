@@ -56,6 +56,82 @@ const authBundleSchema = z.object({
 	warnings: z.array(z.string()).optional(),
 });
 
+const latestAuthValidationSchema = z.object({
+	checkedAt: z.string().optional(),
+	reason: z.string().optional(),
+	status: z.enum(["not-checked", "valid", "validation-needed"]),
+	statusCode: z.number().int().optional(),
+});
+
+const latestAuthValueSchema = z.object({
+	capturedAt: z.string(),
+	credentialed: z.boolean(),
+	domain: z.string().optional(),
+	expiresAt: z.string().optional(),
+	host: z.string().optional(),
+	httpOnly: z.boolean().optional(),
+	kind: z.enum(["cookie", "header"]),
+	name: z.string(),
+	recordingId: z.string().optional(),
+	replayable: z.boolean(),
+	sameSite: z.string().optional(),
+	secure: z.boolean().optional(),
+	session: z.boolean().optional(),
+	source: z.literal("recording"),
+	type: z.enum([
+		"anonymous-cookie",
+		"api-key",
+		"authorization",
+		"basic-auth",
+		"bearer-token",
+		"browser-session",
+		"cookie-csrf",
+		"csrf-token",
+		"mixed",
+		"none",
+		"public-client-key",
+		"session-cookie",
+		"signed-request",
+		"unknown",
+	]),
+	url: z.string().optional(),
+	validation: latestAuthValidationSchema.optional(),
+	value: z.string(),
+});
+
+const latestAuthSchema = z.object({
+	capturedAt: z.string().optional(),
+	label: z.string(),
+	recordingId: z.string().optional(),
+	status: z.enum([
+		"expired",
+		"needs-recording",
+		"ready",
+		"validation-needed",
+	]),
+	validation: latestAuthValidationSchema,
+	valueCount: z.number().int(),
+	values: z.array(latestAuthValueSchema),
+	warnings: z.array(z.string()).optional(),
+});
+
+const redactedLatestAuthValueSchema = latestAuthValueSchema
+	.omit({
+		value: true,
+	})
+	.extend({
+		redacted: z.literal(true),
+		valuePreview: z.string().optional(),
+	});
+
+const redactedLatestAuthSchema = latestAuthSchema
+	.omit({
+		values: true,
+	})
+	.extend({
+		values: z.array(redactedLatestAuthValueSchema),
+	});
+
 const accessTypeSchema = z.enum([
 	"api-key",
 	"basic-auth",
@@ -119,13 +195,22 @@ const recordingSummarySchema = z.object({
 	processingStatus: z.enum(["new", "processing", "complete"]).optional(),
 	sourceUrl: z.string(),
 	scannedEndpointCount: z.number().int(),
+	latestAuth: latestAuthSchema.optional(),
 });
 
 const profileArtifactSchema = z.object({
 	auth: z.string().optional(),
 	cli: z.string().optional(),
-	contract: z.string().optional(),
-	openapi: z.unknown().optional(),
+	contractExport: z.string().optional(),
+	contractFormat: z.literal("orpc-typescript-source").optional(),
+	contractPath: z.string().optional(),
+	contractSha256: z.string().optional(),
+	generatedFrom: z.literal("profile").optional(),
+	metadataPath: z.string().optional(),
+	metadataSha256: z.string().optional(),
+	openapiPath: z.string().optional(),
+	openapiSha256: z.string().optional(),
+	openapiSource: z.literal("contract-file").optional(),
 	sdk: z.string().optional(),
 	status: z.enum(["missing", "draft", "ready"]),
 	updatedAt: z.string(),
@@ -143,6 +228,7 @@ const siteProfileSchema = z.object({
 	endpoints: z.array(endpointSummarySchema),
 	host: z.string(),
 	lastBridgeMessage: z.string().optional(),
+	latestAuth: latestAuthSchema.optional(),
 	lastRecordingId: z.string().optional(),
 	origin: z.string(),
 	recordingCount: z.number().int(),
@@ -208,6 +294,7 @@ const replayCookieSchema = z.object({
 
 const replayBundleSchema = z.object({
 	authBundle: authBundleSchema,
+	authValueSource: z.enum(["latest-auth", "recording"]),
 	body: z.string().optional(),
 	contentType: z.string().optional(),
 	cookies: z.array(replayCookieSchema),
@@ -215,6 +302,7 @@ const replayBundleSchema = z.object({
 	curl: z.string(),
 	endpoint: endpointSummarySchema,
 	headers: z.array(replayHeaderSchema),
+	latestAuth: redactedLatestAuthSchema.optional(),
 	method: z.string(),
 	recordingId: z.string(),
 	redactedCurl: z.string(),

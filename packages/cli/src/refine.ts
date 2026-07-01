@@ -1,3 +1,4 @@
+import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
 import type {
 	AccessSummary,
 	AuthSummary,
@@ -5,8 +6,12 @@ import type {
 	ProfileArtifacts,
 	SiteProfile,
 } from "@harpist/core/profiles";
-import { deriveAuthBundle, deriveAuthSummary } from "@harpist/core/profiles";
-import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
+import {
+	deriveAuthBundle,
+	deriveAuthSummary,
+	deriveLatestAuth,
+} from "@harpist/core/profiles";
+import { buildRecordedSiteArtifacts } from "./artifacts";
 import type { BridgeStore, StoredRecording } from "./store";
 
 type EndpointDecision = {
@@ -294,10 +299,7 @@ const actionForEndpoint = (endpoint: EndpointSummary, words: string[]) => {
 	return "Get";
 };
 
-const endpointDocumentation = (
-	endpoint: EndpointSummary,
-	category: string,
-) => {
+const endpointDocumentation = (endpoint: EndpointSummary, category: string) => {
 	const path = `${endpoint.template} ${endpoint.path}`.toLowerCase();
 	const words = endpointWords(endpoint);
 	const action = actionForEndpoint(endpoint, words);
@@ -390,113 +392,6 @@ const classifyEndpoint = (
 	};
 };
 
-const responseObject = (endpoint: EndpointSummary) => {
-	const statuses = endpoint.statuses.length > 0 ? endpoint.statuses : [200];
-	return Object.fromEntries(
-		statuses.map((status) => [
-			String(status),
-			{
-				description: status >= 400 ? "Error response" : "Observed response",
-			},
-		]),
-	);
-};
-
-const pathParameters = (template: string) =>
-	[...new Set([...template.matchAll(/\{([^}]+)\}/g)].map((match) => match[1]))]
-		.map((name) => ({
-			in: "path",
-			name,
-			required: true,
-			schema: {
-				type: "string",
-			},
-		}));
-
-const buildOpenApi = (profile: SiteProfile, decisions: EndpointDecision[]) => {
-	const paths: Record<string, Record<string, unknown>> = {};
-	for (const decision of decisions.filter((item) => item.included)) {
-		const endpoint = decision.endpoint;
-		const method = endpoint.method.toLowerCase();
-		const docsTags = decision.tags.filter(
-			(tag) =>
-				![
-					"api",
-					"preflight",
-					"same-site",
-					"static",
-					"third-party",
-				].includes(tag),
-		);
-		paths[endpoint.template] ??= {};
-		paths[endpoint.template][method] = {
-			description: decision.access
-				? `${decision.notes}\n\nAccess: ${decision.access.label}. Use the Harpist auth curl example to replay with captured credentials.`
-				: decision.notes,
-			operationId: decision.operationName,
-			parameters: pathParameters(endpoint.template),
-			responses: responseObject(endpoint),
-			servers: [
-				{
-					url: `https://${endpoint.host}`,
-				},
-			],
-			summary: decision.description,
-			tags: docsTags.length > 0 ? docsTags : ["api"],
-			"x-harpist": {
-				access: decision.access,
-				endpointKey: endpoint.templateKey,
-			},
-		};
-	}
-
-	return {
-		info: {
-			description: `Generated from Harpist recordings for ${profile.host}.`,
-			title: `${profile.displayName} API`,
-			version: "0.1.0",
-		},
-		openapi: "3.1.0",
-		paths,
-		"x-harpist": {
-			generatedAt: new Date().toISOString(),
-			host: profile.host,
-			source: "harpist refine",
-		},
-	};
-};
-
-const buildContract = (profile: SiteProfile, decisions: EndpointDecision[]) => {
-	const lines = [
-		'import { z } from "zod";',
-		"",
-		`export const ${profile.host.replace(/[^a-zA-Z0-9]/g, "_")}Contract = {`,
-	];
-	for (const decision of decisions.filter((item) => item.included)) {
-		const endpoint = decision.endpoint;
-		lines.push(
-			`  ${decision.operationName}: {`,
-			`    method: "${endpoint.method}",`,
-			`    host: "${endpoint.host}",`,
-			`    path: "${endpoint.template}",`,
-			"    input: z.record(z.string(), z.unknown()).optional(),",
-			"    output: z.unknown(),",
-			`    description: "${[
-				decision.notes,
-				decision.access
-					? `Access: ${decision.access.label}. Replay with auth.replay.`
-					: "",
-			]
-				.filter(Boolean)
-				.join(" ")
-				.replace(/"/g, '\\"')}",`,
-			"  },",
-		);
-	}
-	lines.push("};", "");
-	return lines.join("\n");
-};
-
 const buildCliNotes = (profile: SiteProfile, decisions: EndpointDecision[]) =>
 	[
 		`# ${profile.host}`,
@@ -524,7 +419,8 @@ const requestCookiesFromHar = (
 	if (typeof harpist !== "object" || harpist === null) {
 		return undefined;
 	}
-	const requestCookies = (harpist as { requestCookies?: unknown }).requestCookies;
+	const requestCookies = (harpist as { requestCookies?: unknown })
+		.requestCookies;
 	if (!Array.isArray(requestCookies)) {
 		return undefined;
 	}
@@ -538,8 +434,7 @@ const requestCookiesFromHar = (
 				return null;
 			}
 			return {
-				domain:
-					typeof cookie.domain === "string" ? cookie.domain : undefined,
+				domain: typeof cookie.domain === "string" ? cookie.domain : undefined,
 				expiresAt:
 					typeof cookie.expiresAt === "string" ? cookie.expiresAt : undefined,
 				httpOnly:
@@ -697,7 +592,9 @@ const samplesForEndpoint = (
 const isHtmlErrorSample = (sample: PendingEntry) =>
 	(sample.status ?? 0) >= 400 &&
 	/(?:html|text\/plain)/i.test(sample.responseMime ?? "") &&
-	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(sample.body ?? "");
+	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(
+		sample.body ?? "",
+	);
 
 const accessTypeFromAuth = (
 	type: AuthSummary["type"],
@@ -743,7 +640,8 @@ const accessFromSamples = (
 				credentialed: false,
 				evidence: publicClientKey.evidence,
 				label: "Public client key",
-				notes: "Observed key-like client header; not a user/session credential.",
+				notes:
+					"Observed key-like client header; not a user/session credential.",
 				type: "public-client-key",
 			};
 		}
@@ -833,7 +731,9 @@ export const refineLatestProfile = async (
 	const recordings = await store.listStoredRecordings(profile.host);
 	const latestRecording = recording ?? recordings[0] ?? null;
 	if (!latestRecording) {
-		throw new Error("No recording exists for this profile. Record a site first.");
+		throw new Error(
+			"No recording exists for this profile. Record a site first.",
+		);
 	}
 	const samplesByKey = mergeSampleMaps(recordings);
 	const latestSampleEntries = [
@@ -843,7 +743,8 @@ export const refineLatestProfile = async (
 		const decision = classifyEndpoint(endpoint, profile);
 		const samples = samplesForEndpoint(samplesByKey, endpoint);
 		const htmlErrorOnly =
-			samples.length > 0 && samples.every((sample) => isHtmlErrorSample(sample));
+			samples.length > 0 &&
+			samples.every((sample) => isHtmlErrorSample(sample));
 		const included = decision.included && !htmlErrorOnly;
 		return {
 			...decision,
@@ -868,7 +769,9 @@ export const refineLatestProfile = async (
 		tags: decision.tags,
 	}));
 	const now = new Date().toISOString();
-	const includedSamples = included.flatMap((decision) => decision.samples ?? []);
+	const includedSamples = included.flatMap(
+		(decision) => decision.samples ?? [],
+	);
 	const auth =
 		includedSamples.length > 0
 			? deriveAuthSummary(includedSamples)
@@ -880,14 +783,34 @@ export const refineLatestProfile = async (
 					recordingId: latestRecording.id,
 				})
 			: profile.authBundle;
-	const artifacts: ProfileArtifacts = {
+	const latestAuth =
+		latestSampleEntries.length > 0
+			? deriveLatestAuth(latestSampleEntries, {
+					capturedAt: now,
+					recordingId: latestRecording.id,
+				})
+			: profile.latestAuth;
+	const artifactProfile: SiteProfile = {
+		...profile,
+		auth,
+		authBundle,
+		derivedEndpointCount: included.length,
+		endpointTemplateKeys: included.map(
+			(decision) => decision.endpoint.templateKey,
+		),
+		endpoints: refinedEndpoints,
+		latestAuth,
+	};
+	const generatedArtifacts = await buildRecordedSiteArtifacts(artifactProfile, {
 		auth: authBundle?.label ?? auth.label,
-		cli: buildCliNotes(profile, decisions),
-		contract: buildContract(profile, decisions),
-		openapi: buildOpenApi(profile, decisions),
+		cli: buildCliNotes(artifactProfile, decisions),
+		paths: store.getSiteArtifactPaths(profile.host),
+		source: "harpist refine",
 		status: "ready",
 		updatedAt: now,
-	};
+	});
+	await store.writeSiteArtifacts(profile.host, generatedArtifacts.files);
+	const artifacts: ProfileArtifacts = generatedArtifacts.profileArtifacts;
 	const refinedProfile = await store.saveProfile({
 		...profile,
 		agentNotes: `Initial Harpist refinement kept ${included.length} API candidates and excluded ${
@@ -901,6 +824,7 @@ export const refineLatestProfile = async (
 			(decision) => decision.endpoint.templateKey,
 		),
 		endpoints: refinedEndpoints,
+		latestAuth,
 		lastBridgeMessage: "Profile refined",
 		remoteDocsUrl: `${options.bridgeUrl}/profiles/${encodeURIComponent(
 			profile.host,
@@ -913,7 +837,7 @@ export const refineLatestProfile = async (
 	if (recording) {
 		await store.markRecordingProcessed(profile.host, recording.id, "complete");
 	}
-	const openapiPaths = artifacts.openapi as {
+	const openapiPaths = generatedArtifacts.files.openapi as {
 		paths?: Record<string, unknown>;
 	};
 

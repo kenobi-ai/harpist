@@ -82,6 +82,60 @@ export type AuthBundle = {
 	warnings?: string[];
 };
 
+export type LatestAuthStatus =
+	| "expired"
+	| "needs-recording"
+	| "ready"
+	| "validation-needed";
+
+export type LatestAuthValidation = {
+	checkedAt?: string;
+	reason?: string;
+	status: "not-checked" | "valid" | "validation-needed";
+	statusCode?: number;
+};
+
+export type LatestAuthValue = {
+	capturedAt: string;
+	credentialed: boolean;
+	domain?: string;
+	expiresAt?: string;
+	host?: string;
+	httpOnly?: boolean;
+	kind: "cookie" | "header";
+	name: string;
+	recordingId?: string;
+	replayable: boolean;
+	sameSite?: string;
+	secure?: boolean;
+	session?: boolean;
+	source: "recording";
+	type: AuthBundleMethod["type"] | AuthType;
+	url?: string;
+	validation?: LatestAuthValidation;
+	value: string;
+};
+
+export type RedactedLatestAuthValue = Omit<LatestAuthValue, "value"> & {
+	redacted: true;
+	valuePreview?: string;
+};
+
+export type LatestAuth = {
+	capturedAt?: string;
+	label: string;
+	recordingId?: string;
+	status: LatestAuthStatus;
+	validation: LatestAuthValidation;
+	valueCount: number;
+	values: LatestAuthValue[];
+	warnings?: string[];
+};
+
+export type RedactedLatestAuth = Omit<LatestAuth, "values"> & {
+	values: RedactedLatestAuthValue[];
+};
+
 export type AccessType =
 	| "api-key"
 	| "basic-auth"
@@ -142,6 +196,7 @@ export type RecordingSummary = {
 	processedAt?: string;
 	processingStatus?: "complete" | "new" | "processing";
 	scannedEndpointCount: number;
+	latestAuth?: LatestAuth;
 	sourceUrl: string;
 };
 
@@ -156,8 +211,16 @@ export type RecordingsStore = Record<string, RecordingArchive>;
 export type ProfileArtifacts = {
 	auth?: string;
 	cli?: string;
-	contract?: string;
-	openapi?: unknown;
+	contractExport?: string;
+	contractFormat?: "orpc-typescript-source";
+	contractPath?: string;
+	contractSha256?: string;
+	generatedFrom?: "profile";
+	metadataPath?: string;
+	metadataSha256?: string;
+	openapiPath?: string;
+	openapiSha256?: string;
+	openapiSource?: "contract-file";
 	sdk?: string;
 	status: "draft" | "missing" | "ready";
 	updatedAt: string;
@@ -175,6 +238,7 @@ export type SiteProfile = {
 	endpoints: EndpointSummary[];
 	host: string;
 	lastBridgeMessage?: string;
+	latestAuth?: LatestAuth;
 	lastRecordingId?: string;
 	origin: string;
 	recordingCount: number;
@@ -610,7 +674,8 @@ export const deriveAuthBundle = (
 			capturedAt: options.capturedAt,
 			label: "Needs recapture",
 			methods: [],
-			notes: "Record the site again while signed in to capture replayable auth.",
+			notes:
+				"Record the site again while signed in to capture replayable auth.",
 			recordingId: options.recordingId,
 			replayable: false,
 			status: "needs-recording",
@@ -626,6 +691,283 @@ export const deriveAuthBundle = (
 		status: "ready",
 	};
 };
+
+const authValueHeaderPattern =
+	/^(?:authorization|api-key|x-api-key|x-auth-token|x-access-token|x-session-token|x-csrf-token|x-xsrf-token|x-amz-security-token)$/i;
+
+const csrfHeaderPattern = /(?:csrf|xsrf)/i;
+
+const cookiePairs = (cookieHeader?: string) =>
+	(cookieHeader ?? "")
+		.split(";")
+		.map((part) => {
+			const trimmed = part.trim();
+			const index = trimmed.indexOf("=");
+			if (index <= 0) {
+				return null;
+			}
+			return {
+				name: trimmed.slice(0, index).trim(),
+				value: trimmed.slice(index + 1),
+			};
+		})
+		.filter(
+			(pair): pair is { name: string; value: string } =>
+				pair !== null && Boolean(pair.name),
+		);
+
+const hostFromUrl = (rawUrl: string) => {
+	try {
+		return new URL(rawUrl).host;
+	} catch {
+		return undefined;
+	}
+};
+
+const authValueTypeForHeader = (
+	name: string,
+	value: string,
+): LatestAuthValue["type"] => {
+	if (name.toLowerCase() === "authorization") {
+		const lower = value.toLowerCase();
+		if (lower.startsWith("bearer ")) {
+			return "bearer-token";
+		}
+		if (lower.startsWith("basic ")) {
+			return "basic-auth";
+		}
+		return "authorization";
+	}
+	if (publicKeyHeaderPattern.test(name)) {
+		return "public-client-key";
+	}
+	if (csrfHeaderPattern.test(name)) {
+		return "csrf-token";
+	}
+	return "api-key";
+};
+
+const authValueCredentialed = (
+	name: string,
+	type: LatestAuthValue["type"],
+	value: string,
+) => {
+	if (type === "public-client-key" || type === "csrf-token") {
+		return false;
+	}
+	if (type === "authorization" || type === "bearer-token") {
+		return true;
+	}
+	if (type === "basic-auth" || type === "api-key") {
+		return true;
+	}
+	return sessionCookiePattern.test(name) || value.length > 0;
+};
+
+const authValueKey = (value: LatestAuthValue) =>
+	[
+		value.kind,
+		value.name.toLowerCase(),
+		value.domain?.toLowerCase() ?? value.host?.toLowerCase() ?? "",
+	].join(":");
+
+const latestAuthStatus = (values: LatestAuthValue[]): LatestAuthStatus => {
+	if (values.length === 0) {
+		return "needs-recording";
+	}
+	const now = Date.now();
+	const expiringValues = values.filter((value) => value.expiresAt);
+	if (
+		expiringValues.length > 0 &&
+		expiringValues.every((value) => Date.parse(value.expiresAt ?? "") <= now)
+	) {
+		return "expired";
+	}
+	if (expiringValues.some((value) => Date.parse(value.expiresAt ?? "") <= now)) {
+		return "validation-needed";
+	}
+	return "ready";
+};
+
+const latestAuthWarnings = (
+	status: LatestAuthStatus,
+	values: LatestAuthValue[],
+) => {
+	if (status === "needs-recording") {
+		return ["No replayable auth values were captured."];
+	}
+	if (status === "expired") {
+		return ["All expiring auth values are past their expiry time."];
+	}
+	if (status === "validation-needed") {
+		return ["Some auth values are expired; replay should be validated."];
+	}
+	const publicOnly = values.every((value) => !value.credentialed);
+	return publicOnly
+		? ["Only public or CSRF-like auth values were captured."]
+		: undefined;
+};
+
+export const deriveLatestAuth = (
+	entries: PendingEntry[],
+	options: {
+		capturedAt?: string;
+		recordingId?: string;
+	} = {},
+): LatestAuth => {
+	const values = new Map<string, LatestAuthValue>();
+	const remember = (value: LatestAuthValue) => {
+		if (!value.value) {
+			return;
+		}
+		const key = authValueKey(value);
+		const existing = values.get(key);
+		if (!existing || value.capturedAt.localeCompare(existing.capturedAt) >= 0) {
+			values.set(key, value);
+		}
+	};
+
+	for (const entry of entries) {
+		const capturedAt =
+			entry.startedDateTime ?? options.capturedAt ?? new Date().toISOString();
+		const host = hostFromUrl(entry.url);
+		for (const cookie of entry.requestCookies ?? []) {
+			if (cookie.value === undefined) {
+				continue;
+			}
+			remember({
+				capturedAt,
+				credentialed: authValueCredentialed(
+					cookie.name,
+					"browser-session",
+					cookie.value,
+				),
+				domain: cookie.domain,
+				expiresAt: cookie.expiresAt,
+				host,
+				httpOnly: cookie.httpOnly,
+				kind: "cookie",
+				name: cookie.name,
+				recordingId: options.recordingId,
+				replayable: true,
+				sameSite: cookie.sameSite,
+				secure: cookie.secure,
+				session: cookie.session,
+				source: "recording",
+				type: "browser-session",
+				url: entry.url,
+				validation: {
+					status: "not-checked",
+				},
+				value: cookie.value,
+			});
+		}
+
+		for (const cookie of cookiePairs(headerValue(entry.requestHeaders, "cookie"))) {
+			remember({
+				capturedAt,
+				credentialed: authValueCredentialed(
+					cookie.name,
+					"browser-session",
+					cookie.value,
+				),
+				host,
+				kind: "cookie",
+				name: cookie.name,
+				recordingId: options.recordingId,
+				replayable: true,
+				source: "recording",
+				type: "browser-session",
+				url: entry.url,
+				validation: {
+					status: "not-checked",
+				},
+				value: cookie.value,
+			});
+		}
+
+		for (const [name, value] of Object.entries(entry.requestHeaders)) {
+			if (
+				name.toLowerCase() === "cookie" ||
+				(!authValueHeaderPattern.test(name) &&
+					!userTokenHeaderPattern.test(name) &&
+					!publicKeyHeaderPattern.test(name) &&
+					!csrfHeaderPattern.test(name))
+			) {
+				continue;
+			}
+			const type = authValueTypeForHeader(name, value);
+			remember({
+				capturedAt,
+				credentialed: authValueCredentialed(name, type, value),
+				host,
+				kind: "header",
+				name,
+				recordingId: options.recordingId,
+				replayable: true,
+				source: "recording",
+				type,
+				url: entry.url,
+				validation: {
+					status: "not-checked",
+				},
+				value,
+			});
+		}
+	}
+
+	const list = [...values.values()].sort((left, right) => {
+		if (left.credentialed !== right.credentialed) {
+			return left.credentialed ? -1 : 1;
+		}
+		return left.name.localeCompare(right.name);
+	});
+	const status = latestAuthStatus(list);
+	return {
+		capturedAt: options.capturedAt,
+		label:
+			status === "ready"
+				? "Latest auth ready"
+				: status === "needs-recording"
+					? "Needs recapture"
+					: status === "expired"
+						? "Latest auth expired"
+						: "Latest auth needs validation",
+		recordingId: options.recordingId,
+		status,
+		validation: {
+			reason:
+				status === "validation-needed" || status === "expired"
+					? "One or more captured auth values have expired."
+					: undefined,
+			status: status === "ready" ? "not-checked" : "validation-needed",
+		},
+		valueCount: list.length,
+		values: list,
+		warnings: latestAuthWarnings(status, list),
+	};
+};
+
+const secretPreview = (value: string) => {
+	if (value.length <= 8) {
+		return "<redacted>";
+	}
+	return `${value.slice(0, 4)}...${value.slice(-4)}`;
+};
+
+export const redactLatestAuth = (
+	latestAuth?: LatestAuth,
+): RedactedLatestAuth | undefined =>
+	latestAuth
+		? {
+				...latestAuth,
+				values: latestAuth.values.map(({ value, ...item }) => ({
+					...item,
+					redacted: true as const,
+					valuePreview: secretPreview(value),
+				})),
+			}
+		: undefined;
 
 const templatePath = (pathname: string) => {
 	const segments = pathname.split("/").filter(Boolean);
@@ -785,7 +1127,8 @@ export const accessMethodsForProfile = (
 				credentialed: false,
 				evidence: ["Challenge endpoint tag"],
 				label: "Browser challenge",
-				notes: "Inferred from endpoint tags because access metadata was not present.",
+				notes:
+					"Inferred from endpoint tags because access metadata was not present.",
 				type: "browser-context",
 			});
 			continue;
@@ -798,7 +1141,8 @@ export const accessMethodsForProfile = (
 				label: tags.includes("write")
 					? "Browser context write"
 					: "Browser context",
-				notes: "Inferred from endpoint tags because access metadata was not present.",
+				notes:
+					"Inferred from endpoint tags because access metadata was not present.",
 				type: "browser-context",
 			});
 		}
@@ -871,7 +1215,11 @@ export const authMethodsForProfile = (
 				confidence: profile.authBundle?.status === "ready" ? "high" : "low",
 				count: method.count,
 				credentialed: method.credentialed,
-				evidence: [profile.authBundle?.recordingId ? "Recorded auth bundle" : "Recorded auth"],
+				evidence: [
+					profile.authBundle?.recordingId
+						? "Recorded auth bundle"
+						: "Recorded auth",
+				],
 				label: method.label,
 				notes: profile.authBundle?.notes,
 				type: method.type,
@@ -1047,6 +1395,19 @@ export const capturedAuthDetailLabel = (profile?: SiteProfile | null) => {
 	if (!profile) {
 		return undefined;
 	}
+	if (profile.latestAuth) {
+		if (profile.latestAuth.status === "ready") {
+			return profile.latestAuth.recordingId
+				? `Latest auth from ${profile.latestAuth.recordingId}`
+				: "Latest auth ready";
+		}
+		if (profile.latestAuth.status === "expired") {
+			return "Latest auth expired";
+		}
+		if (profile.latestAuth.status === "validation-needed") {
+			return "Latest auth needs validation";
+		}
+	}
 	if (profile.authBundle) {
 		if (profile.authBundle.status === "ready") {
 			return profile.authBundle.recordingId
@@ -1120,6 +1481,10 @@ export const summariseRecording = (
 		capturedAt: createdAt,
 		recordingId: id,
 	});
+	const latestAuth = deriveLatestAuth(entries, {
+		capturedAt: createdAt,
+		recordingId: id,
+	});
 	const recording: RecordingSummary = {
 		auth,
 		authBundle,
@@ -1133,6 +1498,7 @@ export const summariseRecording = (
 		methodBreakdown: countByMethod(endpoints),
 		processingStatus: "new",
 		scannedEndpointCount: scannedKeys.size,
+		latestAuth,
 		sourceUrl: meta.url,
 	};
 
@@ -1140,6 +1506,7 @@ export const summariseRecording = (
 		auth,
 		authBundle,
 		endpoints,
+		latestAuth,
 		recording,
 		scannedKeys,
 		templateKeys,
@@ -1191,6 +1558,7 @@ export const mergeProfile = (
 		endpoints,
 		host: meta.host,
 		lastBridgeMessage: bridge.message ?? existing?.lastBridgeMessage,
+		latestAuth: summary.latestAuth,
 		lastRecordingId: summary.recording.id,
 		origin: meta.origin,
 		recordingCount: (existing?.recordingCount ?? 0) + 1,
@@ -1213,14 +1581,26 @@ export const buildAgentHandoffText = (
 ) => {
 	const accessLabel = accessDisplayLabel(profile);
 	const accessDetail = accessDetailLabel(profile);
-	const credentialLabel =
-		profile.authBundle?.status === "ready"
-			? "Ready for replay"
-			: profile.authBundle?.status === "needs-recording"
-				? "Needs recapture"
-				: profile.auth.credentialed
-					? authDisplayLabel(profile.auth)
-					: "No reusable user credential captured";
+	const credentialLabel = (() => {
+		if (profile.latestAuth?.status === "ready") {
+			return "Latest auth ready";
+		}
+		if (profile.latestAuth?.status === "expired") {
+			return "Latest auth expired";
+		}
+		if (profile.latestAuth?.status === "validation-needed") {
+			return "Latest auth needs validation";
+		}
+		if (profile.authBundle?.status === "ready") {
+			return "Ready for replay";
+		}
+		if (profile.authBundle?.status === "needs-recording") {
+			return "Needs recapture";
+		}
+		return profile.auth.credentialed
+			? authDisplayLabel(profile.auth)
+			: "No reusable user credential captured";
+	})();
 	return [
 		`Use Harpist for ${profile.host}.`,
 		`Bridge: ${normaliseServerUrl(settings.serverUrl)}`,

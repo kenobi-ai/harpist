@@ -94,6 +94,7 @@ const profilesFromBridge = (
 
 const recordingForBridge = (recording: RecordingArchive) => ({
 	auth: recording.auth,
+	authBundle: recording.authBundle,
 	createdAt: recording.createdAt,
 	derivedEndpointCount: recording.derivedEndpointCount,
 	durationMs: recording.durationMs,
@@ -101,6 +102,7 @@ const recordingForBridge = (recording: RecordingArchive) => ({
 	har: recording.har,
 	host: recording.host,
 	id: recording.id,
+	latestAuth: recording.latestAuth,
 	methodBreakdown: recording.methodBreakdown,
 	processedAt: recording.processedAt,
 	processingStatus: recording.processingStatus,
