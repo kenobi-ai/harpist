@@ -1,0 +1,41 @@
+{
+  "$schema": "https://pokayoke.codes/schema.json",
+  "extends": ["pokayoke/recommended"],
+  "localRules": [".pokayoke/rules/**/*.rule.ts"],
+  "files": [
+    "README.md",
+    "skills/**/*.md",
+    "bridge/**/*.ts",
+    "entrypoints/**/*.ts",
+    "entrypoints/**/*.tsx",
+    "lib/**/*.ts",
+    ".pokayoke/rules/**/*.ts",
+    "biome.json",
+    "package.json",
+    "tsconfig.json",
+    "wxt.config.ts"
+  ],
+  "ignores": ["**/node_modules/**", "**/dist/**", "**/*.d.ts"],
+  "suppressions": {
+    "directive": "pokayoke-ignore",
+    "requireReason": true,
+    "reportUnused": "warn"
+  },
+  "rules": {
+    "repo/no-root-source-files": "error",
+    "structure/max-file-lines": ["error", { "max": 350 }]
+  },
+  "baseline": {
+    "structure/max-file-lines": [
+      "bridge/docs.ts:351",
+      "bridge/refine.ts:351",
+      "bridge/replay.ts:351",
+      "bridge/store.ts:351",
+      "entrypoints/background.ts:351",
+      "entrypoints/dashboard/Dashboard.tsx:351",
+      "entrypoints/popup/App.tsx:351",
+      "lib/bridge-contract.ts:351",
+      "lib/profiles.ts:351"
+    ]
+  }
+}
