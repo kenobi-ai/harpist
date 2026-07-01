@@ -14,7 +14,7 @@ import {
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import type { BridgeStore, StoredRecording } from "./store";
 
-type EndpointDecision = {
+export type EndpointDecision = {
 	access?: AccessSummary;
 	description: string;
 	endpoint: EndpointSummary;
@@ -81,6 +81,65 @@ const telemetryPatterns = [
 
 const methodAllowsMutation = (method: string) =>
 	["DELETE", "PATCH", "POST", "PUT"].includes(method.toUpperCase());
+
+const neutralDocumentationPatterns = [
+	/included because/i,
+	/observed during the recorded browser workflow/i,
+	/^Gets? .+ observed during/i,
+	/^Submits? .+ observed during/i,
+	/^Updates? .+ observed during/i,
+	/^Deletes? .+ observed during/i,
+	/^Checks? .+ observed during/i,
+	/used by the site's browser protection flow/i,
+];
+
+const hasText = (value?: string) => value !== undefined && value.trim() !== "";
+
+const isNeutralDocumentationText = (value?: string) => {
+	const text = value?.trim();
+	return (
+		!text ||
+		neutralDocumentationPatterns.some((pattern) => pattern.test(text))
+	);
+};
+
+export const hasCuratedEndpointDocumentation = (endpoint: EndpointSummary) =>
+	hasText(endpoint.description) &&
+	hasText(endpoint.notes) &&
+	!isNeutralDocumentationText(endpoint.notes);
+
+export const applyExistingEndpointAnnotations = (
+	endpoint: EndpointSummary,
+	decision: EndpointDecision,
+	options: {
+		htmlErrorOnly: boolean;
+	},
+): EndpointDecision => {
+	const curated = hasCuratedEndpointDocumentation(endpoint);
+	const tags = (endpoint.tags ?? []).filter((tag) => tag.trim() !== "");
+	const included = options.htmlErrorOnly
+		? false
+		: endpoint.included === false
+			? false
+			: curated && endpoint.included === true
+				? true
+				: decision.included;
+
+	return {
+		...decision,
+		description: curated
+			? endpoint.description?.trim() ?? decision.description
+			: decision.description,
+		included,
+		notes: options.htmlErrorOnly
+			? "Excluded because the sampled browser request returned an HTML access/error page."
+			: curated
+				? endpoint.notes?.trim() ?? decision.notes
+				: decision.notes,
+		operationName: endpoint.operationName?.trim() || decision.operationName,
+		tags: curated && tags.length > 0 ? tags : decision.tags,
+	};
+};
 
 const rootDomain = (host: string) => {
 	const parts = host.split(".");
@@ -740,21 +799,19 @@ export const refineLatestProfile = async (
 		...harSamplesByExactKey(latestRecording).values(),
 	].flat();
 	const decisions = profile.endpoints.map((endpoint) => {
-		const decision = classifyEndpoint(endpoint, profile);
+		const classified = classifyEndpoint(endpoint, profile);
 		const samples = samplesForEndpoint(samplesByKey, endpoint);
 		const htmlErrorOnly =
 			samples.length > 0 &&
 			samples.every((sample) => isHtmlErrorSample(sample));
-		const included = decision.included && !htmlErrorOnly;
+		const decision = applyExistingEndpointAnnotations(endpoint, classified, {
+			htmlErrorOnly,
+		});
 		return {
 			...decision,
-			access: included
+			access: decision.included
 				? accessFromSamples(endpoint, profile, samples)
 				: undefined,
-			included,
-			notes: htmlErrorOnly
-				? "Excluded because the sampled browser request returned an HTML access/error page."
-				: decision.notes,
 			samples,
 		};
 	});
@@ -806,7 +863,15 @@ export const refineLatestProfile = async (
 		cli: buildCliNotes(artifactProfile, decisions),
 		paths: store.getSiteArtifactPaths(profile.host),
 		source: "harpist refine",
-		status: "ready",
+		status: included.every((decision) =>
+			hasCuratedEndpointDocumentation({
+				...decision.endpoint,
+				description: decision.description,
+				notes: decision.notes,
+			}),
+		)
+			? "ready"
+			: "draft",
 		updatedAt: now,
 	});
 	await store.writeSiteArtifacts(profile.host, generatedArtifacts.files);

@@ -464,9 +464,10 @@ function MetadataLine({
 	endpointCount: string;
 	methods: ProfileAccessMethod[];
 }) {
-	const primaryMethod = methods[0];
-	const methodView = primaryMethod ? accessMethodView(primaryMethod) : null;
-	const MethodIcon = methodView?.Icon;
+	const methodViews = methods.map((method) => ({
+		method,
+		view: accessMethodView(method),
+	}));
 	return (
 		<section className="grid min-w-0 grid-cols-[1fr_2fr] gap-3 py-2 text-amber-900">
 			<div className="min-w-0">
@@ -481,24 +482,37 @@ function MetadataLine({
 				<p className="text-left font-semibold text-[9px] text-amber-900/60 uppercase">
 					~~ Authentication ~~
 				</p>
-				<div className="mt-1 flex min-w-0 items-center gap-1.5">
-					{MethodIcon ? (
-						<MethodIcon className="shrink-0 text-amber-900/70" size={13} />
-					) : null}
-					<span className="min-w-0 break-words font-semibold text-[13px] leading-4">
-						{methodView?.label ?? "Not analyzed"}
-					</span>
-					{primaryMethod && primaryMethod.count > 0 ? (
-						<span className="shrink-0 rounded-sm bg-amber-900/10 px-1.5 py-0.5 text-[9px] leading-none text-amber-900/75">
-							{primaryMethod.count}
-						</span>
-					) : null}
+				<div className="mt-1 space-y-1">
+					{methodViews.length === 0 ? (
+						<p className="min-w-0 break-words font-semibold text-[13px] leading-4">
+							Not analyzed
+						</p>
+					) : (
+						methodViews.map(({ method, view }) => {
+							const MethodIcon = view.Icon;
+							return (
+								<div
+									key={`${method.type}:${method.label}`}
+									className="flex min-w-0 items-center gap-1.5"
+								>
+									<MethodIcon
+										className="shrink-0 text-amber-900/70"
+										size={13}
+									/>
+									<span className="min-w-0 break-words font-semibold text-[13px] leading-4">
+										{view.label}
+									</span>
+									{method.count > 0 ? (
+										<span className="shrink-0 rounded-sm bg-amber-900/10 px-1.5 py-0.5 text-[9px] leading-none text-amber-900/75">
+											{method.count}
+										</span>
+									) : null}
+								</div>
+							);
+						})
+					)}
 				</div>
-				{methods.length > 1 ? (
-					<p className="mt-1 text-[10px] text-amber-900/60">
-						+{methods.length - 1} more
-					</p>
-				) : authHint ? (
+				{authHint && methods.length <= 1 ? (
 					<p className="mt-1 break-words text-[10px] text-amber-900/60 leading-snug">
 						{authHint}
 					</p>

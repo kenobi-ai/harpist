@@ -16,7 +16,12 @@
     "tsconfig.json",
     "packages/extension/wxt.config.ts"
   ],
-  "ignores": ["**/node_modules/**", "**/dist/**", "**/*.d.ts"],
+  "ignores": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.harpist-data/**",
+    "**/*.d.ts"
+  ],
   "suppressions": {
     "directive": "pokayoke-ignore",
     "requireReason": true,

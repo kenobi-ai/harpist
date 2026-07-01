@@ -9,7 +9,7 @@
 		"bridge": "bun run --filter @harpist/cli bridge",
 		"build": "bun run --filter @harpist/extension build",
 		"build:firefox": "bun run --filter @harpist/extension build:firefox",
-		"check": "bun run compile && bun test ./.pokayoke/rules/*.test.ts && bun run pokayoke check",
+		"check": "bun run compile && bun test ./.pokayoke/rules/*.test.ts ./packages/*/test/*.test.ts && bun run pokayoke check",
 		"cli": "bun run --filter @harpist/cli harpist",
 		"compile": "bun run --workspaces --sequential compile",
 		"dev": "bun run --filter @harpist/extension dev",

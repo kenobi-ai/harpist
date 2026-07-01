@@ -439,7 +439,7 @@ function AuthMethodsCard({
 				{methods.length === 0 ? (
 					<p className="truncate font-semibold text-xl">Not analyzed</p>
 				) : (
-					methods.slice(0, 4).map((method) => (
+					methods.map((method) => (
 						<div
 							key={`${method.type}:${method.label}`}
 							className="flex min-w-0 items-center gap-2"
@@ -456,9 +456,7 @@ function AuthMethodsCard({
 					))
 				)}
 			</div>
-			{methods.length > 4 ? (
-				<p className="mt-1 text-sm text-zinc-500">+{methods.length - 4} more</p>
-			) : detail ? (
+			{detail ? (
 				<p className="mt-1 truncate text-sm text-zinc-500">{detail}</p>
 			) : null}
 		</div>

@@ -18,6 +18,12 @@ const technicalTags = new Set([
 	"same-site",
 	"static",
 	"third-party",
+	"write",
+	"writes",
+]);
+
+const genericHostLabels = new Set([
+	"app", "co", "com", "dev", "io", "net", "org", "www",
 ]);
 
 const methodAllowsBody = (method: string) =>
@@ -112,9 +118,34 @@ export const recordedSiteContractExportName = (host: string) => {
 	return `${/^[a-zA-Z_$]/.test(name) ? name : `_${name}`}Contract`;
 };
 
-const tagsForEndpoint = (endpoint: EndpointSummary) => {
-	const tags = (endpoint.tags ?? []).filter((tag) => !technicalTags.has(tag));
-	return tags.length > 0 ? tags : ["api"];
+const tagKey = (tag: string) => tag.trim().toLowerCase();
+
+const visibleProfileTagKeys = (profile: SiteProfile) => {
+	const keys = new Set(
+		[profile.displayName, profile.host]
+			.map(tagKey)
+			.filter((tag) => tag.length > 0),
+	);
+	for (const label of profile.host.split(".")) {
+		const key = tagKey(label);
+		if (key && !genericHostLabels.has(key)) {
+			keys.add(key);
+		}
+	}
+	return keys;
+};
+
+export const visibleTagsForEndpoint = (
+	profile: SiteProfile,
+	endpoint: EndpointSummary,
+) => {
+	const tags = [
+		...new Set((endpoint.tags ?? []).map((tag) => tag.trim()).filter(Boolean)),
+	];
+	const semanticTags = tags.filter((tag) => !technicalTags.has(tagKey(tag)));
+	const profileTags = visibleProfileTagKeys(profile);
+	const localTags = semanticTags.filter((tag) => !profileTags.has(tagKey(tag)));
+	return [localTags[0] ?? semanticTags[0] ?? "API"];
 };
 
 const replayCommand = (profile: SiteProfile, operationName: string) =>
@@ -168,6 +199,7 @@ const xHarpistForEndpoint = (
 		mode: "latest-auth-option",
 		source: "profile.latestAuth",
 	},
+	sourceTags: endpoint.tags ?? [],
 });
 
 const createRecordedSiteProcedure = (
@@ -202,7 +234,7 @@ const createRecordedSiteProcedure = (
 				),
 			}),
 			summary: endpoint.description ?? operationName,
-			tags: tagsForEndpoint(endpoint),
+			tags: visibleTagsForEndpoint(profile, endpoint),
 		})
 		.input(inputSchemaForEndpoint(endpoint))
 		.output(z.unknown());
@@ -241,7 +273,7 @@ const procedureSource = (
 		`      operationId: ${literal(operationName)},`,
 		`      summary: ${literal(endpoint.description ?? operationName)},`,
 		`      description: ${literal(descriptionForEndpoint(profile, endpoint, operationName))},`,
-		`      tags: ${literal(tagsForEndpoint(endpoint))},`,
+		`      tags: ${literal(visibleTagsForEndpoint(profile, endpoint))},`,
 		'      inputStructure: "detailed",',
 		"      spec: (operation) => ({",
 		"        ...operation,",

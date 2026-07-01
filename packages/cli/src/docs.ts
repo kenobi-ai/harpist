@@ -337,6 +337,13 @@ const duplicatedTexts = (values: string[]) => {
 		}));
 };
 
+const operationTags = (operation: OpenApiOperation) =>
+	Array.isArray(operation.tags)
+		? operation.tags.filter(
+				(tag): tag is string => typeof tag === "string" && tag.trim() !== "",
+			)
+		: [];
+
 export const reviewProfileDocs = async (
 	store: BridgeStore,
 	options: {
@@ -355,6 +362,11 @@ export const reviewProfileDocs = async (
 
 	if (!openapi) {
 		issues.push("No OpenAPI artifact has been written.");
+	}
+	if (profile.artifacts?.status !== "ready") {
+		issues.push(
+			`Documentation artifact status is '${profile.artifacts?.status ?? "missing"}', not 'ready'.`,
+		);
 	}
 	if (
 		!contractSource ||
@@ -381,6 +393,14 @@ export const reviewProfileDocs = async (
 	if (operations.length !== includedEndpoints.length) {
 		warnings.push(
 			`OpenAPI has ${operations.length} operations for ${includedEndpoints.length} included endpoints.`,
+		);
+	}
+	const invalidVisibleTags = operations.filter(
+		(item) => operationTags(item.operation).length !== 1,
+	);
+	if (invalidVisibleTags.length > 0) {
+		issues.push(
+			`${invalidVisibleTags.length} operation(s) use zero or multiple visible tags; Scalar duplicates operations across tag sections unless each operation has exactly one tag.`,
 		);
 	}
 
