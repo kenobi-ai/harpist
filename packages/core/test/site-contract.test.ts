@@ -10,24 +10,24 @@ const endpoint = (
 	overrides: Partial<EndpointSummary> = {},
 ): EndpointSummary =>
 	({
-		exactKey: "GET https://app.clay.com/v3/workbooks/123",
-		host: "app.clay.com",
+		exactKey: "GET https://api.example.test/v1/projects/123",
+		host: "api.example.test",
 		lastSeenAt: "2026-07-01T00:00:00.000Z",
 		method: "GET",
-		path: "/v3/workbooks/123",
+		path: "/v1/projects/123",
 		samples: 1,
 		statuses: [200],
-		template: "/v3/workbooks/{id}",
-		templateKey: "GET app.clay.com /v3/workbooks/{id}",
+		template: "/v1/projects/{id}",
+		templateKey: "GET api.example.test /v1/projects/{id}",
 		...overrides,
 	}) as EndpointSummary;
 
 const profile = (endpoints: EndpointSummary[]): SiteProfile =>
 	({
-		displayName: "app.clay.com",
+		displayName: "api.example.test",
 		endpoints,
-		host: "app.clay.com",
-		origin: "https://app.clay.com",
+		host: "api.example.test",
+		origin: "https://api.example.test",
 	}) as SiteProfile;
 
 const routeTagsFromSource = (source: string) =>
@@ -40,29 +40,29 @@ describe("recorded site contract docs tags", () => {
 		const source = createRecordedSiteContractSource(
 			profile([
 				endpoint({
-					description: "Get Workbook",
-					tags: ["Clay", "Workbooks", "Writes"],
+					description: "Get Project",
+					tags: ["Example", "Projects", "Writes"],
 				}),
 				endpoint({
-					description: "Run Table",
+					description: "Run Report",
 					method: "PATCH",
-					path: "/v3/tables/123/run",
-					tags: ["same-site", "api", "write", "table"],
-					template: "/v3/tables/{id}/run",
-					templateKey: "PATCH app.clay.com /v3/tables/{id}/run",
+					path: "/v1/reports/123/run",
+					tags: ["same-site", "api", "write", "reports"],
+					template: "/v1/reports/{id}/run",
+					templateKey: "PATCH api.example.test /v1/reports/{id}/run",
 				}),
 			]),
 		);
 
-		expect(routeTagsFromSource(source)).toEqual([["Workbooks"], ["table"]]);
+		expect(routeTagsFromSource(source)).toEqual([["Projects"], ["reports"]]);
 	});
 
 	test("falls back to a useful single tag", () => {
 		const site = profile([]);
 
 		expect(
-			visibleTagsForEndpoint(site, endpoint({ tags: ["Clay"] })),
-		).toEqual(["Clay"]);
+			visibleTagsForEndpoint(site, endpoint({ tags: ["Example"] })),
+		).toEqual(["Example"]);
 		expect(
 			visibleTagsForEndpoint(site, endpoint({ tags: ["same-site", "api"] })),
 		).toEqual(["API"]);

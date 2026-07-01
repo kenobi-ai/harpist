@@ -10,15 +10,15 @@ const endpoint = (
 	overrides: Partial<EndpointSummary> = {},
 ): EndpointSummary =>
 	({
-		exactKey: "GET api.clay.com/v3/workbooks/abc",
-		host: "api.clay.com",
+		exactKey: "GET api.example.test/v1/projects/abc",
+		host: "api.example.test",
 		lastSeenAt: "2026-07-01T00:00:00.000Z",
 		method: "GET",
-		path: "/v3/workbooks/abc",
+		path: "/v1/projects/abc",
 		samples: 1,
 		statuses: [200],
-		template: "/v3/workbooks/{id}",
-		templateKey: "GET api.clay.com/v3/workbooks/{id}",
+		template: "/v1/projects/{id}",
+		templateKey: "GET api.example.test/v1/projects/{id}",
 		...overrides,
 	}) as EndpointSummary;
 
@@ -26,12 +26,11 @@ const decision = (
 	endpointSummary: EndpointSummary,
 	overrides: Partial<EndpointDecision> = {},
 ): EndpointDecision => ({
-	description: "Get Wb 0sy3reyqwp Pfwpt4dzj",
+	description: "Get Abc123 Project",
 	endpoint: endpointSummary,
 	included: true,
-	notes:
-		"Gets wb 0sy3reyqwp pfwpt4dzj observed during the recorded browser workflow.",
-	operationName: "getApiClayComV3WorkbooksById",
+	notes: "Gets abc123 project observed during the recorded browser workflow.",
+	operationName: "getApiExampleTestV1ProjectsById",
 	tags: ["same-site", "api"],
 	...overrides,
 });
@@ -39,12 +38,12 @@ const decision = (
 describe("refine endpoint annotations", () => {
 	test("preserves curated endpoint docs through generic refinement", () => {
 		const curated = endpoint({
-			description: "Get Workbook",
+			description: "Get Project",
 			included: true,
 			notes:
-				"Fetches workbook metadata inside a Clay workspace, including the resource state needed to open the workbook view.",
-			operationName: "getWorkbook",
-			tags: ["Clay", "Workbooks"],
+				"Fetches project metadata for the workspace, including the resource state needed to open the project view.",
+			operationName: "getProject",
+			tags: ["Example", "Projects"],
 		});
 
 		const result = applyExistingEndpointAnnotations(
@@ -53,24 +52,23 @@ describe("refine endpoint annotations", () => {
 			{ htmlErrorOnly: false },
 		);
 
-		expect(result.description).toBe("Get Workbook");
-		expect(result.notes).toContain("Fetches workbook metadata");
-		expect(result.operationName).toBe("getWorkbook");
-		expect(result.tags).toEqual(["Clay", "Workbooks"]);
+		expect(result.description).toBe("Get Project");
+		expect(result.notes).toContain("Fetches project metadata");
+		expect(result.operationName).toBe("getProject");
+		expect(result.tags).toEqual(["Example", "Projects"]);
 		expect(result.included).toBe(true);
 	});
 
 	test("does not preserve neutral generated docs", () => {
 		const neutral = endpoint({
-			description: "Get Wb 0sy3reyqwp Pfwpt4dzj",
-			notes:
-				"Gets wb 0sy3reyqwp pfwpt4dzj observed during the recorded browser workflow.",
+			description: "Get Abc123 Project",
+			notes: "Gets abc123 project observed during the recorded browser workflow.",
 			tags: ["same-site", "api"],
 		});
 		const replacement = decision(neutral, {
-			description: "Get Workbook",
-			notes: "Gets workbooks observed during the recorded browser workflow.",
-			tags: ["same-site", "api", "workbooks"],
+			description: "Get Project",
+			notes: "Gets projects observed during the recorded browser workflow.",
+			tags: ["same-site", "api", "projects"],
 		});
 
 		expect(hasCuratedEndpointDocumentation(neutral)).toBe(false);
@@ -79,18 +77,18 @@ describe("refine endpoint annotations", () => {
 				htmlErrorOnly: false,
 			}),
 		).toMatchObject({
-			description: "Get Workbook",
-			notes: "Gets workbooks observed during the recorded browser workflow.",
-			tags: ["same-site", "api", "workbooks"],
+			description: "Get Project",
+			notes: "Gets projects observed during the recorded browser workflow.",
+			tags: ["same-site", "api", "projects"],
 		});
 	});
 
 	test("keeps html error samples excluded", () => {
 		const curated = endpoint({
-			description: "Get Workbook",
+			description: "Get Project",
 			included: true,
-			notes: "Fetches workbook metadata inside a Clay workspace.",
-			tags: ["Clay", "Workbooks"],
+			notes: "Fetches project metadata for the workspace.",
+			tags: ["Example", "Projects"],
 		});
 
 		expect(
