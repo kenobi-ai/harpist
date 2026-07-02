@@ -24,6 +24,7 @@
 		"@tailwindcss/vite": "catalog:",
 		"@types/react": "catalog:",
 		"@types/react-dom": "catalog:",
+		"@wxt-dev/auto-icons": "catalog:",
 		"@wxt-dev/module-react": "catalog:",
 		"tailwindcss": "catalog:",
 		"wxt": "catalog:"

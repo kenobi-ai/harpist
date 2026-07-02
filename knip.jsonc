@@ -51,13 +51,9 @@
 		},
 		"packages/extension": {
 			"ignoreUnresolved": ["^#imports$"],
-			"project": [
-				"assets/**/*.css",
-				"entrypoints/**/*.{ts,tsx}",
-				"lib/**/*.ts"
-			],
+			"project": ["entrypoints/**/*.{ts,tsx}", "lib/**/*.ts"],
 			"tailwind": {
-				"entry": ["assets/tailwind.css"]
+				"entry": ["assets/styles.css"]
 			}
 		}
 	}

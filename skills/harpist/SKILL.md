@@ -105,7 +105,6 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 ## Useful Commands
 
 <!-- harpist:cli-commands:start -->
-
 ```sh
 bunx harpist bridge
 bunx harpist profiles list
@@ -124,7 +123,6 @@ bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>
 bunx harpist handoff [host]
 ```
-
 <!-- harpist:cli-commands:end -->
 
 ## Contract Surface
@@ -132,7 +130,6 @@ bunx harpist handoff [host]
 Bridge methods exposed by the contract:
 
 <!-- harpist:bridge-methods:start -->
-
 - `bridge.health`
 - `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
 - `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`

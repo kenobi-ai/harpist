@@ -21,6 +21,7 @@
 			"@types/react": "^19.2.14",
 			"@types/react-dom": "^19.2.3",
 			"@wxt-dev/module-react": "^1.1.5",
+			"@wxt-dev/auto-icons": "^1.1.1",
 			"hono": "^4.12.27",
 			"knip": "^6.24.0",
 			"pokayoke": "^0.0.6",
