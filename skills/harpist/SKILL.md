@@ -11,10 +11,14 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 
 - Use the published npm package by default: `bunx harpist <command>`.
 - npm package page: https://www.npmjs.com/package/harpist
-- Before substantive Harpist work, verify package freshness when shell/network access is available: compare `npm view harpist version` with `bunx harpist version`.
+<!-- harpist:cli-version:start -->
+- Current published Harpist CLI version: `0.0.6`.
+<!-- harpist:cli-version:end -->
+- Before substantive Harpist work, compare `bunx harpist version` with the current published version above.
 - If those versions match, keep using `bunx harpist <command>` for the session.
-- If those versions differ, use the exact npm version for that session, e.g. `bunx harpist@<npm-version> <command>`, and mention that the local/default `bunx harpist` resolution was stale.
-- Use `bunx harpist@latest` as a fallback command prefix if you have any trouble verifying the latest version.
+- If those versions differ, use the exact published version for that session, e.g. `bunx harpist@<current-published-version> <command>`, and mention that the local/default `bunx harpist` resolution was stale.
+- Do not run `npm view harpist version` as routine workflow. Use it only when debugging package publication or version drift.
+- Use `bunx harpist@latest` as a fallback command prefix if you have trouble installing the exact published version.
 - Use `npx harpist@latest <command>` only when npm is the available package runner and Bun is on `PATH`; the package executable is a Bun program.
 - Use bare `harpist <command>` only when the `harpist` bin is already installed and visible on `PATH`, and accepting that installed version is intentional.
 - Run Harpist from the user's local machine and local shell. It must be able to reach the Chrome extension, the user's browser state, and `http://127.0.0.1:4277`.
@@ -114,7 +118,6 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
 ## Useful Commands
 
 <!-- harpist:cli-commands:start -->
-
 ```sh
 bunx harpist bridge
 bunx harpist version
@@ -134,7 +137,6 @@ bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>
 bunx harpist handoff [host]
 ```
-
 <!-- harpist:cli-commands:end -->
 
 ## Contract Surface
@@ -142,7 +144,6 @@ bunx harpist handoff [host]
 Bridge methods exposed by the contract:
 
 <!-- harpist:bridge-methods:start -->
-
 - `bridge.health`
 - `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
 - `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`

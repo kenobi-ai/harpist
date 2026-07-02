@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type { Finding, Rule } from "pokayoke";
 import { renderHarpistCliCommandLines } from "../../packages/cli/src/surface";
 import {
@@ -41,6 +42,21 @@ const bridgeOperationGroups: readonly BridgeOperationGroup[] = [
 	{ operations: syncOperations },
 ];
 
+const readCliPackageVersion = () => {
+	const packageJson = JSON.parse(
+		readFileSync(
+			new URL("../../packages/cli/package.json", import.meta.url),
+			"utf8",
+		),
+	) as { version?: unknown };
+	if (typeof packageJson.version !== "string") {
+		throw new Error("packages/cli/package.json has no string version.");
+	}
+	return packageJson.version;
+};
+
+const CLI_PACKAGE_VERSION = readCliPackageVersion();
+
 const fencedShell = (lines: readonly string[]) =>
 	["```sh", ...lines, "```"].join("\n");
 
@@ -64,6 +80,14 @@ export const managedSurfaceBlocks: readonly ManagedBlock[] = [
 		label: "README CLI commands",
 		source: "packages/cli/src/surface.ts",
 		start: "<!-- harpist:cli-commands:start -->",
+	},
+	{
+		content: `- Current published Harpist CLI version: \`${CLI_PACKAGE_VERSION}\`.`,
+		end: "<!-- harpist:cli-version:end -->",
+		file: "skills/harpist/SKILL.md",
+		label: "Harpist skill CLI version",
+		source: "packages/cli/package.json",
+		start: "<!-- harpist:cli-version:start -->",
 	},
 	{
 		content: fencedShell(renderHarpistCliCommandLines("bunx ")),

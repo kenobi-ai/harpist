@@ -56,6 +56,9 @@ describe("repo/harpist-surface-parity", () => {
 		expect(await Bun.file(`${root}/skills/harpist/SKILL.md`).text()).toContain(
 			"bunx harpist bridge",
 		);
+		expect(await Bun.file(`${root}/skills/harpist/SKILL.md`).text()).toContain(
+			"Current published Harpist CLI version",
+		);
 	});
 
 	test("reports stale managed docs", async () => {
@@ -80,6 +83,7 @@ describe("repo/harpist-surface-parity", () => {
 		const root = await mkdtemp(`${tmpdir()}/pokayoke-surface-rule-`);
 		await writeManagedFiles(root);
 		const readmePath = `${root}/README.md`;
+		const skillPath = `${root}/skills/harpist/SKILL.md`;
 		await Bun.write(
 			readmePath,
 			(await Bun.file(readmePath).text()).replace(
@@ -87,12 +91,22 @@ describe("repo/harpist-surface-parity", () => {
 				"bun run harpist old-bridge",
 			),
 		);
+		await Bun.write(
+			skillPath,
+			(await Bun.file(skillPath).text()).replace(
+				"Current published Harpist CLI version",
+				"Stale Harpist CLI version",
+			),
+		);
 
 		const result = await harpistSurfaceParity.run(createContext(root, true));
 		const readme = await Bun.file(readmePath).text();
+		const skill = await Bun.file(skillPath).text();
 
 		expect(result.findings).toHaveLength(0);
 		expect(readme).toContain("bun run harpist bridge");
 		expect(readme).not.toContain("old-bridge");
+		expect(skill).toContain("Current published Harpist CLI version");
+		expect(skill).not.toContain("Stale Harpist CLI version");
 	});
 });
