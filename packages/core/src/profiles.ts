@@ -1583,7 +1583,7 @@ export const mergeProfile = (
 
 export const buildAgentHandoffText = (
 	profile: SiteProfile,
-	settings: HarpistSettings,
+	_settings: HarpistSettings,
 ) => {
 	const accessLabel = accessDisplayLabel(profile);
 	const accessDetail = accessDetailLabel(profile);
@@ -1608,18 +1608,15 @@ export const buildAgentHandoffText = (
 			: "No reusable user credential captured";
 	})();
 	return [
-		`Use Harpist for ${profile.host}.`,
-		`Bridge: ${normaliseServerUrl(settings.serverUrl)}`,
-		`oRPC: ${normaliseServerUrl(settings.serverUrl)}/rpc`,
-		`Latest recording: ${profile.derivedEndpointCount} endpoints.`,
-		`Authentication: ${authMethodsText(profile)}.`,
+		`Use the Harpist skill for ${profile.host}.`,
+		profile.lastRecordingId
+			? `Recording: ${profile.lastRecordingId} (${profile.derivedEndpointCount} endpoints).`
+			: `Latest recording: ${profile.derivedEndpointCount} endpoints.`,
+		`Auth: ${authMethodsText(profile)}.`,
 		accessDetail && accessLabel !== accessDetail
 			? `Access detail: ${accessDetail}.`
 			: "",
-		`Credential captured: ${credentialLabel}.`,
-		profile.lastRecordingId ? `Recording: ${profile.lastRecordingId}` : "",
-		profile.remoteDocsUrl ? `Docs: ${profile.remoteDocsUrl}` : "",
-		"Use auth.replay to get the runnable curl/replay bundle for an endpoint. If authentication says Recapture auth, ask the user to click Add recording while signed in, then refine again.",
+		`Credential: ${credentialLabel}.`,
 	]
 		.filter(Boolean)
 		.join("\n");

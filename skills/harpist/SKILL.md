@@ -47,6 +47,10 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 
 ## Workflow
 
+Before substantive Harpist work, tell the user which Harpist CLI version you are using when known.
+
+If the user pasted a Harpist handoff packet, treat it as recording context. Still follow this workflow, including starting or reusing the bridge as allowed by the current environment and the user's service-management preferences.
+
 1. Start or reuse the bridge.
    - Check `http://127.0.0.1:4277/health` first. If it is already healthy, reuse it.
    - If no bridge is running, start it locally with `bunx harpist bridge` only when the current environment is the user's local machine and starting a local service is acceptable.
@@ -110,7 +114,6 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 ## Useful Commands
 
 <!-- harpist:cli-commands:start -->
-
 ```sh
 bunx harpist bridge
 bunx harpist version
@@ -130,7 +133,6 @@ bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>
 bunx harpist handoff [host]
 ```
-
 <!-- harpist:cli-commands:end -->
 
 ## Contract Surface
@@ -138,7 +140,6 @@ bunx harpist handoff [host]
 Bridge methods exposed by the contract:
 
 <!-- harpist:bridge-methods:start -->
-
 - `bridge.health`
 - `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
 - `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`
