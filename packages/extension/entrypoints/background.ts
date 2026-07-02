@@ -1,4 +1,3 @@
-import { browser, defineBackground } from "#imports";
 import {
 	createHarpistBridgeClient,
 	type HarpistBridgeClient,
@@ -23,6 +22,7 @@ import {
 	type SyncResult,
 	summariseRecording,
 } from "@harpist/core/profiles";
+import { browser, defineBackground } from "#imports";
 import {
 	getRecordings,
 	putRecording,

@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
-import { createOpenApiDocumentFromContractProfile } from "../../core/src/site-contract-openapi";
 import {
 	createContractProfileContractSource,
 	recordedSiteContractExportName,
 } from "../../core/src/site-contract";
+import { createOpenApiDocumentFromContractProfile } from "../../core/src/site-contract-openapi";
 import {
 	CONTRACT_PROFILE_FORMAT,
-	createRecordedSiteContractProfile,
 	type ContractProfile,
+	createRecordedSiteContractProfile,
 } from "../../core/src/site-contract-profile";
 
 export type SiteArtifactPaths = {

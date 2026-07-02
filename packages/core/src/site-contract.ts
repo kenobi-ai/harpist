@@ -1,16 +1,15 @@
 import type { AnyContractProcedure, Route } from "@orpc/contract";
 import { oc } from "@orpc/contract";
+import { jsonSchemaToZod, jsonSchemaToZodSource } from "./json-schema-zod";
 import type { SiteProfile } from "./profiles";
 import {
 	createRecordedSiteContractProfile,
 	resolveContractProfile,
-	visibleTagsForEndpoint,
 } from "./site-contract-profile";
 import type {
 	ContractProfile,
 	ContractProfileOperation,
 } from "./site-contract-profile-schema";
-import { jsonSchemaToZod, jsonSchemaToZodSource } from "./json-schema-zod";
 
 type RecordedSiteContract = Record<string, AnyContractProcedure>;
 type RecordedSiteContractOptions = {
@@ -63,7 +62,7 @@ const responseObject = (operation: ContractProfileOperation) =>
 
 const xHarpistForOperation = (operation: ContractProfileOperation) => ({
 	...(operation.extensions?.["x-harpist"] &&
-		typeof operation.extensions["x-harpist"] === "object"
+	typeof operation.extensions["x-harpist"] === "object"
 		? operation.extensions["x-harpist"]
 		: {}),
 	documentationSource:
@@ -72,11 +71,15 @@ const xHarpistForOperation = (operation: ContractProfileOperation) => ({
 			?.documentationSource,
 	documentationUpdatedAt:
 		operation.provenance?.documentationUpdatedAt ??
-		(operation.extensions?.["x-harpist"] as { documentationUpdatedAt?: unknown })
-			?.documentationUpdatedAt,
+		(
+			operation.extensions?.["x-harpist"] as {
+				documentationUpdatedAt?: unknown;
+			}
+		)?.documentationUpdatedAt,
 	endpointKey:
 		operation.provenance?.endpointKey ??
-		(operation.extensions?.["x-harpist"] as { endpointKey?: unknown })?.endpointKey,
+		(operation.extensions?.["x-harpist"] as { endpointKey?: unknown })
+			?.endpointKey,
 	replayCommand: operation.replay?.command,
 	runtimeAuth: {
 		bindsCredentialValues: false,

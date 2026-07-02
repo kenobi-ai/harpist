@@ -17,7 +17,7 @@ export const HARPIST_CLI_COMMANDS = [
 	"harpist handoff [host]",
 ] as const;
 
-export const HARPIST_CLI_ENVIRONMENT = [
+const HARPIST_CLI_ENVIRONMENT = [
 	["HARPIST_PORT", "4277"],
 	["HARPIST_HOST", "127.0.0.1"],
 	["HARPIST_DATA_DIR", "<caller-cwd>/.harpist-data"],

@@ -347,7 +347,6 @@ const headerValue = (headers: Record<string, string>, name: string) => {
 			return value;
 		}
 	}
-	return undefined;
 };
 
 const headersMatching = (
@@ -722,9 +721,7 @@ const cookiePairs = (cookieHeader?: string) =>
 const hostFromUrl = (rawUrl: string) => {
 	try {
 		return new URL(rawUrl).host;
-	} catch {
-		return undefined;
-	}
+	} catch {}
 };
 
 const authValueTypeForHeader = (
@@ -786,7 +783,9 @@ const latestAuthStatus = (values: LatestAuthValue[]): LatestAuthStatus => {
 	) {
 		return "expired";
 	}
-	if (expiringValues.some((value) => Date.parse(value.expiresAt ?? "") <= now)) {
+	if (
+		expiringValues.some((value) => Date.parse(value.expiresAt ?? "") <= now)
+	) {
 		return "validation-needed";
 	}
 	return "ready";
@@ -866,7 +865,9 @@ export const deriveLatestAuth = (
 			});
 		}
 
-		for (const cookie of cookiePairs(headerValue(entry.requestHeaders, "cookie"))) {
+		for (const cookie of cookiePairs(
+			headerValue(entry.requestHeaders, "cookie"),
+		)) {
 			remember({
 				capturedAt,
 				credentialed: authValueCredentialed(
@@ -892,10 +893,12 @@ export const deriveLatestAuth = (
 		for (const [name, value] of Object.entries(entry.requestHeaders)) {
 			if (
 				name.toLowerCase() === "cookie" ||
-				(!authValueHeaderPattern.test(name) &&
-					!userTokenHeaderPattern.test(name) &&
-					!publicKeyHeaderPattern.test(name) &&
-					!csrfHeaderPattern.test(name))
+				!(
+					authValueHeaderPattern.test(name) ||
+					userTokenHeaderPattern.test(name) ||
+					publicKeyHeaderPattern.test(name) ||
+					csrfHeaderPattern.test(name)
+				)
 			) {
 				continue;
 			}
@@ -1050,7 +1053,7 @@ const uniqueLabels = (mechanisms: AuthMechanism[]) => [
 
 export const authDetailLabel = (auth?: AuthSummary | null) => {
 	if (!auth) {
-		return undefined;
+		return;
 	}
 	const mechanisms = auth.mechanisms ?? [];
 	if (mechanisms.length === 0) {
@@ -1080,8 +1083,8 @@ const accessLabelsForProfile = (profile?: SiteProfile | null) => [
 
 const confidenceRank = {
 	high: 3,
-	medium: 2,
 	low: 1,
+	medium: 2,
 } as const;
 
 const mergeConfidence = (
@@ -1376,7 +1379,7 @@ export const accessDisplayLabel = (profile?: SiteProfile | null) => {
 export const accessDetailLabel = (profile?: SiteProfile | null) => {
 	const labels = accessLabelsForProfile(profile);
 	if (labels.length === 0) {
-		return undefined;
+		return;
 	}
 	const browserParts = [
 		labels.includes("Browser context") || labels.includes("Browser session")
@@ -1396,7 +1399,7 @@ export const accessDetailLabel = (profile?: SiteProfile | null) => {
 
 export const capturedAuthDetailLabel = (profile?: SiteProfile | null) => {
 	if (!profile) {
-		return undefined;
+		return;
 	}
 	if (profile.latestAuth) {
 		if (profile.latestAuth.status === "ready") {
@@ -1498,10 +1501,10 @@ export const summariseRecording = (
 			: 0,
 		entryCount: entries.length,
 		id,
+		latestAuth,
 		methodBreakdown: countByMethod(endpoints),
 		processingStatus: "new",
 		scannedEndpointCount: scannedKeys.size,
-		latestAuth,
 		sourceUrl: meta.url,
 	};
 
@@ -1557,12 +1560,12 @@ export const mergeProfile = (
 		createdAt: existing?.createdAt ?? now,
 		derivedEndpointCount: endpointTemplateKeys.size,
 		displayName: existing?.displayName ?? meta.host,
-		endpointTemplateKeys: [...endpointTemplateKeys].slice(0, 1000),
 		endpoints,
+		endpointTemplateKeys: [...endpointTemplateKeys].slice(0, 1000),
 		host: meta.host,
 		lastBridgeMessage: bridge.message ?? existing?.lastBridgeMessage,
-		latestAuth: summary.latestAuth,
 		lastRecordingId: summary.recording.id,
+		latestAuth: summary.latestAuth,
 		origin: meta.origin,
 		recordingCount: (existing?.recordingCount ?? 0) + 1,
 		recordings: [summary.recording, ...(existing?.recordings ?? [])].slice(

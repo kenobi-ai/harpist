@@ -23,7 +23,8 @@ type ContractProfileFormatSurface = {
 };
 
 const finding = (message: string): Finding => ({
-	advice: "Keep CONTRACT_PROFILE_* constants and CONTRACT_PROFILE_JSON_SCHEMA in sync.",
+	advice:
+		"Keep CONTRACT_PROFILE_* constants and CONTRACT_PROFILE_JSON_SCHEMA in sync.",
 	file: FILE,
 	message,
 	ruleId: RULE_ID,
@@ -43,13 +44,19 @@ export const contractProfileFormatFindings = (
 		findings.push(finding("Contract profile JSON Schema $id is stale."));
 	}
 	if (surface.jsonSchema.properties?.format?.const !== surface.format) {
-		findings.push(finding("Contract profile JSON Schema format const is stale."));
+		findings.push(
+			finding("Contract profile JSON Schema format const is stale."),
+		);
 	}
 	if (surface.jsonSchema.properties?.version?.const !== surface.version) {
-		findings.push(finding("Contract profile JSON Schema version const is stale."));
+		findings.push(
+			finding("Contract profile JSON Schema version const is stale."),
+		);
 	}
 	if (!surface.schemaId.includes(`v${surface.version}.json`)) {
-		findings.push(finding("Contract profile schema id does not include its version."));
+		findings.push(
+			finding("Contract profile schema id does not include its version."),
+		);
 	}
 	return findings;
 };

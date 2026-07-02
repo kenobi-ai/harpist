@@ -91,7 +91,9 @@ const objectProperties = (schema: ContractJsonSchemaObject) =>
 const requiredProperties = (schema: ContractJsonSchemaObject) =>
 	new Set(
 		Array.isArray(schema.required)
-			? schema.required.filter((item): item is string => typeof item === "string")
+			? schema.required.filter(
+					(item): item is string => typeof item === "string",
+				)
 			: [],
 	);
 
@@ -199,9 +201,7 @@ const unionSource = (items: string[]) => {
 	return `z.union([${items.join(", ")}])`;
 };
 
-export const jsonSchemaToZodSource = (
-	schema: ContractJsonSchema,
-): string => {
+export const jsonSchemaToZodSource = (schema: ContractJsonSchema): string => {
 	if (schema === true) {
 		return "z.unknown()";
 	}

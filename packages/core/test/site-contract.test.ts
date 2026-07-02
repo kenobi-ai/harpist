@@ -1,14 +1,11 @@
 import { describe, expect, test } from "bun:test";
-
 import type { EndpointSummary, SiteProfile } from "../src/profiles";
 import {
 	createRecordedSiteContractSource,
 	visibleTagsForEndpoint,
 } from "../src/site-contract";
 
-const endpoint = (
-	overrides: Partial<EndpointSummary> = {},
-): EndpointSummary =>
+const endpoint = (overrides: Partial<EndpointSummary> = {}): EndpointSummary =>
 	({
 		exactKey: "GET https://api.example.test/v1/projects/123",
 		host: "api.example.test",
@@ -31,7 +28,7 @@ const profile = (endpoints: EndpointSummary[]): SiteProfile =>
 	}) as SiteProfile;
 
 const routeTagsFromSource = (source: string) =>
-	[...source.matchAll(/^      tags: (\[[\s\S]*?\]),$/gm)].map((match) =>
+	[...source.matchAll(/^ {6}tags: (\[[\s\S]*?\]),$/gm)].map((match) =>
 		JSON.parse(match[1] ?? "[]"),
 	);
 

@@ -12,14 +12,14 @@ export const defineResourceOperations = <
 	operations: Operations,
 ) => operations;
 
-const createORPCOperation = <
+const createOrpcOperation = <
 	const Operation extends ResourceOperationDefinition,
 >(
 	operation: Operation,
 ): ORPCOperation<Operation> =>
 	oc.route(operation.route).input(operation.input).output(operation.output);
 
-const assignORPCOperation = <
+const assignOrpcOperation = <
 	const Operations extends Record<string, ResourceOperationDefinition>,
 	const Name extends keyof Operations,
 >(
@@ -27,7 +27,7 @@ const assignORPCOperation = <
 	operations: Operations,
 	name: Name,
 ) => {
-	contract[name] = createORPCOperation(operations[name]);
+	contract[name] = createOrpcOperation(operations[name]);
 };
 
 export const createORPCResourceContract = <
@@ -38,7 +38,7 @@ export const createORPCResourceContract = <
 	const contract = {} as Mutable<ORPCResourceContract<Operations>>;
 
 	for (const name of Object.keys(operations)) {
-		assignORPCOperation(contract, operations, name);
+		assignOrpcOperation(contract, operations, name);
 	}
 
 	return contract;

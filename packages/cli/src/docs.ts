@@ -62,7 +62,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const optionalString = (value: unknown, field: string) => {
 	if (value === undefined) {
-		return undefined;
+		return;
 	}
 	if (typeof value !== "string") {
 		throw new Error(
@@ -83,7 +83,7 @@ const requiredString = (value: unknown, field: string) => {
 
 const optionalBoolean = (value: unknown, field: string) => {
 	if (value === undefined) {
-		return undefined;
+		return;
 	}
 	if (typeof value !== "boolean") {
 		throw new Error(
@@ -95,7 +95,7 @@ const optionalBoolean = (value: unknown, field: string) => {
 
 const optionalStringArray = (value: unknown, field: string) => {
 	if (value === undefined) {
-		return undefined;
+		return;
 	}
 	if (
 		!Array.isArray(value) ||
@@ -126,7 +126,7 @@ const parseDocsApplyInput = (value: unknown): DocsApplyInput => {
 		const operationName = optionalString(raw.operationName, "operationName");
 		const method = optionalString(raw.method, "method")?.toUpperCase();
 		const path = optionalString(raw.path, "path");
-		if (!templateKey && !operationName && !(method && path)) {
+		if (!(templateKey || operationName || (method && path))) {
 			throw new Error(
 				`Endpoint documentation at index ${index} needs templateKey, operationName, or method + path.`,
 			);
@@ -255,10 +255,10 @@ export const applyProfileDocs = async (
 	const artifactProfile: SiteProfile = {
 		...profile,
 		derivedEndpointCount: includedEndpoints.length,
+		endpoints: nextEndpoints,
 		endpointTemplateKeys: includedEndpoints.map(
 			(endpoint) => endpoint.templateKey,
 		),
-		endpoints: nextEndpoints,
 	};
 	const generatedArtifacts = await buildRecordedSiteArtifacts(artifactProfile, {
 		auth:
@@ -298,7 +298,7 @@ export const applyProfileDocs = async (
 };
 
 const operationsFromOpenApi = (openapi: unknown): OperationRef[] => {
-	if (!isRecord(openapi) || !isRecord(openapi.paths)) {
+	if (!(isRecord(openapi) && isRecord(openapi.paths))) {
 		return [];
 	}
 	const operations: OperationRef[] = [];
@@ -365,12 +365,12 @@ export const reviewProfileDocs = async (
 	if (!openapi) {
 		issues.push("No OpenAPI artifact has been written.");
 	}
-	if (!contractProfile) {
-		issues.push("No contract profile artifact has been written.");
-	} else {
+	if (contractProfile) {
 		try {
 			const resolvedContractProfile = resolveContractProfile(contractProfile);
-			if (resolvedContractProfile.operations.length !== includedEndpoints.length) {
+			if (
+				resolvedContractProfile.operations.length !== includedEndpoints.length
+			) {
 				warnings.push(
 					`Contract profile has ${resolvedContractProfile.operations.length} operations for ${includedEndpoints.length} included endpoints.`,
 				);
@@ -382,6 +382,8 @@ export const reviewProfileDocs = async (
 				}`,
 			);
 		}
+	} else {
+		issues.push("No contract profile artifact has been written.");
 	}
 	if (profile.artifacts?.status !== "ready") {
 		issues.push(
@@ -389,8 +391,7 @@ export const reviewProfileDocs = async (
 		);
 	}
 	if (
-		!contractSource ||
-		!profile.artifacts?.contractPath ||
+		!(contractSource && profile.artifacts?.contractPath) ||
 		profile.artifacts.contractFormat !== "orpc-typescript-source" ||
 		profile.artifacts.generatedFrom !== "contract-profile" ||
 		!contractSource.includes('from "@orpc/contract"') ||
@@ -411,7 +412,9 @@ export const reviewProfileDocs = async (
 		!isRecord(rootHarpist) ||
 		rootHarpist.sourceArtifact !== "contract-profile.json"
 	) {
-		issues.push("OpenAPI artifact was not generated from contract-profile.json.");
+		issues.push(
+			"OpenAPI artifact was not generated from contract-profile.json.",
+		);
 	}
 	if (operations.length === 0) {
 		issues.push("OpenAPI artifact has no operations.");

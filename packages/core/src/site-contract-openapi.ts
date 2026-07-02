@@ -1,20 +1,22 @@
+import { resolveContractProfile } from "./site-contract-profile";
 import type { ContractProfileOperation } from "./site-contract-profile-schema";
 import {
 	CONTRACT_PROFILE_FORMAT,
 	CONTRACT_PROFILE_VERSION,
 	type ContractProfile,
 } from "./site-contract-profile-schema";
-import { resolveContractProfile } from "./site-contract-profile";
 
 const openApiParameters = (operation: ContractProfileOperation) =>
 	(["path", "query", "header"] as const).flatMap((where) =>
-		Object.entries(operation.parameters[where] ?? {}).map(([name, parameter]) => ({
-			description: parameter.description,
-			in: where,
-			name,
-			required: where === "path" ? true : (parameter.required ?? false),
-			schema: parameter.schema,
-		})),
+		Object.entries(operation.parameters[where] ?? {}).map(
+			([name, parameter]) => ({
+				description: parameter.description,
+				in: where,
+				name,
+				required: where === "path" ? true : (parameter.required ?? false),
+				schema: parameter.schema,
+			}),
+		),
 	);
 
 const openApiRequestBody = (operation: ContractProfileOperation) =>

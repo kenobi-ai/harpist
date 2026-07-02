@@ -1,49 +1,54 @@
 {
-  "$schema": "https://pokayoke.codes/schema.json",
-  "extends": ["pokayoke/recommended"],
-  "localRules": [".pokayoke/rules/**/*.rule.ts"],
-  "files": [
-    "README.md",
-    "skills.sh.json",
-    "skills/**/*.md",
-    "packages/**/*.ts",
-    "packages/**/*.tsx",
-    ".pokayoke/rules/**/*.ts",
-    "biome.json",
-    "package.json",
-    "packages/*/package.json",
-    "packages/*/tsconfig.json",
-    "tsconfig.json",
-    "packages/extension/wxt.config.ts"
-  ],
-  "ignores": [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/.harpist-data/**",
-    "**/*.d.ts"
-  ],
-  "suppressions": {
-    "directive": "pokayoke-ignore",
-    "requireReason": true,
-    "reportUnused": "warn"
-  },
-  "rules": {
-    "repo/contract-profile-format": "error",
-    "repo/harpist-surface-parity": "error",
-    "repo/no-root-source-files": "error",
-    "structure/max-file-lines": ["error", { "max": 350 }]
-  },
-  "baseline": {
-    "structure/max-file-lines": [
-      "packages/cli/src/docs.ts:351",
-      "packages/cli/src/refine.ts:351",
-      "packages/cli/src/replay.ts:351",
-      "packages/cli/src/store.ts:351",
-      "packages/core/src/bridge-contract.ts:351",
-      "packages/core/src/profiles.ts:351",
-      "packages/extension/entrypoints/background.ts:351",
-      "packages/extension/entrypoints/dashboard/Dashboard.tsx:351",
-      "packages/extension/entrypoints/popup/App.tsx:351"
-    ]
-  }
+	"$schema": "https://pokayoke.codes/schema.json",
+	"baseline": {
+		"structure/max-file-lines": [
+			"packages/cli/src/docs.ts:351",
+			"packages/cli/src/refine.ts:351",
+			"packages/cli/src/replay.ts:351",
+			"packages/cli/src/store.ts:351",
+			"packages/core/src/bridge-contract.ts:351",
+			"packages/core/src/profiles.ts:351",
+			"packages/core/src/site-contract-profile.ts:351",
+			"packages/extension/entrypoints/background.ts:351",
+			"packages/extension/entrypoints/dashboard/Dashboard.tsx:351",
+			"packages/extension/entrypoints/popup/App.tsx:351"
+		]
+	},
+	"extends": ["pokayoke/recommended"],
+	"files": [
+		"AGENTS.md",
+		"README.md",
+		"skills.sh.json",
+		"skills/**/*.md",
+		"packages/**/*.ts",
+		"packages/**/*.tsx",
+		".pokayoke/rules/**/*.ts",
+		".zed/*.json",
+		"biome.json",
+		"package.json",
+		"packages/*/package.json",
+		"packages/*/tsconfig.json",
+		"tsconfig.json",
+		"packages/extension/wxt.config.ts"
+	],
+	"ignores": [
+		"**/node_modules/**",
+		"**/dist/**",
+		"**/.harpist-data/**",
+		"**/*.d.ts"
+	],
+	"localRules": [".pokayoke/rules/**/*.rule.ts"],
+	"rules": {
+		"repo/contract-profile-format": "error",
+		"repo/harpist-surface-parity": "error",
+		"repo/no-root-source-files": "error",
+		"repo/root-bun-catalog-dependencies": "error",
+		"repo/tooling-parity": "error",
+		"structure/max-file-lines": ["error", { "max": 350 }]
+	},
+	"suppressions": {
+		"directive": "pokayoke-ignore",
+		"reportUnused": "warn",
+		"requireReason": true
+	}
 }

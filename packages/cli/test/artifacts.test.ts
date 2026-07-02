@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import type { EndpointSummary, SiteProfile } from "../../core/src/profiles";
 import { buildRecordedSiteArtifacts } from "../src/artifacts";
 
@@ -8,9 +8,7 @@ const sha256 = (value: string) =>
 
 const stableJson = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
-const endpoint = (
-	overrides: Partial<EndpointSummary> = {},
-): EndpointSummary =>
+const endpoint = (overrides: Partial<EndpointSummary> = {}): EndpointSummary =>
 	({
 		exactKey: "GET https://api.example.test/v1/projects/123",
 		host: "api.example.test",

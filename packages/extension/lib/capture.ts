@@ -1,5 +1,5 @@
-import { browser } from "#imports";
 import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
+import { browser } from "#imports";
 
 type RequestWillBeSent = {
 	request: {
@@ -52,7 +52,7 @@ const isMissingResponseBody = (error: unknown) =>
 	typeof error === "object" &&
 	error !== null &&
 	"code" in error &&
-	(error as { code?: unknown }).code === -32000;
+	(error as { code?: unknown }).code === -32_000;
 
 export type CaptureState = {
 	entryCount: number;
@@ -67,14 +67,13 @@ const contentTypeOf = (
 	headers?: Record<string, string>,
 ): string | undefined => {
 	if (!headers) {
-		return undefined;
+		return;
 	}
 	for (const [name, value] of Object.entries(headers)) {
 		if (name.toLowerCase() === "content-type") {
 			return value;
 		}
 	}
-	return undefined;
 };
 
 const mergeHeaders = (
@@ -158,7 +157,8 @@ export const createCaptureController = () => {
 		if (entry) {
 			entry.requestHeaders = mergeHeaders(entry.requestHeaders, data.headers);
 			entry.requestCookies = mergeCookies(entry.requestCookies, cookies);
-			entry.postDataMime = contentTypeOf(entry.requestHeaders) ?? entry.postDataMime;
+			entry.postDataMime =
+				contentTypeOf(entry.requestHeaders) ?? entry.postDataMime;
 			return;
 		}
 		if (data.headers) {

@@ -1,6 +1,9 @@
 import { implement, ORPCError } from "@orpc/server";
 import { harpistContract } from "../../core/src/bridge-contract";
-import { buildAgentHandoffText, DEFAULT_SETTINGS } from "../../core/src/profiles";
+import {
+	buildAgentHandoffText,
+	DEFAULT_SETTINGS,
+} from "../../core/src/profiles";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
 

@@ -3,7 +3,6 @@ import { defineConfig } from "wxt";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  outDir: "dist",
 	manifest: {
 		action: {
 			default_icon: {
@@ -33,6 +32,7 @@ export default defineConfig({
 		],
 	},
 	modules: ["@wxt-dev/module-react"],
+	outDir: "dist",
 	vite: () => ({
 		plugins: [tailwindcss()],
 	}),

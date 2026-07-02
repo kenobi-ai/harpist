@@ -1,17 +1,4 @@
 import {
-	BookOpenIcon,
-	CheckCircleIcon,
-	CopyIcon,
-	DatabaseIcon,
-	FloppyDiskIcon,
-	GlobeHemisphereWestIcon,
-	PlugsConnectedIcon,
-	ShieldCheckIcon,
-	WarningCircleIcon,
-} from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { browser } from "#imports";
-import {
 	authMethodsForProfile,
 	type BackgroundResponse,
 	buildAgentHandoffText,
@@ -25,6 +12,19 @@ import {
 	type ProfileAccessMethod,
 	type SiteProfile,
 } from "@harpist/core/profiles";
+import {
+	BookOpenIcon,
+	CheckCircleIcon,
+	CopyIcon,
+	DatabaseIcon,
+	FloppyDiskIcon,
+	GlobeHemisphereWestIcon,
+	PlugsConnectedIcon,
+	ShieldCheckIcon,
+	WarningCircleIcon,
+} from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { browser } from "#imports";
 
 const sendMessage = async <T,>(
 	message: object,
@@ -56,7 +56,7 @@ function Dashboard() {
 		const response = await sendMessage<PopupState>({
 			type: "GET_STATE",
 		});
-		if (!response.ok || !response.data) {
+		if (!(response.ok && response.data)) {
 			throw new Error(response.error ?? "Could not read Harpist state.");
 		}
 		const nextState = response.data;
@@ -95,7 +95,7 @@ function Dashboard() {
 			settings,
 			type: "SAVE_SETTINGS",
 		});
-		if (!response.ok || !response.data) {
+		if (!(response.ok && response.data)) {
 			setError(response.error ?? "Could not save settings.");
 			return;
 		}
@@ -132,18 +132,18 @@ function Dashboard() {
 					</div>
 					<div className="relative z-10 flex items-center gap-2">
 						<a
-							href={`${normaliseServerUrl(settings.serverUrl)}/openapi`}
-							target="_blank"
-							rel="noreferrer"
 							className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 bg-white/90 px-3 font-semibold text-sm text-zinc-950 transition hover:bg-white"
+							href={`${normaliseServerUrl(settings.serverUrl)}/openapi`}
+							rel="noreferrer"
+							target="_blank"
 						>
 							<BookOpenIcon size={16} />
 							<span>Bridge API</span>
 						</a>
 						<button
-							type="button"
-							onClick={() => void saveSettings()}
 							className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 font-semibold text-sm text-white transition hover:bg-zinc-800"
+							onClick={() => void saveSettings()}
+							type="button"
 						>
 							<FloppyDiskIcon size={16} />
 							<span>{saved ? "Saved" : "Save"}</span>
@@ -161,15 +161,15 @@ function Dashboard() {
 								Bridge URL
 							</label>
 							<input
+								className="mt-2 h-10 w-full rounded-md border border-zinc-300 px-3 font-mono text-sm outline-none focus:border-emerald-700"
 								id="server-url"
-								value={settings.serverUrl}
 								onChange={(event) =>
 									setSettings((current) => ({
 										...current,
 										serverUrl: event.target.value,
 									}))
 								}
-								className="mt-2 h-10 w-full rounded-md border border-zinc-300 px-3 font-mono text-sm outline-none focus:border-emerald-700"
+								value={settings.serverUrl}
 							/>
 							<p className="mt-2 truncate text-xs text-zinc-500">
 								{state?.bridge.message ?? "Bridge not checked"}
@@ -194,17 +194,17 @@ function Dashboard() {
 								) : null}
 								{profiles.map((profile) => (
 									<button
-										key={profile.host}
-										type="button"
-										onClick={() => {
-											setSelectedHost(profile.host);
-											location.hash = encodeURIComponent(profile.host);
-										}}
 										className={`mb-1 w-full rounded-md px-3 py-2 text-left transition ${
 											selectedHost === profile.host
 												? "bg-emerald-900 text-white"
 												: "hover:bg-zinc-100"
 										}`}
+										key={profile.host}
+										onClick={() => {
+											setSelectedHost(profile.host);
+											location.hash = encodeURIComponent(profile.host);
+										}}
+										type="button"
 									>
 										<span className="block truncate font-semibold text-sm">
 											{profile.displayName}
@@ -297,17 +297,17 @@ function ProfileDocs({
 					</div>
 					<div className="flex items-center gap-2">
 						<button
-							type="button"
-							onClick={onOpenRemoteDocs}
 							className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 font-semibold text-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-45"
+							onClick={onOpenRemoteDocs}
+							type="button"
 						>
 							<BookOpenIcon size={16} />
 							<span>Open docs</span>
 						</button>
 						<button
-							type="button"
-							onClick={onCopy}
 							className="inline-flex h-10 items-center gap-2 rounded-md bg-zinc-950 px-3 font-semibold text-sm text-white transition hover:bg-zinc-800"
+							onClick={onCopy}
+							type="button"
 						>
 							<CopyIcon size={16} />
 							<span>{copied ? "Copied" : "Copy handoff"}</span>
@@ -353,8 +353,8 @@ function ProfileDocs({
 							<tbody>
 								{profile.endpoints.map((endpoint) => (
 									<tr
-										key={endpoint.templateKey}
 										className="border-zinc-100 border-b last:border-b-0"
+										key={endpoint.templateKey}
 									>
 										<td className="px-4 py-2 font-bold text-emerald-700 text-xs">
 											{endpoint.method}
@@ -382,7 +382,7 @@ function ProfileDocs({
 					</div>
 					<div className="divide-y divide-zinc-100">
 						{profile.recordings.map((recording) => (
-							<div key={recording.id} className="px-4 py-3">
+							<div className="px-4 py-3" key={recording.id}>
 								<div className="flex items-start justify-between gap-3">
 									<div>
 										<p className="font-semibold text-sm">
@@ -441,8 +441,8 @@ function AuthMethodsCard({
 				) : (
 					methods.map((method) => (
 						<div
-							key={`${method.type}:${method.label}`}
 							className="flex min-w-0 items-center gap-2"
+							key={`${method.type}:${method.label}`}
 						>
 							<span className="truncate font-semibold text-sm">
 								{method.label}

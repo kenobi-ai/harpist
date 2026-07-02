@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import process from "node:process";
 import {
 	buildAgentHandoffText,
 	DEFAULT_SETTINGS,

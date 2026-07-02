@@ -1,7 +1,7 @@
 {
 	"name": "@harpist/core",
-	"private": true,
 	"version": "0.0.0",
+	"private": true,
 	"type": "module",
 	"exports": {
 		".": "./src/index.ts",
@@ -18,11 +18,12 @@
 		"./site-contract-profile-schema": "./src/site-contract-profile-schema.ts"
 	},
 	"scripts": {
-		"compile": "tsc --noEmit -p tsconfig.json"
+		"compile": "bun run typecheck",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"dependencies": {
-		"@orpc/client": "^1.14.6",
-		"@orpc/contract": "^1.14.6",
-		"zod": "^4.4.3"
+		"@orpc/client": "catalog:",
+		"@orpc/contract": "catalog:",
+		"zod": "catalog:"
 	}
 }

@@ -176,14 +176,7 @@ export const CONTRACT_PROFILE_JSON_SCHEMA = {
 		source: { type: "object" },
 		version: { const: CONTRACT_PROFILE_VERSION },
 	},
-	required: [
-		"$schema",
-		"format",
-		"version",
-		"service",
-		"source",
-		"operations",
-	],
+	required: ["$schema", "format", "version", "service", "source", "operations"],
 	title: "Harpist Contract Profile",
 	type: "object",
 } as const;

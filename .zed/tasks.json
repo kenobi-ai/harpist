@@ -1,0 +1,44 @@
+[
+	{
+		"args": ["run", "check"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "check"
+	},
+	{
+		"args": ["run", "fix"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "fix"
+	},
+	{
+		"args": ["run", "format"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "format"
+	},
+	{
+		"args": ["run", "knip"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "knip"
+	},
+	{
+		"args": ["run", "lint"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "lint"
+	},
+	{
+		"args": ["run", "lint:all"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "lint:all"
+	},
+	{
+		"args": ["run", "typecheck"],
+		"command": "bun",
+		"cwd": "$ZED_WORKTREE_ROOT",
+		"label": "typecheck"
+	}
+]

@@ -1,5 +1,9 @@
 import type { Finding, Rule } from "pokayoke";
 import {
+	HARPIST_CLI_COMMANDS,
+	renderHarpistCliCommandLines,
+} from "../../packages/cli/src/surface";
+import {
 	authOperations,
 	bridgeOperations,
 	endpointOperations,
@@ -8,10 +12,6 @@ import {
 	recordingOperations,
 	syncOperations,
 } from "../../packages/core/src/bridge-contract";
-import {
-	HARPIST_CLI_COMMANDS,
-	renderHarpistCliCommandLines,
-} from "../../packages/cli/src/surface";
 
 const RULE_ID = "repo/harpist-surface-parity";
 
@@ -92,16 +92,16 @@ export const managedBlockText = (block: ManagedBlock) =>
 const extractManagedBlock = (source: string, block: ManagedBlock) => {
 	const startIndex = source.indexOf(block.start);
 	if (startIndex === -1) {
-		return undefined;
+		return;
 	}
 	const endIndex = source.indexOf(block.end, startIndex + block.start.length);
 	if (endIndex === -1) {
-		return undefined;
+		return;
 	}
 	return source.slice(startIndex, endIndex + block.end.length);
 };
 
-export const syncManagedBlock = (source: string, block: ManagedBlock) => {
+const syncManagedBlock = (source: string, block: ManagedBlock) => {
 	const startIndex = source.indexOf(block.start);
 	if (startIndex === -1) {
 		return source;
@@ -143,7 +143,8 @@ export const harpistSurfaceParity: Rule = {
 		const nextFiles = new Map<string, string>();
 
 		for (const block of managedSurfaceBlocks) {
-			const source = nextFiles.get(block.file) ?? (await context.readFile(block.file));
+			const source =
+				nextFiles.get(block.file) ?? (await context.readFile(block.file));
 			const actual = extractManagedBlock(source, block);
 			const expected = managedBlockText(block);
 

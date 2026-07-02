@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-
 import {
 	harpistSurfaceParity,
 	managedBlockText,
@@ -15,16 +14,19 @@ const writeManagedFiles = async (root: string) => {
 	>();
 
 	for (const block of managedSurfaceBlocks) {
-		blocksByFile.set(block.file, [...(blocksByFile.get(block.file) ?? []), block]);
+		blocksByFile.set(block.file, [
+			...(blocksByFile.get(block.file) ?? []),
+			block,
+		]);
 	}
 
 	for (const [file, blocks] of blocksByFile) {
 		const path = `${root}/${file}`;
 		await mkdir(path.slice(0, path.lastIndexOf("/")), { recursive: true });
-		await Bun.write(
-			path,
-			[`# ${file}`, "", ...blocks.map(managedBlockText)].join("\n\n") + "\n",
+		const source = [`# ${file}`, "", ...blocks.map(managedBlockText)].join(
+			"\n\n",
 		);
+		await Bun.write(path, `${source}\n`);
 	}
 };
 

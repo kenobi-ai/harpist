@@ -9,9 +9,7 @@ import {
 	resolveContractProfile,
 } from "../src/site-contract-profile";
 
-const endpoint = (
-	overrides: Partial<EndpointSummary> = {},
-): EndpointSummary =>
+const endpoint = (overrides: Partial<EndpointSummary> = {}): EndpointSummary =>
 	({
 		exactKey: "GET https://api.example.test/v1/projects/123",
 		host: "api.example.test",
@@ -72,7 +70,9 @@ describe("contract profile", () => {
 		expect(contractProfile.operations[1]?.path).toBe(
 			"/v1/projects/{id}/tasks/{id2}",
 		);
-		expect(contractProfile.operations[1]?.parameters.path).toHaveProperty("id2");
+		expect(contractProfile.operations[1]?.parameters.path).toHaveProperty(
+			"id2",
+		);
 
 		const openapi = createOpenApiDocumentFromContractProfile(contractProfile);
 		expect(openapi["x-harpist"].sourceArtifact).toBe("contract-profile.json");

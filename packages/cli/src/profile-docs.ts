@@ -1,7 +1,16 @@
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
 
-const httpMethods = ["delete", "get", "head", "options", "patch", "post", "put", "trace"] as const;
+const httpMethods = [
+	"delete",
+	"get",
+	"head",
+	"options",
+	"patch",
+	"post",
+	"put",
+	"trace",
+] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -59,7 +68,7 @@ export const openApiWithReplayExamples = async (input: {
 		return input.openapi;
 	}
 	const next = cloneJson(input.openapi);
-	if (!isRecord(next) || !isRecord(next.paths)) {
+	if (!(isRecord(next) && isRecord(next.paths))) {
 		return next;
 	}
 	const recordings = await input.store.listStoredRecordings(input.profile.host);

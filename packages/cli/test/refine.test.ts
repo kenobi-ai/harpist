@@ -6,9 +6,7 @@ import {
 	hasCuratedEndpointDocumentation,
 } from "../src/refine";
 
-const endpoint = (
-	overrides: Partial<EndpointSummary> = {},
-): EndpointSummary =>
+const endpoint = (overrides: Partial<EndpointSummary> = {}): EndpointSummary =>
 	({
 		exactKey: "GET api.example.test/v1/projects/abc",
 		host: "api.example.test",
@@ -62,7 +60,8 @@ describe("refine endpoint annotations", () => {
 	test("does not preserve neutral generated docs", () => {
 		const neutral = endpoint({
 			description: "Get Abc123 Project",
-			notes: "Gets abc123 project observed during the recorded browser workflow.",
+			notes:
+				"Gets abc123 project observed during the recorded browser workflow.",
 			tags: ["same-site", "api"],
 		});
 		const replacement = decision(neutral, {

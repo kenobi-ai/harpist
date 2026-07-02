@@ -1,27 +1,59 @@
 {
 	"name": "harpist-workspace",
-	"description": "Record website traffic and prepare API contracts for agents.",
-	"private": true,
 	"version": "0.0.0",
+	"private": true,
+	"description": "Record website traffic and prepare API contracts for agents.",
 	"type": "module",
-	"workspaces": [
-		"packages/*"
-	],
+	"workspaces": {
+		"packages": [
+			"packages/*"
+		],
+		"catalog": {
+			"@biomejs/biome": "^2.5.1",
+			"@orpc/client": "^1.14.6",
+			"@orpc/contract": "^1.14.6",
+			"@orpc/openapi": "^1.14.6",
+			"@orpc/server": "^1.14.6",
+			"@orpc/zod": "^1.14.6",
+			"@phosphor-icons/react": "^2.1.10",
+			"@tailwindcss/vite": "^4.3.1",
+			"@types/node": "^26.0.1",
+			"@types/react": "^19.2.14",
+			"@types/react-dom": "^19.2.3",
+			"@wxt-dev/module-react": "^1.1.5",
+			"hono": "^4.12.27",
+			"knip": "^6.24.0",
+			"pokayoke": "^0.0.6",
+			"react": "^19.2.4",
+			"react-dom": "^19.2.4",
+			"tailwindcss": "^4.3.1",
+			"typescript": "^5.9.3",
+			"wxt": "0.20.26",
+			"zod": "^4.4.3"
+		}
+	},
 	"scripts": {
 		"bridge": "bun run --filter harpist bridge",
 		"build": "bun run --filter @harpist/extension build",
 		"build:cli": "bun run --filter harpist build",
 		"build:firefox": "bun run --filter @harpist/extension build:firefox",
-		"check": "bun run compile && bun test ./.pokayoke/rules/*.test.ts ./packages/*/test/*.test.ts && bun run pokayoke check",
+		"check": "bun run lint && bun run typecheck && bun test ./.pokayoke/rules/*.test.ts ./packages/*/test/*.test.ts && bun run knip && bun run pokayoke check",
 		"cli": "bun run --filter harpist harpist",
-		"compile": "bun run --workspaces --sequential compile",
+		"compile": "bun run typecheck",
 		"dev": "bun run --filter @harpist/extension dev",
 		"dev:firefox": "bun run --filter @harpist/extension dev:firefox",
+		"fix": "biome check --write --error-on-warnings .",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
 		"harpist": "bun run --filter harpist harpist",
-		"pack:dry-run": "bun run --filter harpist pack:dry-run",
 		"postinstall": "bun run --filter @harpist/extension prepare",
+		"knip": "knip",
+		"lint": "biome check --error-on-warnings .",
+		"lint:all": "biome check --error-on-warnings --max-diagnostics=none .",
+		"pack:dry-run": "bun run --filter harpist pack:dry-run",
 		"publish:check": "bun run check && bun run pack:dry-run",
 		"publish:setup": "npm exec --package=npm@latest -- npm trust github harpist --repo kenobi-ai/harpist --file publish.yml --env npm --allow-publish --yes",
+		"typecheck": "bun run --workspaces --sequential typecheck",
 		"version:major": "bun run scripts/bump-cli-version.ts major",
 		"version:minor": "bun run scripts/bump-cli-version.ts minor",
 		"version:patch": "bun run scripts/bump-cli-version.ts patch",
@@ -30,9 +62,10 @@
 		"zip:firefox": "bun run --filter @harpist/extension zip:firefox"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.1",
-		"@types/node": "^26.0.1",
-		"pokayoke": "^0.0.6",
-		"typescript": "^5.9.3"
+		"@biomejs/biome": "catalog:",
+		"@types/node": "catalog:",
+		"knip": "catalog:",
+		"pokayoke": "catalog:",
+		"typescript": "catalog:"
 	}
 }

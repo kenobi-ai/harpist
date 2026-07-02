@@ -1,4 +1,17 @@
 import {
+	authMethodsForProfile,
+	type BackgroundResponse,
+	buildAgentHandoffText,
+	capturedAuthDetailLabel,
+	hostLabel,
+	messageOf,
+	normaliseServerUrl,
+	type PopupState,
+	type ProfileAccessMethod,
+	type SiteProfile,
+	type StopResult,
+} from "@harpist/core/profiles";
+import {
 	BookOpenTextIcon,
 	BridgeIcon,
 	BroadcastIcon,
@@ -16,19 +29,6 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { browser } from "#imports";
-import {
-	authMethodsForProfile,
-	type BackgroundResponse,
-	buildAgentHandoffText,
-	capturedAuthDetailLabel,
-	hostLabel,
-	messageOf,
-	normaliseServerUrl,
-	type PopupState,
-	type ProfileAccessMethod,
-	type SiteProfile,
-	type StopResult,
-} from "@harpist/core/profiles";
 
 const sendMessage = async <T,>(
 	message: object,
@@ -83,7 +83,7 @@ function App() {
 		const response = await sendMessage<PopupState>({
 			type: "GET_STATE",
 		});
-		if (!response.ok || !response.data) {
+		if (!(response.ok && response.data)) {
 			throw new Error(response.error ?? "Could not read Harpist state.");
 		}
 		setState(response.data);
@@ -120,7 +120,7 @@ function App() {
 				direction: 1,
 				frame: DEFAULT_SPRITE_FRAME,
 			});
-			return undefined;
+			return;
 		}
 		setSpriteState({
 			direction: 1,
@@ -148,7 +148,6 @@ function App() {
 		}, 120);
 		return () => window.clearInterval(timer);
 	}, [isRecording]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: Reset copied state whenever the selected profile changes.
 	useEffect(() => {
 		setHandoffCopied(false);
 	}, [profileHost]);
@@ -223,7 +222,7 @@ function App() {
 	};
 
 	const copyHandoff = async () => {
-		if (!profile || !state) {
+		if (!(profile && state)) {
 			return;
 		}
 		const syncResponse = await sendMessage<PopupState>({
@@ -258,9 +257,9 @@ function App() {
 						</div>
 						<div className="flex size-20 shrink-0 items-center justify-center overflow-hidden bg-amber-50 rounded-xs p-1">
 							<img
-								src={spriteUrl}
 								alt=""
 								className="size-full object-contain"
+								src={spriteUrl}
 							/>
 						</div>
 					</div>
@@ -275,10 +274,10 @@ function App() {
 					) : null}
 
 					<button
-						type="button"
-						onClick={() => void runRecordingAction()}
-						disabled={busy || (!state?.activePage && !isRecording)}
 						className="relative isolate inline-flex h-12 w-full translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
+						disabled={busy || !(state?.activePage || isRecording)}
+						onClick={() => void runRecordingAction()}
+						type="button"
 					>
 						<span className="relative z-10 inline-flex items-center gap-2">
 							{isRecording ? (
@@ -310,10 +309,10 @@ function App() {
 
 						<div className="grid grid-cols-2 gap-2">
 							<button
-								type="button"
-								onClick={() => void openDocs(profile)}
-								disabled={!profile || supportingContentLocked}
 								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
+								disabled={!profile || supportingContentLocked}
+								onClick={() => void openDocs(profile)}
+								type="button"
 							>
 								<span className="relative z-10 inline-flex items-center gap-2">
 									<BookOpenTextIcon size={16} />
@@ -321,10 +320,10 @@ function App() {
 								</span>
 							</button>
 							<button
-								type="button"
-								onClick={() => void copyHandoff()}
-								disabled={!profile || supportingContentLocked}
 								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
+								disabled={!profile || supportingContentLocked}
+								onClick={() => void copyHandoff()}
+								type="button"
 							>
 								<span className="relative z-10 inline-flex items-center gap-2">
 									{handoffCopied ? (
@@ -374,24 +373,24 @@ const workflowStatus = (
 function StatusBadge({ status }: { status: WorkflowStatus }) {
 	const statusView = {
 		"Bridge active": {
-			Icon: BridgeIcon,
 			className: "bg-emerald-900/10 text-emerald-700",
+			Icon: BridgeIcon,
 		},
 		Complete: {
-			Icon: CheckCircleIcon,
 			className: "bg-emerald-900/10 text-emerald-700",
+			Icon: CheckCircleIcon,
 		},
 		"No recording": {
-			Icon: RecordIcon,
 			className: "bg-amber-900/10 text-amber-900",
+			Icon: RecordIcon,
 		},
 		"Recording in progress": {
-			Icon: BroadcastIcon,
 			className: "bg-rose-900/10 text-rose-700",
+			Icon: BroadcastIcon,
 		},
 		"Waiting for handoff": {
-			Icon: WarningCircleIcon,
 			className: "bg-amber-900/10 text-amber-900",
+			Icon: WarningCircleIcon,
 		},
 	} satisfies Record<
 		WorkflowStatus,
@@ -492,8 +491,8 @@ function MetadataLine({
 							const MethodIcon = view.Icon;
 							return (
 								<div
-									key={`${method.type}:${method.label}`}
 									className="flex min-w-0 items-center gap-1.5"
+									key={`${method.type}:${method.label}`}
 								>
 									<MethodIcon
 										className="shrink-0 text-amber-900/70"

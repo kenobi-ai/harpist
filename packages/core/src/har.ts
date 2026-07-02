@@ -61,17 +61,17 @@ const queryFromUrl = (rawUrl: string): HarHeader[] => {
 const buildEntry = (entry: PendingEntry) => ({
 	cache: {},
 	request: {
-		bodySize: entry.postData ? entry.postData.length : 0,
-		headers: toHeaderList(entry.requestHeaders),
-		headersSize: -1,
-		httpVersion: "HTTP/1.1",
-		method: entry.method,
 		_harpist:
 			entry.requestCookies && entry.requestCookies.length > 0
 				? {
 						requestCookies: entry.requestCookies,
 					}
 				: undefined,
+		bodySize: entry.postData ? entry.postData.length : 0,
+		headers: toHeaderList(entry.requestHeaders),
+		headersSize: -1,
+		httpVersion: "HTTP/1.1",
+		method: entry.method,
 		postData: entry.postData
 			? {
 					mimeType: entry.postDataMime ?? "application/octet-stream",

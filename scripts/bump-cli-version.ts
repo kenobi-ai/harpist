@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { readFile, writeFile } from "node:fs/promises";
+import process from "node:process";
 
 type PackageJson = {
 	version?: unknown;

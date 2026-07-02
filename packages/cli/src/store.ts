@@ -84,16 +84,16 @@ const requestCookiesFromHar = (
 	request: unknown,
 ): CapturedCookie[] | undefined => {
 	if (typeof request !== "object" || request === null) {
-		return undefined;
+		return;
 	}
 	const harpist = (request as { _harpist?: unknown })._harpist;
 	if (typeof harpist !== "object" || harpist === null) {
-		return undefined;
+		return;
 	}
 	const requestCookies = (harpist as { requestCookies?: unknown })
 		.requestCookies;
 	if (!Array.isArray(requestCookies)) {
-		return undefined;
+		return;
 	}
 	return requestCookies
 		.map((cookie): CapturedCookie | null => {
@@ -260,7 +260,10 @@ const mergeProfileSnapshot = (
 	for (const recording of existing?.recordings ?? []) {
 		recordingById.set(recording.id, recording);
 	}
-	const latestAuth = newestLatestAuth(existing?.latestAuth, incoming.latestAuth);
+	const latestAuth = newestLatestAuth(
+		existing?.latestAuth,
+		incoming.latestAuth,
+	);
 	return refreshEndpointCounts({
 		...base,
 		agentNotes: existing?.agentNotes ?? incoming.agentNotes,
@@ -466,10 +469,10 @@ export const createBridgeStore = (dataDir: string) => {
 			return saveProfile(refreshEndpointCounts({ ...profile, endpoints }));
 		},
 		getProfile,
-		getSiteArtifactPaths: siteArtifactPaths,
 		getRecording: readRecording,
-		ingestRecording,
+		getSiteArtifactPaths: siteArtifactPaths,
 		ingestExtensionSnapshot,
+		ingestRecording,
 		latestProfile,
 		latestRecording,
 		listProfiles,
@@ -511,6 +514,14 @@ export const createBridgeStore = (dataDir: string) => {
 			});
 			return nextRecording;
 		},
+		readProfileContract: (host: string) =>
+			readProfileArtifactText(host, "contractPath"),
+		readProfileContractProfile: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "contractProfilePath"),
+		readProfileMetadata: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "metadataPath"),
+		readProfileOpenApi: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "openapiPath"),
 		removeEndpoint: async (host: string, templateKey: string) => {
 			const profile = await requireProfile(host);
 			return saveProfile(
@@ -523,14 +534,6 @@ export const createBridgeStore = (dataDir: string) => {
 			);
 		},
 		requireProfile,
-		readProfileContract: (host: string) =>
-			readProfileArtifactText(host, "contractPath"),
-		readProfileContractProfile: (host: string) =>
-			readProfileArtifactJson<unknown>(host, "contractProfilePath"),
-		readProfileMetadata: (host: string) =>
-			readProfileArtifactJson<unknown>(host, "metadataPath"),
-		readProfileOpenApi: (host: string) =>
-			readProfileArtifactJson<unknown>(host, "openapiPath"),
 		saveProfile,
 		setArtifacts: async (host: string, artifacts: ProfileArtifacts) => {
 			const profile = await requireProfile(host);

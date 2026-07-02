@@ -3,8 +3,8 @@ import {
 	type AuthBundle,
 	deriveAuthBundle,
 	type EndpointSummary,
-	redactLatestAuth,
 	type RedactedLatestAuth,
+	redactLatestAuth,
 	type SiteProfile,
 } from "../../core/src/profiles";
 import type { StoredRecording } from "./store";
@@ -57,7 +57,6 @@ const headerValue = (headers: Record<string, string>, name: string) => {
 			return value;
 		}
 	}
-	return undefined;
 };
 
 const headersFromHar = (headers: unknown): Record<string, string> => {
@@ -82,15 +81,16 @@ const requestCookiesFromHar = (
 	request: unknown,
 ): CapturedCookie[] | undefined => {
 	if (typeof request !== "object" || request === null) {
-		return undefined;
+		return;
 	}
 	const harpist = (request as { _harpist?: unknown })._harpist;
 	if (typeof harpist !== "object" || harpist === null) {
-		return undefined;
+		return;
 	}
-	const requestCookies = (harpist as { requestCookies?: unknown }).requestCookies;
+	const requestCookies = (harpist as { requestCookies?: unknown })
+		.requestCookies;
 	if (!Array.isArray(requestCookies)) {
-		return undefined;
+		return;
 	}
 	return requestCookies
 		.map((cookie): CapturedCookie | null => {
@@ -102,8 +102,7 @@ const requestCookiesFromHar = (
 				return null;
 			}
 			return {
-				domain:
-					typeof cookie.domain === "string" ? cookie.domain : undefined,
+				domain: typeof cookie.domain === "string" ? cookie.domain : undefined,
 				expiresAt:
 					typeof cookie.expiresAt === "string" ? cookie.expiresAt : undefined,
 				httpOnly:
@@ -225,7 +224,9 @@ const latestAuthEntryForEndpoint = (
 		requestCookies: requestCookies.length > 0 ? requestCookies : undefined,
 		requestHeaders,
 		startedDateTime:
-			latestAuth.capturedAt ?? values[0]?.capturedAt ?? new Date().toISOString(),
+			latestAuth.capturedAt ??
+			values[0]?.capturedAt ??
+			new Date().toISOString(),
 		url: `https://${endpoint.host}${endpoint.path}`,
 	};
 };
@@ -253,7 +254,8 @@ const selectedEndpoints = (
 		return profile.endpoints.filter(
 			(endpoint) =>
 				endpoint.method === selector.method?.toUpperCase() &&
-				(endpoint.path === selector.path || endpoint.template === selector.path),
+				(endpoint.path === selector.path ||
+					endpoint.template === selector.path),
 		);
 	}
 	return profile.endpoints.filter((endpoint) => endpoint.included !== false);
@@ -315,7 +317,7 @@ const entryFromRecording = (
 			options.allowTemplate === true &&
 			url.host === endpoint.host &&
 			pathMatchesTemplate(pathname, endpoint.template);
-		if (!exactMatch && !templateMatch) {
+		if (!(exactMatch || templateMatch)) {
 			continue;
 		}
 		const pending: PendingEntry = {
@@ -412,14 +414,16 @@ const replayCookies = (
 		value:
 			cookie.value !== undefined && !options.includeSecrets
 				? redacted
-		: cookie.value,
+				: cookie.value,
 	}));
 
 const hasCredentialMaterial = (entry: PendingEntry) =>
 	Boolean(headerValue(entry.requestHeaders, "authorization")) ||
 	Boolean(headerValue(entry.requestHeaders, "cookie")) ||
 	(entry.requestCookies ?? []).some((cookie) => cookie.value !== undefined) ||
-	Object.keys(entry.requestHeaders).some((name) => secretHeaderPattern.test(name));
+	Object.keys(entry.requestHeaders).some((name) =>
+		secretHeaderPattern.test(name),
+	);
 
 const credentialEntryForEndpoint = (
 	recordings: StoredRecording[],
@@ -481,7 +485,8 @@ const withCredentialMaterial = (
 	return {
 		...entry,
 		requestCookies:
-			credentialEntry.requestCookies && credentialEntry.requestCookies.length > 0
+			credentialEntry.requestCookies &&
+			credentialEntry.requestCookies.length > 0
 				? credentialEntry.requestCookies
 				: entry.requestCookies,
 		requestHeaders,
@@ -533,7 +538,7 @@ const entriesFromRecording = (recording: StoredRecording): PendingEntry[] =>
 				postDataMime:
 					typeof entry.request.postData?.mimeType === "string"
 						? entry.request.postData.mimeType
-					: undefined,
+						: undefined,
 				requestCookies: requestCookiesFromHar(entry.request),
 				requestHeaders: headersFromHar(entry.request.headers),
 				responseHeaders: headersFromHar(entry.response?.headers),
@@ -564,7 +569,13 @@ const curlFrom = (input: {
 	method: string;
 	url: string;
 }) => {
-	const parts = ["curl", "-i", "-X", shellQuote(input.method), shellQuote(input.url)];
+	const parts = [
+		"curl",
+		"-i",
+		"-X",
+		shellQuote(input.method),
+		shellQuote(input.url),
+	];
 	for (const header of input.headers) {
 		parts.push("-H", shellQuote(`${header.name}: ${header.value}`));
 	}
@@ -577,7 +588,9 @@ const curlFrom = (input: {
 const isHtmlErrorSample = (entry: PendingEntry) =>
 	(entry.status ?? 0) >= 400 &&
 	/(?:html|text\/plain)/i.test(entry.responseMime ?? "") &&
-	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(entry.body ?? "");
+	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(
+		entry.body ?? "",
+	);
 
 export const buildReplayBundle = (input: {
 	method?: string;
@@ -635,7 +648,7 @@ export const buildReplayBundle = (input: {
 			break;
 		}
 	}
-	if (!endpoint || !entry || !sampleRecording) {
+	if (!(endpoint && entry && sampleRecording)) {
 		throw new Error("No sampled request was found for this endpoint.");
 	}
 	const latestAuthEntry = latestAuthEntryForEndpoint(input.profile, endpoint);
@@ -678,8 +691,10 @@ export const buildReplayBundle = (input: {
 		);
 	}
 	if (
-		!headers.some((header) => header.secret) &&
-		!(entry.requestCookies ?? []).some((cookie) => cookie.value)
+		!(
+			headers.some((header) => header.secret) ||
+			(entry.requestCookies ?? []).some((cookie) => cookie.value)
+		)
 	) {
 		warnings.push(
 			"No reusable credential material was captured for this sampled request.",

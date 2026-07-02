@@ -1,10 +1,10 @@
-import type { EndpointSummary, SiteProfile } from "./profiles";
 import type { ContractJsonSchema, JsonValue } from "./json-schema-zod";
+import type { EndpointSummary, SiteProfile } from "./profiles";
 import {
-	type ContractProfile,
 	CONTRACT_PROFILE_FORMAT,
 	CONTRACT_PROFILE_SCHEMA_ID,
 	CONTRACT_PROFILE_VERSION,
+	type ContractProfile,
 	contractProfileSchema,
 } from "./site-contract-profile-schema";
 
@@ -30,6 +30,10 @@ const genericHostLabels = new Set([
 	"www",
 ]);
 
+export type {
+	ContractProfile,
+	ContractProfileOperation,
+} from "./site-contract-profile-schema";
 export {
 	CONTRACT_PROFILE_FORMAT,
 	CONTRACT_PROFILE_JSON_SCHEMA,
@@ -37,7 +41,6 @@ export {
 	CONTRACT_PROFILE_VERSION,
 	contractProfileSchema,
 } from "./site-contract-profile-schema";
-export type { ContractProfile, ContractProfileOperation } from "./site-contract-profile-schema";
 
 const jsonObject = (value: unknown) =>
 	JSON.parse(JSON.stringify(value)) as Record<string, JsonValue>;
@@ -278,7 +281,12 @@ export const createRecordedSiteContractProfile = (
 	});
 };
 
-const defaultResponse = { contentType: "application/json", description: "Observed response", schema: unknownSchema, status: 200 };
+const defaultResponse = {
+	contentType: "application/json",
+	description: "Observed response",
+	schema: unknownSchema,
+	status: 200,
+};
 
 export const resolveContractProfile = (input: unknown): ContractProfile => {
 	const result = contractProfileSchema.safeParse(input);
@@ -290,7 +298,9 @@ export const resolveContractProfile = (input: unknown): ContractProfile => {
 	const usedRoutes = new Set<string>();
 	const service = {
 		...result.data.service,
-		servers: result.data.service.servers ?? [{ url: result.data.service.origin }],
+		servers: result.data.service.servers ?? [
+			{ url: result.data.service.origin },
+		],
 	};
 	const operations = result.data.operations.map((operation, index) => {
 		if (!operation.path.startsWith("/")) {
@@ -321,14 +331,17 @@ export const resolveContractProfile = (input: unknown): ContractProfile => {
 		}
 		for (const name of Object.keys(pathParameters)) {
 			if (!pathNameSet.has(name)) {
-				issues.push(`Route '${routeKey}' declares unused path parameter '${name}'.`);
+				issues.push(
+					`Route '${routeKey}' declares unused path parameter '${name}'.`,
+				);
 			}
 		}
 		const responses =
 			operation.responses.length > 0 ? operation.responses : [defaultResponse];
 		return {
 			...operation,
-			outputSchema: operation.outputSchema ?? responses[0]?.schema ?? unknownSchema,
+			outputSchema:
+				operation.outputSchema ?? responses[0]?.schema ?? unknownSchema,
 			parameters: {
 				...operation.parameters,
 				path: pathParameters,

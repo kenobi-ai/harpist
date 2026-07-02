@@ -98,8 +98,7 @@ const hasText = (value?: string) => value !== undefined && value.trim() !== "";
 const isNeutralDocumentationText = (value?: string) => {
 	const text = value?.trim();
 	return (
-		!text ||
-		neutralDocumentationPatterns.some((pattern) => pattern.test(text))
+		!text || neutralDocumentationPatterns.some((pattern) => pattern.test(text))
 	);
 };
 
@@ -128,13 +127,13 @@ export const applyExistingEndpointAnnotations = (
 	return {
 		...decision,
 		description: curated
-			? endpoint.description?.trim() ?? decision.description
+			? (endpoint.description?.trim() ?? decision.description)
 			: decision.description,
 		included,
 		notes: options.htmlErrorOnly
 			? "Excluded because the sampled browser request returned an HTML access/error page."
 			: curated
-				? endpoint.notes?.trim() ?? decision.notes
+				? (endpoint.notes?.trim() ?? decision.notes)
 				: decision.notes,
 		operationName: endpoint.operationName?.trim() || decision.operationName,
 		tags: curated && tags.length > 0 ? tags : decision.tags,
@@ -423,9 +422,7 @@ const classifyEndpoint = (
 	tags.add(category);
 
 	const included =
-		!staticAsset &&
-		!telemetry &&
-		!preflight &&
+		!(staticAsset || telemetry || preflight) &&
 		sameSite &&
 		(mutating || apiLike);
 	const documentation = endpointDocumentation(endpoint, category);
@@ -437,9 +434,9 @@ const classifyEndpoint = (
 				? "Excluded as static/media asset traffic."
 				: telemetry
 					? "Excluded as telemetry/analytics traffic."
-					: !sameSite
-						? "Excluded as third-party vendor traffic."
-						: "Excluded as non-API page traffic.";
+					: sameSite
+						? "Excluded as non-API page traffic."
+						: "Excluded as third-party vendor traffic.";
 
 	return {
 		description: documentation.summary,
@@ -472,16 +469,16 @@ const requestCookiesFromHar = (
 	request: unknown,
 ): CapturedCookie[] | undefined => {
 	if (typeof request !== "object" || request === null) {
-		return undefined;
+		return;
 	}
 	const harpist = (request as { _harpist?: unknown })._harpist;
 	if (typeof harpist !== "object" || harpist === null) {
-		return undefined;
+		return;
 	}
 	const requestCookies = (harpist as { requestCookies?: unknown })
 		.requestCookies;
 	if (!Array.isArray(requestCookies)) {
-		return undefined;
+		return;
 	}
 	return requestCookies
 		.map((cookie): CapturedCookie | null => {
@@ -517,7 +514,6 @@ const headerValue = (headers: Record<string, string>, name: string) => {
 			return value;
 		}
 	}
-	return undefined;
 };
 
 const cookieNames = (entry: PendingEntry) => [
@@ -852,10 +848,10 @@ export const refineLatestProfile = async (
 		auth,
 		authBundle,
 		derivedEndpointCount: included.length,
+		endpoints: refinedEndpoints,
 		endpointTemplateKeys: included.map(
 			(decision) => decision.endpoint.templateKey,
 		),
-		endpoints: refinedEndpoints,
 		latestAuth,
 	};
 	const generatedArtifacts = await buildRecordedSiteArtifacts(artifactProfile, {
@@ -885,12 +881,12 @@ export const refineLatestProfile = async (
 		auth,
 		authBundle,
 		derivedEndpointCount: included.length,
+		endpoints: refinedEndpoints,
 		endpointTemplateKeys: included.map(
 			(decision) => decision.endpoint.templateKey,
 		),
-		endpoints: refinedEndpoints,
-		latestAuth,
 		lastBridgeMessage: "Profile refined",
+		latestAuth,
 		remoteDocsUrl: `${options.bridgeUrl}/profiles/${encodeURIComponent(
 			profile.host,
 		)}/docs`,
