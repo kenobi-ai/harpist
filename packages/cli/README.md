@@ -21,6 +21,7 @@ harpist help
 
 ```sh
 harpist bridge
+harpist version
 harpist profiles list
 harpist profiles latest [host]
 harpist recordings latest [host]

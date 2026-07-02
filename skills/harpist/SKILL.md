@@ -107,6 +107,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 <!-- harpist:cli-commands:start -->
 ```sh
 bunx harpist bridge
+bunx harpist version
 bunx harpist profiles list
 bunx harpist profiles latest [host]
 bunx harpist profiles get <host>

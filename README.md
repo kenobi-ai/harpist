@@ -60,6 +60,7 @@ Harpist writes a versioned `contract-profile.json` first. It is the portable sou
 <!-- harpist:cli-commands:start -->
 ```sh
 bun run harpist bridge
+bun run harpist version
 bun run harpist profiles list
 bun run harpist profiles latest [host]
 bun run harpist profiles get <host>

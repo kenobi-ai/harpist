@@ -14,6 +14,10 @@ import { createHarpistBridgeServer } from "./server";
 import { createBridgeStore } from "./store";
 import { renderHarpistCliUsage } from "./surface";
 
+type CliPackageJson = {
+	version?: unknown;
+};
+
 declare const Bun: {
 	stdin: {
 		text: () => Promise<string>;
@@ -89,6 +93,16 @@ const refineSummary = (
 const readInputFile = async (path: string) =>
 	path === "-" ? Bun.stdin.text() : readFile(path, "utf8");
 
+const readCliVersion = async () => {
+	const packageJson = JSON.parse(
+		await readFile(new URL("../package.json", import.meta.url), "utf8"),
+	) as CliPackageJson;
+	if (typeof packageJson.version !== "string") {
+		fail("packages/cli/package.json has no string version.");
+	}
+	return packageJson.version;
+};
+
 const usage = () => {
 	console.log(renderHarpistCliUsage());
 };
@@ -113,6 +127,12 @@ const args = process.argv.slice(3);
 
 if (command === "bridge") {
 	serveBridge();
+} else if (
+	command === "version" ||
+	command === "--version" ||
+	command === "-v"
+) {
+	console.log(await readCliVersion());
 } else if (command === "profiles") {
 	const subcommand = args[0] ?? "list";
 	if (subcommand === "list") {

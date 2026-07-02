@@ -1,5 +1,6 @@
 const HARPIST_CLI_COMMANDS = [
 	"harpist bridge",
+	"harpist version",
 	"harpist profiles list",
 	"harpist profiles latest [host]",
 	"harpist profiles get <host>",
