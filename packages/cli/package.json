@@ -1,7 +1,7 @@
 {
 	"name": "harpist",
 	"description": "Record website traffic and prepare API contracts for agents.",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"type": "module",
 	"bin": {
 		"harpist": "./dist/cli.js"

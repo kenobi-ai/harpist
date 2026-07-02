@@ -35,6 +35,10 @@ harpist help
 - `packages/cli`: Harpist CLI and local bridge service
 - `packages/core`: shared contracts, profiles, and HAR utilities
 
+## Publishing
+
+Maintainer release flow lives in [PUBLISHING.md](PUBLISHING.md). The npm package is `harpist`, and the installed bin is also `harpist`.
+
 ## Workflow
 
 1. Open the website in the Harpist dev browser.

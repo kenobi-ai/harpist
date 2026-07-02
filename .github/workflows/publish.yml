@@ -55,6 +55,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Verify release tag
+        if: github.event_name == 'release'
+        shell: bash
+        run: |
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          expected_tag="v${package_version}"
+          release_tag="${{ github.event.release.tag_name }}"
+          if [[ "${release_tag}" != "${expected_tag}" ]]; then
+            echo "Release tag ${release_tag} does not match package version ${package_version}."
+            echo "Expected ${expected_tag}."
+            exit 1
+          fi
+
       - name: Check
         run: bun run check
 
