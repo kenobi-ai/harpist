@@ -21,7 +21,7 @@
 	},
 	"type": "module",
 	"bin": {
-		"harpist": "./dist/cli.js"
+		"harpist": "dist/cli.js"
 	},
 	"files": [
 		"dist",
@@ -32,7 +32,8 @@
 		"build": "bun build src/cli.ts --target=bun --outfile=dist/cli.js '--external=@orpc/*' --external=hono --external=zod",
 		"compile": "bun run typecheck",
 		"harpist": "bun run src/cli.ts",
-		"prepack": "bun run build",
+		"prepack": "bun run build && bun ../../scripts/resolve-cli-catalog-dependencies.ts apply",
+		"postpack": "bun ../../scripts/resolve-cli-catalog-dependencies.ts restore",
 		"pack:dry-run": "NPM_CONFIG_CACHE=/private/tmp/harpist-npm-cache npm pack --dry-run",
 		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},

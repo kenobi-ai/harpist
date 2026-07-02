@@ -74,7 +74,32 @@ jobs:
         run: bun run check
 
       - name: Inspect package
-        run: NPM_CONFIG_CACHE=/tmp/harpist-npm-cache npm pack --dry-run --workspace harpist
+        shell: bash
+        run: |
+          package_dir="${RUNNER_TEMP}/harpist-package"
+          mkdir -p "${package_dir}"
+          NPM_CONFIG_CACHE=/tmp/harpist-npm-cache npm pack --workspace harpist --pack-destination "${package_dir}"
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          package_file="${package_dir}/harpist-${package_version}.tgz"
+          tar -xOf "${package_file}" package/package.json | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => {
+              input += chunk;
+            });
+            process.stdin.on("end", () => {
+              const packageJson = JSON.parse(input);
+              const fields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+              const catalogSpecs = fields.flatMap((field) =>
+                Object.entries(packageJson[field] ?? {})
+                  .filter(([, spec]) => spec === "catalog:")
+                  .map(([name]) => `${field}.${name}`),
+              );
+              if (catalogSpecs.length > 0) {
+                console.error(`Packed package contains unresolved catalog specs: ${catalogSpecs.join(", ")}`);
+                process.exit(1);
+              }
+            });
+          '
 
       - name: Resolve npm tag
         id: npm-tag
