@@ -287,6 +287,7 @@ export const createBridgeStore = (dataDir: string) => {
 		const directory = join("sites", slug(host));
 		return {
 			contractPath: join(directory, "contract.ts"),
+			contractProfilePath: join(directory, "contract-profile.json"),
 			metadataPath: join(directory, "metadata.json"),
 			openapiPath: join(directory, "openapi.json"),
 		};
@@ -334,7 +335,7 @@ export const createBridgeStore = (dataDir: string) => {
 
 	const readProfileArtifactJson = async <T>(
 		host: string,
-		pathKey: "metadataPath" | "openapiPath",
+		pathKey: "contractProfilePath" | "metadataPath" | "openapiPath",
 	) => {
 		const profile = await requireProfile(host);
 		const path = profile.artifacts?.[pathKey];
@@ -524,6 +525,8 @@ export const createBridgeStore = (dataDir: string) => {
 		requireProfile,
 		readProfileContract: (host: string) =>
 			readProfileArtifactText(host, "contractPath"),
+		readProfileContractProfile: (host: string) =>
+			readProfileArtifactJson<unknown>(host, "contractProfilePath"),
 		readProfileMetadata: (host: string) =>
 			readProfileArtifactJson<unknown>(host, "metadataPath"),
 		readProfileOpenApi: (host: string) =>
@@ -581,6 +584,10 @@ export const createBridgeStore = (dataDir: string) => {
 		},
 		writeSiteArtifacts: async (host: string, files: SiteArtifactFiles) => {
 			const paths = siteArtifactPaths(host);
+			await writeJson(
+				artifactFile(paths.contractProfilePath),
+				files.contractProfile,
+			);
 			await writeText(artifactFile(paths.contractPath), files.contractSource);
 			await writeJson(artifactFile(paths.metadataPath), files.metadata);
 			await writeJson(artifactFile(paths.openapiPath), files.openapi);

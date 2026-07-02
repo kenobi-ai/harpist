@@ -1,4 +1,5 @@
 import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
+import { resolveContractProfile } from "../../core/src/site-contract-profile";
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
@@ -353,6 +354,7 @@ export const reviewProfileDocs = async (
 	const profile = await store.requireProfile(options.host);
 	const openapi = await store.readProfileOpenApi(profile.host);
 	const contractSource = await store.readProfileContract(profile.host);
+	const contractProfile = await store.readProfileContractProfile(profile.host);
 	const operations = operationsFromOpenApi(openapi);
 	const includedEndpoints = profile.endpoints.filter(
 		(endpoint) => endpoint.included !== false,
@@ -363,6 +365,24 @@ export const reviewProfileDocs = async (
 	if (!openapi) {
 		issues.push("No OpenAPI artifact has been written.");
 	}
+	if (!contractProfile) {
+		issues.push("No contract profile artifact has been written.");
+	} else {
+		try {
+			const resolvedContractProfile = resolveContractProfile(contractProfile);
+			if (resolvedContractProfile.operations.length !== includedEndpoints.length) {
+				warnings.push(
+					`Contract profile has ${resolvedContractProfile.operations.length} operations for ${includedEndpoints.length} included endpoints.`,
+				);
+			}
+		} catch (error) {
+			issues.push(
+				`Contract profile artifact is invalid: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			);
+		}
+	}
 	if (profile.artifacts?.status !== "ready") {
 		issues.push(
 			`Documentation artifact status is '${profile.artifacts?.status ?? "missing"}', not 'ready'.`,
@@ -372,20 +392,26 @@ export const reviewProfileDocs = async (
 		!contractSource ||
 		!profile.artifacts?.contractPath ||
 		profile.artifacts.contractFormat !== "orpc-typescript-source" ||
-		profile.artifacts.generatedFrom !== "profile" ||
+		profile.artifacts.generatedFrom !== "contract-profile" ||
 		!contractSource.includes('from "@orpc/contract"') ||
 		!contractSource.includes(".route(")
 	) {
 		issues.push("Contract artifact is not oRPC contract source.");
 	}
+	if (
+		!profile.artifacts?.contractProfilePath ||
+		profile.artifacts.contractProfileFormat !== "harpist.contract-profile"
+	) {
+		issues.push("Contract profile artifact is not the Harpist source format.");
+	}
 	const rootHarpist = isRecord(openapi) ? openapi["x-harpist"] : undefined;
 	if (
-		profile.artifacts?.openapiSource !== "contract-file" ||
+		profile.artifacts?.openapiSource !== "contract-profile" ||
 		!profile.artifacts.openapiPath ||
 		!isRecord(rootHarpist) ||
-		rootHarpist.sourceArtifact !== "contract.ts"
+		rootHarpist.sourceArtifact !== "contract-profile.json"
 	) {
-		issues.push("OpenAPI artifact was not generated from contract.ts.");
+		issues.push("OpenAPI artifact was not generated from contract-profile.json.");
 	}
 	if (operations.length === 0) {
 		issues.push("OpenAPI artifact has no operations.");

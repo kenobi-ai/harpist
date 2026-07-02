@@ -8,6 +8,7 @@ export const HARPIST_CLI_COMMANDS = [
 	"harpist recordings get <host> <id> [--full]",
 	"harpist refine latest [host]",
 	"harpist auth replay <host> [templateKey|operationName]",
+	"harpist contract-profile get <host>",
 	"harpist contract get <host>",
 	"harpist openapi get <host>",
 	"harpist docs <host>",

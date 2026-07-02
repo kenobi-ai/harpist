@@ -1,28 +1,28 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
+import { createOpenApiDocumentFromContractProfile } from "../../core/src/site-contract-openapi";
 import {
-	createRecordedSiteContractSource,
+	createContractProfileContractSource,
 	recordedSiteContractExportName,
 } from "../../core/src/site-contract";
-import type { AnyContractRouter } from "@orpc/contract";
-import type { OpenAPI, OpenAPIGeneratorGenerateOptions } from "@orpc/openapi";
-import { OpenAPIGenerator } from "@orpc/openapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import {
+	CONTRACT_PROFILE_FORMAT,
+	createRecordedSiteContractProfile,
+	type ContractProfile,
+} from "../../core/src/site-contract-profile";
 
 export type SiteArtifactPaths = {
 	contractPath: string;
+	contractProfilePath: string;
 	metadataPath: string;
 	openapiPath: string;
 };
 
 export type SiteArtifactFiles = {
+	contractProfile: ContractProfile;
 	contractSource: string;
 	metadata: unknown;
-	openapi: OpenAPI.Document;
+	openapi: unknown;
 };
 
 export type GeneratedSiteArtifacts = {
@@ -30,63 +30,18 @@ export type GeneratedSiteArtifacts = {
 	profileArtifacts: ProfileArtifacts;
 };
 
-const openApiGenerator = new OpenAPIGenerator({
-	schemaConverters: [new ZodToJsonSchemaConverter()],
-});
-
 const sha256 = (value: string) =>
 	createHash("sha256").update(value).digest("hex");
 
 const stableJson = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
-
-const rewriteContractImports = (source: string) =>
-	source
-		.replace(
-			/from\s+["']@orpc\/contract["']/g,
-			`from ${JSON.stringify(import.meta.resolve("@orpc/contract"))}`,
-		)
-		.replace(
-			/from\s+["']zod["']/g,
-			`from ${JSON.stringify(import.meta.resolve("zod"))}`,
-		);
-
-const importContractSource = async (source: string, exportName: string) => {
-	const rewritten = rewriteContractImports(source);
-	const directory = await mkdtemp(join(tmpdir(), "harpist-contract-"));
-	const file = join(directory, "contract.ts");
-	try {
-		await writeFile(file, rewritten, "utf8");
-		const module = (await import(
-			`${pathToFileURL(file).href}?sha=${sha256(rewritten)}`
-		)) as Record<string, unknown>;
-		const contract = module[exportName];
-		if (typeof contract !== "object" || contract === null) {
-			throw new Error(`Generated contract did not export '${exportName}'.`);
-		}
-		return contract as AnyContractRouter;
-	} finally {
-		await rm(directory, {
-			force: true,
-			recursive: true,
-		});
-	}
-};
-
-const openApiOptions = (
-	profile: SiteProfile,
-): OpenAPIGeneratorGenerateOptions => ({
-	info: {
-		description: `Generated from ${profile.host}'s Harpist contract.ts.`,
-		title: `${profile.displayName} API`,
-		version: "0.1.0",
-	},
-});
 
 const buildSiteMetadata = (
 	profile: SiteProfile,
 	options: {
 		contractExport: string;
 		contractPath: string;
+		contractProfilePath: string;
+		contractProfileSha256: string;
 		contractSha256: string;
 		openapiPath: string;
 		openapiSha256: string;
@@ -106,6 +61,12 @@ const buildSiteMetadata = (
 		format: "orpc-typescript-source",
 		path: options.contractPath,
 		sha256: options.contractSha256,
+		source: "contract-profile",
+	},
+	contractProfile: {
+		format: CONTRACT_PROFILE_FORMAT,
+		path: options.contractProfilePath,
+		sha256: options.contractProfileSha256,
 		source: "profile",
 	},
 	displayName: profile.displayName,
@@ -132,7 +93,7 @@ const buildSiteMetadata = (
 	openapi: {
 		path: options.openapiPath,
 		sha256: options.openapiSha256,
-		source: "contract-file",
+		source: "contract-profile",
 	},
 	origin: profile.origin,
 	recordings: profile.recordings,
@@ -152,29 +113,23 @@ export const buildRecordedSiteArtifacts = async (
 	},
 ): Promise<GeneratedSiteArtifacts> => {
 	const contractExport = recordedSiteContractExportName(profile.host);
-	const contractSource = createRecordedSiteContractSource(profile, {
+	const contractProfile = createRecordedSiteContractProfile(profile, {
 		source: options.source,
 		updatedAt: options.updatedAt,
 	});
-	const contract = await importContractSource(contractSource, contractExport);
-	const generatedOpenApi = await openApiGenerator.generate(
-		contract,
-		openApiOptions(profile),
-	);
-	const openapi = {
-		...generatedOpenApi,
-		"x-harpist": {
-			generatedAt: options.updatedAt,
-			host: profile.host,
-			source: options.source,
-			sourceArtifact: "contract.ts",
-		},
-	} as unknown as OpenAPI.Document;
+	const contractSource = createContractProfileContractSource(contractProfile);
+	const openapi = createOpenApiDocumentFromContractProfile(contractProfile, {
+		source: options.source,
+		updatedAt: options.updatedAt,
+	});
 	const openapiSha256 = sha256(stableJson(openapi));
+	const contractProfileSha256 = sha256(stableJson(contractProfile));
 	const contractSha256 = sha256(contractSource);
 	const metadata = buildSiteMetadata(profile, {
 		contractExport,
 		contractPath: options.paths.contractPath,
+		contractProfilePath: options.paths.contractProfilePath,
+		contractProfileSha256,
 		contractSha256,
 		openapiPath: options.paths.openapiPath,
 		openapiSha256,
@@ -185,6 +140,7 @@ export const buildRecordedSiteArtifacts = async (
 
 	return {
 		files: {
+			contractProfile,
 			contractSource,
 			metadata,
 			openapi,
@@ -195,13 +151,16 @@ export const buildRecordedSiteArtifacts = async (
 			contractExport,
 			contractFormat: "orpc-typescript-source",
 			contractPath: options.paths.contractPath,
+			contractProfileFormat: CONTRACT_PROFILE_FORMAT,
+			contractProfilePath: options.paths.contractProfilePath,
+			contractProfileSha256,
 			contractSha256,
-			generatedFrom: "profile",
+			generatedFrom: "contract-profile",
 			metadataPath: options.paths.metadataPath,
 			metadataSha256,
 			openapiPath: options.paths.openapiPath,
 			openapiSha256,
-			openapiSource: "contract-file",
+			openapiSource: "contract-profile",
 			status: options.status ?? "ready",
 			updatedAt: options.updatedAt,
 		},

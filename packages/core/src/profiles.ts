@@ -214,13 +214,16 @@ export type ProfileArtifacts = {
 	contractExport?: string;
 	contractFormat?: "orpc-typescript-source";
 	contractPath?: string;
+	contractProfileFormat?: "harpist.contract-profile";
+	contractProfilePath?: string;
+	contractProfileSha256?: string;
 	contractSha256?: string;
-	generatedFrom?: "profile";
+	generatedFrom?: "contract-profile";
 	metadataPath?: string;
 	metadataSha256?: string;
 	openapiPath?: string;
 	openapiSha256?: string;
-	openapiSource?: "contract-file";
+	openapiSource?: "contract-profile";
 	sdk?: string;
 	status: "draft" | "missing" | "ready";
 	updatedAt: string;
