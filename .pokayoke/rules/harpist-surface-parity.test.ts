@@ -53,6 +53,9 @@ describe("repo/harpist-surface-parity", () => {
 		const result = await harpistSurfaceParity.run(createContext(root, false));
 
 		expect(result.findings).toHaveLength(0);
+		expect(await Bun.file(`${root}/skills/harpist/SKILL.md`).text()).toContain(
+			"bunx harpist bridge",
+		);
 	});
 
 	test("reports stale managed docs", async () => {

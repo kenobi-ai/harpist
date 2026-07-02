@@ -10,8 +10,14 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 ## CLI and Locality
 
 - Use the published npm package by default: `bunx harpist <command>`.
-- Use `npx harpist <command>` only when npm is the available package runner and Bun is on `PATH`; the package executable is a Bun program.
-- Use bare `harpist <command>` only when the `harpist` bin is already installed and visible on `PATH`.
+- npm package page: https://www.npmjs.com/package/harpist
+- Before substantive Harpist work, verify package freshness when shell/network access is available: compare `npm view harpist version` with `bunx harpist version`.
+- If those versions match, keep using `bunx harpist <command>` for the session.
+- If those versions differ, use the exact npm version for that session, e.g. `bunx harpist@<npm-version> <command>`, and mention that the local/default `bunx harpist` resolution was stale.
+- Do not use `bunx harpist@latest` as the steady-state command prefix; prefer the exact-version fallback after checking npm.
+- If registry lookup fails, do not claim the fetched CLI is latest; say freshness could not be verified.
+- Use `npx harpist@latest <command>` only when npm is the available package runner and Bun is on `PATH`; the package executable is a Bun program.
+- Use bare `harpist <command>` only when the `harpist` bin is already installed and visible on `PATH`, and accepting that installed version is intentional.
 - Run Harpist from the user's local machine and local shell. It must be able to reach the Chrome extension, the user's browser state, and `http://127.0.0.1:4277`.
 - DO NOT run Harpist inside a remote sandbox, CI runner, isolated container, or browser sandbox that cannot reach the user's local bridge and extension state. If only a sandboxed tool is available, STOP and ask the user to run Harpist locally -- or preferably ask the user to _escalate_ your permissions.
 - Run the bridge and follow-up CLI commands from the same working directory, or set `HARPIST_DATA_DIR`, so every command reads the same local cache.
