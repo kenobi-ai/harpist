@@ -39,6 +39,8 @@ Publishing the GitHub release runs `.github/workflows/publish.yml`. Normal relea
 
 The tag and package version must match exactly: `v0.1.2` for package version `0.1.2`. The publish workflow verifies this before publishing.
 
+Rerunning a failed release job reruns the same release tag commit. If you push a fix after the release failed, create a new release from the fixed commit, or delete and recreate the failed release/tag so it points at the fixed commit.
+
 ## Manual Workflow Run
 
 The publish workflow can also be run manually from `main`.
