@@ -35,7 +35,7 @@ jobs:
     if: github.repository == 'kenobi-ai/harpist' && (github.event_name == 'release' || github.ref == 'refs/heads/main')
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       - name: Setup npm
         uses: actions/setup-node@v6
