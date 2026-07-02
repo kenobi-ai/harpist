@@ -1,0 +1,43 @@
+# Harpist Development Mode
+
+Read this only when the user is working from the Harpist source checkout, editing Harpist itself, or explicitly asks to test unpublished local changes.
+
+## Command Selection
+
+- Use the published package for normal skill work: `bunx harpist <command>`.
+- Use repo-local commands only from the Harpist repo root.
+- Do not hunt for `packages/cli/dist/cli.js`, `packages/cli/src/cli.ts`, or a generated bin path. The repo scripts own local CLI execution.
+- Run the bridge and CLI commands from the same repo root, or set `HARPIST_DATA_DIR`, so every command reads the same local cache.
+
+## Local Commands
+
+```sh
+bun run bridge
+bun run harpist profiles list
+bun run harpist profiles latest [host]
+bun run harpist profiles get <host>
+bun run harpist recordings latest [host]
+bun run harpist recordings latest [host] --full
+bun run harpist recordings get <host> <id> [--full]
+bun run harpist refine latest [host]
+bun run harpist auth replay <host> [templateKey|operationName]
+bun run harpist contract-profile get <host>
+bun run harpist contract get <host>
+bun run harpist openapi get <host>
+bun run harpist docs <host>
+bun run harpist docs apply <host> <docs.json|->
+bun run harpist docs review <host>
+bun run harpist handoff [host]
+```
+
+## Bridge Rules
+
+- Check `http://127.0.0.1:4277/health` before starting anything. Reuse a healthy bridge.
+- Do not start a bridge or extension dev service in a sandbox, CI runner, or container that cannot reach the user's browser extension state.
+- If the user or repository says they manage dev services manually, ask them to start the bridge instead of starting another service or choosing another port.
+
+## Source Changes
+
+- Keep Harpist source provider-agnostic. Do not add website-specific hostnames, product names, path semantics, auth quirks, or docs copy to the extension, bridge, CLI, or generic refiner.
+- Put provider-specific interpretation in profile data and artifacts through bridge writes.
+- After changing Harpist source, run the repository's required checks before reporting the work done.

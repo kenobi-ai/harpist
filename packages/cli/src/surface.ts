@@ -1,4 +1,4 @@
-export const HARPIST_CLI_COMMANDS = [
+const HARPIST_CLI_COMMANDS = [
 	"harpist bridge",
 	"harpist profiles list",
 	"harpist profiles latest [host]",

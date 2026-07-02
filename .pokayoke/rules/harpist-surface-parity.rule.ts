@@ -1,8 +1,5 @@
 import type { Finding, Rule } from "pokayoke";
-import {
-	HARPIST_CLI_COMMANDS,
-	renderHarpistCliCommandLines,
-} from "../../packages/cli/src/surface";
+import { renderHarpistCliCommandLines } from "../../packages/cli/src/surface";
 import {
 	authOperations,
 	bridgeOperations,
@@ -69,7 +66,7 @@ export const managedSurfaceBlocks: readonly ManagedBlock[] = [
 		start: "<!-- harpist:cli-commands:start -->",
 	},
 	{
-		content: fencedShell(HARPIST_CLI_COMMANDS),
+		content: fencedShell(renderHarpistCliCommandLines("bunx ")),
 		end: "<!-- harpist:cli-commands:end -->",
 		file: "skills/harpist/SKILL.md",
 		label: "Harpist skill CLI commands",
