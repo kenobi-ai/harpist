@@ -73,14 +73,18 @@ jobs:
       - name: Check
         run: bun run check
 
-      - name: Inspect package
+      - name: Pack package
+        id: pack
         shell: bash
         run: |
           package_dir="${RUNNER_TEMP}/harpist-package"
           mkdir -p "${package_dir}"
-          NPM_CONFIG_CACHE=/tmp/harpist-npm-cache npm pack --workspace harpist --pack-destination "${package_dir}"
           package_version="$(node -p "require('./packages/cli/package.json').version")"
           package_file="${package_dir}/harpist-${package_version}.tgz"
+          (
+            cd packages/cli
+            bun pm pack --destination "${package_dir}"
+          )
           tar -xOf "${package_file}" package/package.json | node -e '
             let input = "";
             process.stdin.on("data", (chunk) => {
@@ -100,6 +104,7 @@ jobs:
               }
             });
           '
+          echo "package_file=${package_file}" >> "$GITHUB_OUTPUT"
 
       - name: Resolve npm tag
         id: npm-tag
@@ -115,8 +120,8 @@ jobs:
 
       - name: Publish dry run
         if: github.event_name == 'workflow_dispatch' && inputs.dry_run
-        run: npm publish --dry-run --workspace harpist --tag "${{ steps.npm-tag.outputs.tag }}"
+        run: npm publish --dry-run "${{ steps.pack.outputs.package_file }}" --tag "${{ steps.npm-tag.outputs.tag }}"
 
       - name: Publish
         if: github.event_name != 'workflow_dispatch' || !inputs.dry_run
-        run: npm publish --workspace harpist --tag "${{ steps.npm-tag.outputs.tag }}"
+        run: npm publish "${{ steps.pack.outputs.package_file }}" --tag "${{ steps.npm-tag.outputs.tag }}"

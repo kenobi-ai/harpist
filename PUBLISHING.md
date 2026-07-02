@@ -63,9 +63,9 @@ The helpers only edit `packages/cli/package.json`. They do not commit, tag, or p
 - TypeScript compile for every workspace
 - Bun tests
 - pokayoke checks
-- npm package dry run for `harpist`
+- Bun package dry run for `harpist`
 
-The npm tarball should contain only:
+Bun resolves `catalog:` dependencies while packing. The npm tarball should contain only:
 
 - `README.md`
 - `dist/cli.js`
@@ -102,7 +102,9 @@ Stable local publish:
 ```sh
 npm login
 bun run publish:check
-npm publish --workspace harpist
+cd packages/cli
+bun pm pack --destination /private/tmp/harpist-publish
+npm publish /private/tmp/harpist-publish/harpist-X.Y.Z.tgz
 ```
 
 Prerelease local publish:
@@ -110,5 +112,7 @@ Prerelease local publish:
 ```sh
 npm login
 bun run publish:check
-npm publish --workspace harpist --tag next
+cd packages/cli
+bun pm pack --destination /private/tmp/harpist-publish
+npm publish /private/tmp/harpist-publish/harpist-X.Y.Z.tgz --tag next
 ```
