@@ -16,6 +16,19 @@ bun run bridge
 
 The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `.harpist-data` from the directory where the CLI is run.
 
+## Install CLI
+
+```sh
+bunx harpist help
+```
+
+Or install the package globally:
+
+```sh
+npm install -g harpist
+harpist help
+```
+
 ## Workspace
 
 - `packages/extension`: WXT browser extension

@@ -1,4 +1,4 @@
-import type { ProfileArtifacts, SiteProfile } from "@harpist/core/profiles";
+import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";

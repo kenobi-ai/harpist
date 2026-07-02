@@ -3,11 +3,11 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { ProfileArtifacts, SiteProfile } from "@harpist/core/profiles";
+import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
 import {
 	createRecordedSiteContractSource,
 	recordedSiteContractExportName,
-} from "@harpist/core/site-contract";
+} from "../../core/src/site-contract";
 import type { AnyContractRouter } from "@orpc/contract";
 import type { OpenAPI, OpenAPIGeneratorGenerateOptions } from "@orpc/openapi";
 import { OpenAPIGenerator } from "@orpc/openapi";

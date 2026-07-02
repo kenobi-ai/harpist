@@ -5,7 +5,7 @@ import {
 	buildAgentHandoffText,
 	DEFAULT_SETTINGS,
 	normaliseServerUrl,
-} from "@harpist/core/profiles";
+} from "../../core/src/profiles";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
 import { refineLatestProfile } from "./refine";
 import { buildReplayBundle } from "./replay";

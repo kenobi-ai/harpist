@@ -1,16 +1,16 @@
-import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
+import type { CapturedCookie, PendingEntry } from "../../core/src/har";
 import type {
 	AccessSummary,
 	AuthSummary,
 	EndpointSummary,
 	ProfileArtifacts,
 	SiteProfile,
-} from "@harpist/core/profiles";
+} from "../../core/src/profiles";
 import {
 	deriveAuthBundle,
 	deriveAuthSummary,
 	deriveLatestAuth,
-} from "@harpist/core/profiles";
+} from "../../core/src/profiles";
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import type { BridgeStore, StoredRecording } from "./store";
 

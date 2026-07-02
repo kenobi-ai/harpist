@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { EndpointSummary } from "@harpist/core/profiles";
+import type { EndpointSummary } from "../../core/src/profiles";
 import {
 	applyExistingEndpointAnnotations,
 	type EndpointDecision,

@@ -4,7 +4,7 @@ import type {
 	CapturedCookie,
 	HarArchive,
 	PendingEntry,
-} from "@harpist/core/har";
+} from "../../core/src/har";
 import {
 	type ActiveRecording,
 	type AuthSummary,
@@ -17,7 +17,7 @@ import {
 	type RecordingSummary,
 	type SiteProfile,
 	summariseRecording,
-} from "@harpist/core/profiles";
+} from "../../core/src/profiles";
 import type { SiteArtifactFiles, SiteArtifactPaths } from "./artifacts";
 
 export type StoredRecording = RecordingSummary & {

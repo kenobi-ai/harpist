@@ -1,4 +1,4 @@
-import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
+import type { CapturedCookie, PendingEntry } from "../../core/src/har";
 import {
 	type AuthBundle,
 	deriveAuthBundle,
@@ -6,7 +6,7 @@ import {
 	redactLatestAuth,
 	type RedactedLatestAuth,
 	type SiteProfile,
-} from "@harpist/core/profiles";
+} from "../../core/src/profiles";
 import type { StoredRecording } from "./store";
 
 type ReplayHeader = {
