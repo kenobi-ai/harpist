@@ -6,13 +6,14 @@
       "name": "wxt-react-starter",
       "devDependencies": {
         "@biomejs/biome": "^2.5.1",
+        "@types/node": "^26.0.1",
         "pokayoke": "^0.0.6",
         "typescript": "^5.9.3",
       },
     },
     "packages/cli": {
       "name": "harpist",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "bin": {
         "harpist": "./dist/cli.js",
       },
