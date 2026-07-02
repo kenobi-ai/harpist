@@ -319,9 +319,18 @@ export const bridgeOperations = defineResourceOperations({
 	health: {
 		input: z.object({}),
 		output: z.object({
+			bridgeUrl: z.string().optional(),
+			dataDir: z.string().optional(),
+			idleForMs: z.number().int().nonnegative().optional(),
+			idleTimeoutMs: z.number().int().positive().optional(),
+			lastActivityAt: z.string().optional(),
 			name: z.literal("harpist-bridge"),
 			ok: z.literal(true),
+			pid: z.number().int().positive().optional(),
+			startedAt: z.string().optional(),
+			startedBy: z.enum(["agent", "user"]).optional(),
 			time: z.string(),
+			uptimeMs: z.number().int().nonnegative().optional(),
 			version: z.string(),
 		}),
 		route: {

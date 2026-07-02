@@ -1,5 +1,5 @@
 const HARPIST_CLI_COMMANDS = [
-	"harpist bridge",
+	"harpist bridge [--agent] [--idle-timeout <duration>]",
 	"harpist version",
 	"harpist purge",
 	"harpist profiles list",
@@ -37,4 +37,8 @@ export const renderHarpistCliUsage = () =>
 		...HARPIST_CLI_ENVIRONMENT.map(
 			([name, defaultValue]) => `  ${name.padEnd(18)}default ${defaultValue}`,
 		),
+		"",
+		"Bridge:",
+		"  --agent              mark the bridge as agent-started and default idle timeout to 15m",
+		"  --idle-timeout       stop after no bridge HTTP traffic for a duration like 30s, 15m, or 1h",
 	].join("\n");

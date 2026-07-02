@@ -5,6 +5,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { BridgeHealthSnapshot } from "./bridge-runtime";
 import { docsPage, openApiWithReplayExamples } from "./profile-docs";
 import { buildReplayBundle } from "./replay";
 import { type BridgeContext, harpistRouter } from "./router";
@@ -43,10 +44,12 @@ const allowedCorsOrigin = (origin: string) => {
 
 export const createHarpistBridgeServer = (options: {
 	bridgeUrl: string;
+	health: () => BridgeHealthSnapshot;
 	store: BridgeStore;
 }) => {
 	const context: BridgeContext = {
 		bridgeUrl: options.bridgeUrl,
+		health: options.health,
 		store: options.store,
 	};
 	const app = new Hono();
@@ -88,14 +91,7 @@ export const createHarpistBridgeServer = (options: {
 		}),
 	);
 
-	app.get("/health", (c) =>
-		c.json({
-			name: "harpist-bridge",
-			ok: true,
-			time: new Date().toISOString(),
-			version: "0.1.0",
-		}),
-	);
+	app.get("/health", (c) => c.json(options.health()));
 
 	app.get("/profiles/:host/docs", (c) => c.html(docsPage(c.req.param("host"))));
 

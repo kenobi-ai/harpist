@@ -20,7 +20,7 @@ harpist help
 ## Common Commands
 
 ```sh
-harpist bridge
+harpist bridge [--agent] [--idle-timeout <duration>]
 harpist version
 harpist purge
 harpist profiles list
@@ -34,3 +34,5 @@ harpist handoff [host]
 ```
 
 The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.
+
+Agents should start expiring bridges with `harpist bridge --agent --idle-timeout 15m`. `/health` reports whether a bridge was started by an agent or a user.

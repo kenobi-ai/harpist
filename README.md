@@ -16,6 +16,14 @@ bun run bridge
 
 The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.
 
+Agents that need to start their own bridge should use an expiring bridge:
+
+```sh
+bunx harpist bridge --agent --idle-timeout 15m
+```
+
+Agent bridges report `startedBy: "agent"` from `/health` and exit after the idle timeout passes with no bridge HTTP traffic.
+
 ## Install CLI
 
 ```sh
@@ -59,7 +67,7 @@ Harpist writes a versioned `contract-profile.json` first. It is the portable sou
 
 <!-- harpist:cli-commands:start -->
 ```sh
-bun run harpist bridge
+bun run harpist bridge [--agent] [--idle-timeout <duration>]
 bun run harpist version
 bun run harpist purge
 bun run harpist profiles list

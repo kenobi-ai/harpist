@@ -12,7 +12,7 @@ Read this only when the user is working from the Harpist source checkout, editin
 ## Local Commands
 
 ```sh
-bun run bridge
+bun run bridge -- --agent --idle-timeout 15m
 bun run harpist profiles list
 bun run harpist profiles latest [host]
 bun run harpist profiles get <host>
@@ -33,6 +33,8 @@ bun run harpist handoff [host]
 ## Bridge Rules
 
 - Check `http://127.0.0.1:4277/health` before starting anything. Reuse a healthy bridge.
+- When you start the bridge yourself, use agent mode with an idle timeout: `bun run bridge -- --agent --idle-timeout 15m`.
+- Treat a healthy bridge with `startedBy: "user"` or no `startedBy` field as user-managed. Reuse it, but do not stop or restart it without asking.
 - Do not start a bridge or extension dev service in a sandbox, CI runner, or container that cannot reach the user's browser extension state.
 - If the user or repository says they manage dev services manually, ask them to start the bridge instead of starting another service or choosing another port.
 

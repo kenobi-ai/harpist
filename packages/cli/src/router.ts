@@ -4,11 +4,13 @@ import {
 	buildAgentHandoffText,
 	DEFAULT_SETTINGS,
 } from "../../core/src/profiles";
+import type { BridgeHealthSnapshot } from "./bridge-runtime";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
 
 export type BridgeContext = {
 	bridgeUrl: string;
+	health: () => BridgeHealthSnapshot;
 	store: BridgeStore;
 };
 
@@ -28,12 +30,7 @@ const requireProfile = async (context: BridgeContext, host: string) => {
 };
 
 const bridgeRouter = {
-	health: os.bridge.health.handler(() => ({
-		name: "harpist-bridge" as const,
-		ok: true as const,
-		time: new Date().toISOString(),
-		version: "0.1.0",
-	})),
+	health: os.bridge.health.handler(({ context }) => context.health()),
 };
 
 const profilesRouter = {

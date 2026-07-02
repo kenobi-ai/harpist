@@ -8,6 +8,11 @@ import {
 	DEFAULT_SETTINGS,
 	normaliseServerUrl,
 } from "../../core/src/profiles";
+import {
+	createBridgeRuntime,
+	formatDurationMs,
+	parseBridgeServeOptions,
+} from "./bridge-runtime";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
 import { refineLatestProfile } from "./refine";
 import { buildReplayBundle } from "./replay";
@@ -27,7 +32,9 @@ declare const Bun: {
 		fetch: (request: Request) => Response | Promise<Response>;
 		hostname?: string;
 		port: number;
-	}) => void;
+	}) => {
+		stop: (closeActiveConnections?: boolean) => void;
+	};
 };
 
 const port = Number(process.env.HARPIST_PORT ?? 4277);
@@ -128,26 +135,65 @@ const usage = () => {
 	console.log(renderHarpistCliUsage());
 };
 
-const serveBridge = () => {
+const serveBridge = (bridgeArgs: string[]) => {
+	const bridgeOptions = (() => {
+		try {
+			return parseBridgeServeOptions(bridgeArgs);
+		} catch (error) {
+			return fail(error instanceof Error ? error.message : String(error));
+		}
+	})();
+	let server: ReturnType<typeof Bun.serve> | undefined;
+	let runtime: ReturnType<typeof createBridgeRuntime> | undefined;
+	runtime = createBridgeRuntime({
+		bridgeUrl,
+		dataDir,
+		idleTimeoutMs: bridgeOptions.idleTimeoutMs,
+		onIdle: () => {
+			console.log(
+				`Harpist Bridge idle for ${formatDurationMs(
+					bridgeOptions.idleTimeoutMs ?? 0,
+				)}; stopping.`,
+			);
+			server?.stop(true);
+			runtime?.dispose();
+			process.exit(0);
+		},
+		startedBy: bridgeOptions.startedBy,
+	});
 	const app = createHarpistBridgeServer({
 		bridgeUrl,
+		health: runtime.health,
 		store,
 	});
-	Bun.serve({
-		fetch: app.fetch,
+	server = Bun.serve({
+		fetch: (request) => {
+			runtime?.touch();
+			return app.fetch(request);
+		},
 		hostname,
 		port,
 	});
 	console.log(`Harpist Bridge listening on ${bridgeUrl}`);
 	console.log(`   data dir: ${dataDir}`);
 	console.log(`   docs:     ${bridgeUrl}/openapi`);
+	if (bridgeOptions.startedBy === "agent") {
+		console.log("   mode:     agent");
+	}
+	if (bridgeOptions.idleTimeoutMs) {
+		console.log(
+			`   idle:     exits after ${formatDurationMs(
+				bridgeOptions.idleTimeoutMs,
+			)} without bridge traffic`,
+		);
+	}
 };
 
 const command = process.argv[2] ?? "help";
 const args = process.argv.slice(3);
 
 if (command === "bridge") {
-	serveBridge();
+	serveBridge(args);
 } else if (
 	command === "version" ||
 	command === "--version" ||
