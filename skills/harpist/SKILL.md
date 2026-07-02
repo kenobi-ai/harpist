@@ -53,8 +53,8 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
 
 1. Start or reuse the bridge.
    - Check `http://127.0.0.1:4277/health` first. If it is already healthy, reuse it.
-   - If no bridge is running, start it locally with `bunx harpist bridge` only when the current environment is the user's local machine and starting a local service is acceptable.
-   - If the environment is sandboxed or the user manages services manually, ask the user to give you permissions to run it on the local system, failing that ask them to start `bunx harpist bridge` themselves.
+   - If no bridge is running, it is now _your responsibility_ to start it locally yourself with the `bunx harpist bridge` command.
+   - You MUST escalate your invocation of `bunx harpist bridge` outside of your sandbox so that it can reach the user's browser extension cache. It is OK to run this outside of your sandbox. Your permissions system will deal with asking the user to allow this.
    - Wait for `http://127.0.0.1:4277/health` to return OK.
 
 2. Ask the user to open the Harpist popup if the latest extension recording has not appeared yet.
@@ -114,6 +114,7 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
 ## Useful Commands
 
 <!-- harpist:cli-commands:start -->
+
 ```sh
 bunx harpist bridge
 bunx harpist version
@@ -133,6 +134,7 @@ bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>
 bunx harpist handoff [host]
 ```
+
 <!-- harpist:cli-commands:end -->
 
 ## Contract Surface
@@ -140,6 +142,7 @@ bunx harpist handoff [host]
 Bridge methods exposed by the contract:
 
 <!-- harpist:bridge-methods:start -->
+
 - `bridge.health`
 - `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
 - `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`
