@@ -54,7 +54,7 @@ Use `dry_run: true` first. A manual non-dry-run publish uses the selected `npm_t
 - `bun run version:major`: `0.1.2` -> `1.0.0`
 - `bun run version:prerelease`: `0.1.2` -> `0.1.3-next.0`
 
-The helpers only edit `packages/cli/package.json`. They do not commit, tag, or publish.
+The helpers edit `packages/cli/package.json` and the reported CLI version in `skills/harpist/SKILL.md`. They do not commit, tag, or publish.
 
 ## Package Check
 

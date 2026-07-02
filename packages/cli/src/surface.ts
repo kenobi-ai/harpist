@@ -1,6 +1,7 @@
 const HARPIST_CLI_COMMANDS = [
 	"harpist bridge",
 	"harpist version",
+	"harpist purge",
 	"harpist profiles list",
 	"harpist profiles latest [host]",
 	"harpist profiles get <host>",
@@ -21,7 +22,7 @@ const HARPIST_CLI_COMMANDS = [
 const HARPIST_CLI_ENVIRONMENT = [
 	["HARPIST_PORT", "4277"],
 	["HARPIST_HOST", "127.0.0.1"],
-	["HARPIST_DATA_DIR", "<caller-cwd>/.harpist-data"],
+	["HARPIST_DATA_DIR", "~/.harpist-data"],
 ] as const;
 
 export const renderHarpistCliCommandLines = (prefix = "") =>

@@ -14,7 +14,7 @@ bun dev
 bun run bridge
 ```
 
-The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `.harpist-data` from the directory where the CLI is run.
+The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.
 
 ## Install CLI
 
@@ -61,6 +61,7 @@ Harpist writes a versioned `contract-profile.json` first. It is the portable sou
 ```sh
 bun run harpist bridge
 bun run harpist version
+bun run harpist purge
 bun run harpist profiles list
 bun run harpist profiles latest [host]
 bun run harpist profiles get <host>

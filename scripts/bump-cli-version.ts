@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import process from "node:process";
+import { pathToFileURL } from "node:url";
 
 type PackageJson = {
 	version?: unknown;
@@ -15,6 +17,13 @@ type ParsedVersion = {
 };
 
 const packageUrl = new URL("../packages/cli/package.json", import.meta.url);
+const skillUrl = new URL("../skills/harpist/SKILL.md", import.meta.url);
+const packagePath = process.env.HARPIST_BUMP_PACKAGE_JSON
+	? pathToFileURL(resolve(process.env.HARPIST_BUMP_PACKAGE_JSON))
+	: packageUrl;
+const skillPath = process.env.HARPIST_BUMP_SKILL_MD
+	? pathToFileURL(resolve(process.env.HARPIST_BUMP_SKILL_MD))
+	: skillUrl;
 const args = process.argv.slice(2);
 const increment = args.find((arg) => !arg.startsWith("--"));
 const dryRun = args.includes("--dry-run");
@@ -89,6 +98,24 @@ const bumpVersion = (
 	}
 };
 
+const escapeRegex = (value: string) =>
+	value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const updateSkillVersion = (skill: string, version: string) => {
+	const start = "<!-- harpist:cli-version:start -->";
+	const end = "<!-- harpist:cli-version:end -->";
+	const block = new RegExp(
+		`(${escapeRegex(start)}\\n)[\\s\\S]*?(\\n${escapeRegex(end)})`,
+	);
+	if (!block.test(skill)) {
+		fail("skills/harpist/SKILL.md is missing the CLI version block.");
+	}
+	return skill.replace(
+		block,
+		`$1- Current published Harpist CLI version: \`${version}\`.$2`,
+	);
+};
+
 if (!increment) {
 	fail(
 		"Usage: bun run scripts/bump-cli-version.ts <major|minor|patch|prerelease|x.y.z> [--dry-run] [--preid=next]",
@@ -96,8 +123,9 @@ if (!increment) {
 }
 
 const packageJson = JSON.parse(
-	await readFile(packageUrl, "utf8"),
+	await readFile(packagePath, "utf8"),
 ) as PackageJson;
+const skill = await readFile(skillPath, "utf8");
 
 if (typeof packageJson.version !== "string") {
 	fail("packages/cli/package.json has no string version.");
@@ -107,9 +135,13 @@ const nextVersion = formatVersion(
 	bumpVersion(parseVersion(packageJson.version), increment),
 );
 packageJson.version = nextVersion;
+const nextSkill = updateSkillVersion(skill, nextVersion);
 
 if (!dryRun) {
-	await writeFile(packageUrl, `${JSON.stringify(packageJson, null, "\t")}\n`);
+	await Promise.all([
+		writeFile(packagePath, `${JSON.stringify(packageJson, null, "\t")}\n`),
+		writeFile(skillPath, nextSkill),
+	]);
 }
 
 console.log(nextVersion);

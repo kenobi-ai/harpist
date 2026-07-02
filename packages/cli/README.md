@@ -22,6 +22,7 @@ harpist help
 ```sh
 harpist bridge
 harpist version
+harpist purge
 harpist profiles list
 harpist profiles latest [host]
 harpist recordings latest [host]
@@ -32,4 +33,4 @@ harpist docs <host>
 harpist handoff [host]
 ```
 
-The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `.harpist-data` from the directory where the CLI is run.
+The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.

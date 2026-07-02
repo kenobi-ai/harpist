@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile, rm } from "node:fs/promises";
+import { homedir } from "node:os";
+import { join, parse, resolve } from "node:path";
 import process from "node:process";
 import {
 	buildAgentHandoffText,
@@ -31,9 +32,9 @@ declare const Bun: {
 
 const port = Number(process.env.HARPIST_PORT ?? 4277);
 const hostname = process.env.HARPIST_HOST ?? "127.0.0.1";
-const workingDirectory = process.env.INIT_CWD ?? process.cwd();
-const dataDir =
-	process.env.HARPIST_DATA_DIR ?? join(workingDirectory, ".harpist-data");
+const dataDir = resolve(
+	process.env.HARPIST_DATA_DIR ?? join(homedir(), ".harpist-data"),
+);
 const bridgeUrl = `http://${hostname}:${port}`;
 const store = createBridgeStore(dataDir);
 
@@ -103,6 +104,26 @@ const readCliVersion = async () => {
 	return packageJson.version;
 };
 
+const isUnsafePurgeTarget = (path: string) => {
+	const resolved = resolve(path);
+	return (
+		resolved === parse(resolved).root ||
+		resolved === resolve(homedir()) ||
+		resolved === resolve(process.env.INIT_CWD ?? process.cwd())
+	);
+};
+
+const purgeDataDir = async () => {
+	if (isUnsafePurgeTarget(dataDir)) {
+		fail(`Refusing to purge unsafe data dir: ${dataDir}`);
+	}
+	await rm(dataDir, {
+		force: true,
+		recursive: true,
+	});
+	console.log(`Purged Harpist data dir: ${dataDir}`);
+};
+
 const usage = () => {
 	console.log(renderHarpistCliUsage());
 };
@@ -133,6 +154,8 @@ if (command === "bridge") {
 	command === "-v"
 ) {
 	console.log(await readCliVersion());
+} else if (command === "purge") {
+	await purgeDataDir();
 } else if (command === "profiles") {
 	const subcommand = args[0] ?? "list";
 	if (subcommand === "list") {
