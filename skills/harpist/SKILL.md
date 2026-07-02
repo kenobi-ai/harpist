@@ -14,8 +14,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 - Before substantive Harpist work, verify package freshness when shell/network access is available: compare `npm view harpist version` with `bunx harpist version`.
 - If those versions match, keep using `bunx harpist <command>` for the session.
 - If those versions differ, use the exact npm version for that session, e.g. `bunx harpist@<npm-version> <command>`, and mention that the local/default `bunx harpist` resolution was stale.
-- Do not use `bunx harpist@latest` as the steady-state command prefix; prefer the exact-version fallback after checking npm.
-- If registry lookup fails, do not claim the fetched CLI is latest; say freshness could not be verified.
+- Use `bunx harpist@latest` as a fallback command prefix if you have any trouble verifying the latest version.
 - Use `npx harpist@latest <command>` only when npm is the available package runner and Bun is on `PATH`; the package executable is a Bun program.
 - Use bare `harpist <command>` only when the `harpist` bin is already installed and visible on `PATH`, and accepting that installed version is intentional.
 - Run Harpist from the user's local machine and local shell. It must be able to reach the Chrome extension, the user's browser state, and `http://127.0.0.1:4277`.
@@ -111,6 +110,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 ## Useful Commands
 
 <!-- harpist:cli-commands:start -->
+
 ```sh
 bunx harpist bridge
 bunx harpist version
@@ -130,6 +130,7 @@ bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>
 bunx harpist handoff [host]
 ```
+
 <!-- harpist:cli-commands:end -->
 
 ## Contract Surface
@@ -137,6 +138,7 @@ bunx harpist handoff [host]
 Bridge methods exposed by the contract:
 
 <!-- harpist:bridge-methods:start -->
+
 - `bridge.health`
 - `profiles.get`, `profiles.latest`, `profiles.list`, `profiles.setArtifacts`, `profiles.setAuth`, `profiles.update`
 - `recordings.get`, `recordings.ingest`, `recordings.latest`, `recordings.list`, `recordings.markProcessed`
