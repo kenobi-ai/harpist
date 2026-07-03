@@ -10,6 +10,10 @@ import {
 
 const unknownSchema = {} satisfies ContractJsonSchema;
 const stringSchema = { type: "string" } satisfies ContractJsonSchema;
+const stringArraySchema = {
+	items: stringSchema,
+	type: "array",
+} satisfies ContractJsonSchema;
 const technicalTags = new Set([
 	"api",
 	"preflight",
@@ -159,6 +163,12 @@ const inputSchemaForEndpoint = (
 	const params = Object.fromEntries(
 		pathParameterNames(path).map((name) => [name, stringSchema]),
 	);
+	const query = Object.fromEntries(
+		(endpoint.queryParams ?? []).map((param) => [
+			param.name,
+			param.repeated ? stringArraySchema : stringSchema,
+		]),
+	);
 	const properties: Record<string, JsonValue> = {};
 	const required: string[] = [];
 	if (Object.keys(params).length > 0) {
@@ -170,8 +180,15 @@ const inputSchemaForEndpoint = (
 		};
 		required.push("params");
 	}
+	if (Object.keys(query).length > 0) {
+		properties.query = {
+			additionalProperties: false,
+			properties: query,
+			type: "object",
+		};
+	}
 	if (methodAllowsBody(endpoint.method)) {
-		properties.body = unknownSchema;
+		properties.body = endpoint.requestBody?.schema ?? unknownSchema;
 	}
 	return {
 		additionalProperties: false,
@@ -182,11 +199,41 @@ const inputSchemaForEndpoint = (
 };
 
 const responseProfiles = (endpoint: EndpointSummary) =>
-	(endpoint.statuses.length > 0 ? endpoint.statuses : [200]).map((status) => ({
-		description: status >= 400 ? "Error response" : "Observed response",
-		schema: unknownSchema,
-		status,
-	}));
+	(endpoint.statuses.length > 0 ? endpoint.statuses : [200]).map((status) => {
+		const responseBody = endpoint.responseBodies?.find(
+			(response) => response.status === status,
+		);
+		return {
+			contentType: responseBody?.contentType ?? "application/json",
+			description: status >= 400 ? "Error response" : "Observed response",
+			schema: responseBody?.schema ?? unknownSchema,
+			status,
+		};
+	});
+
+const outputSchemaForEndpoint = (endpoint: EndpointSummary) =>
+	endpoint.responseBodies?.find(
+		(response) => response.status >= 200 && response.status < 300,
+	)?.schema ??
+	endpoint.responseBodies?.[0]?.schema ??
+	unknownSchema;
+
+const queryParametersForEndpoint = (endpoint: EndpointSummary) =>
+	Object.fromEntries(
+		(endpoint.queryParams ?? []).map((param) => [
+			param.name,
+			{
+				description:
+					param.values.length > 0
+						? `Observed query parameter. Example: ${JSON.stringify(
+								param.values[0],
+							)}.`
+						: "Observed query parameter.",
+				required: false,
+				schema: param.repeated ? stringArraySchema : stringSchema,
+			},
+		]),
+	);
 
 export const createRecordedSiteContractProfile = (
 	profile: SiteProfile,
@@ -232,7 +279,7 @@ export const createRecordedSiteContractProfile = (
 					inputSchema: inputSchemaForEndpoint(endpoint),
 					method: endpoint.method.toUpperCase(),
 					operationId,
-					outputSchema: unknownSchema,
+					outputSchema: outputSchemaForEndpoint(endpoint),
 					parameters: {
 						path: Object.fromEntries(
 							pathParameterNames(path).map((name) => [
@@ -240,6 +287,7 @@ export const createRecordedSiteContractProfile = (
 								{ required: true, schema: stringSchema },
 							]),
 						),
+						query: queryParametersForEndpoint(endpoint),
 					},
 					path,
 					provenance: {
@@ -250,6 +298,7 @@ export const createRecordedSiteContractProfile = (
 						host: endpoint.host,
 						lastSeenAt: endpoint.lastSeenAt,
 						path: endpoint.path,
+						queryParams: endpoint.queryParams ?? [],
 						samples: endpoint.samples,
 						sourceTags: endpoint.tags ?? [],
 						statuses: endpoint.statuses,
@@ -260,7 +309,14 @@ export const createRecordedSiteContractProfile = (
 						selector: operationId,
 					},
 					request: methodAllowsBody(endpoint.method)
-						? { body: { required: false, schema: unknownSchema } }
+						? {
+								body: {
+									contentType:
+										endpoint.requestBody?.contentType ?? "application/json",
+									required: false,
+									schema: endpoint.requestBody?.schema ?? unknownSchema,
+								},
+							}
 						: undefined,
 					responses,
 					summary: endpoint.description ?? operationId,

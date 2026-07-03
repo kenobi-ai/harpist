@@ -1,6 +1,6 @@
 {
 	"name": "harpist",
-	"version": "0.0.10",
+	"version": "0.0.11",
 	"description": "Record website traffic and prepare API contracts for agents.",
 	"keywords": [
 		"agents",
@@ -37,6 +37,7 @@
 		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"dependencies": {
+		"@inquirer/prompts": "catalog:",
 		"@orpc/contract": "catalog:",
 		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",

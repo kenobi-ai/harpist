@@ -65,6 +65,16 @@ export const contractProfileSchema = z.object({
 					host: nonEmptyString,
 					lastSeenAt: nonEmptyString,
 					path: nonEmptyString,
+					queryParams: z
+						.array(
+							z.object({
+								name: nonEmptyString,
+								repeated: z.boolean(),
+								samples: z.number().int().nonnegative(),
+								values: z.array(z.string()).default([]),
+							}),
+						)
+						.default([]),
 					samples: z.number().int().nonnegative(),
 					sourceTags: z.array(nonEmptyString).default([]),
 					statuses: z.array(z.number().int()).default([]),

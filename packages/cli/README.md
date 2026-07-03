@@ -27,7 +27,7 @@ harpist profiles list
 harpist profiles latest [host]
 harpist recordings latest [host]
 harpist refine latest [host]
-harpist auth replay <host> [templateKey|operationName] [--curl|--redacted-curl]
+harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl]
 harpist openapi get <host>
 harpist docs <host>
 harpist handoff [host]
@@ -37,4 +37,4 @@ The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `
 
 Agents should start expiring bridges with `harpist bridge --agent --idle-timeout 15m`. `/health` reports whether a bridge was started by an agent or a user.
 
-`auth replay` executes the captured request with replay credentials applied. Add `--curl` to print the runnable curl command instead.
+`auth replay` executes the captured request with replay credentials applied. In a terminal it prompts for missing operation/input by default; use `--param`, `--query`, `--body`, or `--json` for scriptable input. Add `--curl` to print the runnable curl command instead.

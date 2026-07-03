@@ -1,4 +1,6 @@
 import type { HarArchive, PendingEntry } from "./har";
+import { inferJsonSchema, mergeJsonSchemas } from "./json-schema-infer";
+import type { ContractJsonSchema, JsonValue } from "./json-schema-zod";
 
 export const SETTINGS_KEY = "harpist.settings";
 export const PROFILES_KEY = "harpist.profiles";
@@ -184,11 +186,30 @@ export type EndpointSummary = {
 	notes?: string;
 	operationName?: string;
 	path: string;
+	queryParams?: EndpointQueryParamSummary[];
+	requestBody?: EndpointBodySummary;
+	responseBodies?: EndpointResponseBodySummary[];
 	samples: number;
 	statuses: number[];
 	tags?: string[];
 	template: string;
 	templateKey: string;
+};
+
+export type EndpointQueryParamSummary = {
+	name: string;
+	repeated: boolean;
+	samples: number;
+	values: string[];
+};
+
+export type EndpointBodySummary = {
+	contentType: string;
+	schema: ContractJsonSchema;
+};
+
+export type EndpointResponseBodySummary = EndpointBodySummary & {
+	status: number;
 };
 
 export type RecordingSummary = {
@@ -993,6 +1014,88 @@ const templatePath = (pathname: string) => {
 		.join("/")}`;
 };
 
+const queryParamsFromUrl = (url: URL): EndpointQueryParamSummary[] => {
+	const names = new Set(url.searchParams.keys());
+	return [...names]
+		.sort((left, right) => left.localeCompare(right))
+		.map((name) => {
+			const values = url.searchParams.getAll(name);
+			return {
+				name,
+				repeated: values.length > 1,
+				samples: 1,
+				values: [...new Set(values)].slice(0, 5),
+			};
+		});
+};
+
+const jsonContentType = (mime?: string) => {
+	const contentType = mime?.split(";")[0]?.trim().toLowerCase();
+	return contentType && /(?:^application\/json$|\+json$)/i.test(contentType)
+		? contentType
+		: "application/json";
+};
+
+const parseJsonBody = (
+	text: string | undefined,
+	options: {
+		bodyBase64?: boolean;
+		mime?: string;
+	},
+): JsonValue | undefined => {
+	if (!text || options.bodyBase64) {
+		return;
+	}
+	const trimmed = text.trim();
+	if (
+		!(
+			/(?:json|\+json)/i.test(options.mime ?? "") ||
+			trimmed.startsWith("{") ||
+			trimmed.startsWith("[")
+		)
+	) {
+		return;
+	}
+	try {
+		return JSON.parse(trimmed) as JsonValue;
+	} catch {
+		return;
+	}
+};
+
+const requestBodyFromEntry = (
+	entry: PendingEntry,
+): EndpointBodySummary | undefined => {
+	const body = parseJsonBody(entry.postData, {
+		mime: entry.postDataMime,
+	});
+	return body === undefined
+		? undefined
+		: {
+				contentType: jsonContentType(entry.postDataMime),
+				schema: inferJsonSchema(body),
+			};
+};
+
+const responseBodyFromEntry = (
+	entry: PendingEntry,
+): EndpointResponseBodySummary | undefined => {
+	if (entry.status === undefined) {
+		return;
+	}
+	const body = parseJsonBody(entry.body, {
+		bodyBase64: entry.bodyBase64,
+		mime: entry.responseMime,
+	});
+	return body === undefined
+		? undefined
+		: {
+				contentType: jsonContentType(entry.responseMime),
+				schema: inferJsonSchema(body),
+				status: entry.status,
+			};
+};
+
 const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
 	try {
 		const url = new URL(entry.url);
@@ -1002,12 +1105,16 @@ const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
 		const method = entry.method.toUpperCase();
 		const path = url.pathname || "/";
 		const template = templatePath(path);
+		const responseBody = responseBodyFromEntry(entry);
 		return {
 			exactKey: `${method} ${url.host}${path}`,
 			host: url.host,
 			lastSeenAt: entry.startedDateTime,
 			method,
 			path,
+			queryParams: queryParamsFromUrl(url),
+			requestBody: requestBodyFromEntry(entry),
+			responseBodies: responseBody ? [responseBody] : undefined,
 			samples: 1,
 			statuses: entry.status === undefined ? [] : [entry.status],
 			template,
@@ -1016,6 +1123,71 @@ const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
 	} catch {
 		return null;
 	}
+};
+
+const mergeQueryParams = (endpoints: EndpointSummary[]) => {
+	const byName = new Map<string, EndpointQueryParamSummary>();
+	for (const endpoint of endpoints) {
+		for (const param of endpoint.queryParams ?? []) {
+			const existing = byName.get(param.name);
+			if (!existing) {
+				byName.set(param.name, param);
+				continue;
+			}
+			byName.set(param.name, {
+				name: param.name,
+				repeated: existing.repeated || param.repeated,
+				samples: existing.samples + param.samples,
+				values: [...new Set([...existing.values, ...param.values])].slice(0, 5),
+			});
+		}
+	}
+	return [...byName.values()].sort((left, right) =>
+		left.name.localeCompare(right.name),
+	);
+};
+
+const mergeBodySummaries = (
+	left: EndpointBodySummary | undefined,
+	right: EndpointBodySummary | undefined,
+) => {
+	if (!left) {
+		return right;
+	}
+	if (!right) {
+		return left;
+	}
+	return {
+		contentType:
+			left.contentType === right.contentType
+				? left.contentType
+				: "application/json",
+		schema: mergeJsonSchemas(left.schema, right.schema),
+	};
+};
+
+const mergeResponseBodies = (endpoints: EndpointSummary[]) => {
+	const byStatus = new Map<number, EndpointResponseBodySummary>();
+	for (const endpoint of endpoints) {
+		for (const response of endpoint.responseBodies ?? []) {
+			const existing = byStatus.get(response.status);
+			if (!existing) {
+				byStatus.set(response.status, response);
+				continue;
+			}
+			byStatus.set(response.status, {
+				contentType:
+					existing.contentType === response.contentType
+						? existing.contentType
+						: "application/json",
+				schema: mergeJsonSchemas(existing.schema, response.schema),
+				status: response.status,
+			});
+		}
+	}
+	return [...byStatus.values()].sort(
+		(left, right) => left.status - right.status,
+	);
 };
 
 const mergeEndpoints = (endpoints: EndpointSummary[]) => {
@@ -1034,6 +1206,12 @@ const mergeEndpoints = (endpoints: EndpointSummary[]) => {
 					? existing.lastSeenAt
 					: endpoint.lastSeenAt,
 			samples: existing.samples + endpoint.samples,
+			queryParams: mergeQueryParams([existing, endpoint]),
+			requestBody: mergeBodySummaries(
+				existing.requestBody,
+				endpoint.requestBody,
+			),
+			responseBodies: mergeResponseBodies([existing, endpoint]),
 			statuses: [...statuses].sort((left, right) => left - right),
 		});
 	}
@@ -1467,6 +1645,13 @@ const shouldKeepExistingAuth = (
 	);
 };
 
+export const summariseEndpoints = (entries: PendingEntry[]) =>
+	mergeEndpoints(
+		entries
+			.map(endpointFromEntry)
+			.filter((endpoint): endpoint is EndpointSummary => endpoint !== null),
+	);
+
 export const summariseRecording = (
 	entries: PendingEntry[],
 	meta: ActiveRecording | ActivePage,
@@ -1475,11 +1660,7 @@ export const summariseRecording = (
 		startedAt?: string;
 	} = {},
 ) => {
-	const endpoints = mergeEndpoints(
-		entries
-			.map(endpointFromEntry)
-			.filter((endpoint): endpoint is EndpointSummary => endpoint !== null),
-	);
+	const endpoints = summariseEndpoints(entries);
 	const scannedKeys = new Set(endpoints.map((endpoint) => endpoint.exactKey));
 	const templateKeys = new Set(
 		endpoints.map((endpoint) => endpoint.templateKey),

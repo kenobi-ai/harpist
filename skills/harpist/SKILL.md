@@ -12,7 +12,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 - Use the published npm package by default: `bunx harpist <command>`.
 - npm package page: https://www.npmjs.com/package/harpist
 <!-- harpist:cli-version:start -->
-- Current published Harpist CLI version: `0.0.10`.
+- Current published Harpist CLI version: `0.0.11`.
 <!-- harpist:cli-version:end -->
 - Before substantive Harpist work, compare `bunx harpist version` with the current published version above.
 - If those versions match, keep using `bunx harpist <command>` for the session.
@@ -33,7 +33,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 
 - Treat recordings as additive. A new recording should improve or refresh a profile, not erase useful endpoints from earlier recordings.
 - Treat generated docs/contracts as cumulative best guesses for the profile.
-- Treat captured auth as first-class replay material. The normal way to test an endpoint is `bunx harpist auth replay`, which executes the captured request with browser credentials applied. Use `auth.replay` or `bunx harpist auth replay --curl` when you need a replay bundle or runnable curl command instead.
+- Treat captured auth as first-class replay material. The normal way to test an endpoint is `bunx harpist auth replay`, which executes the captured request with browser credentials applied. In a terminal it prompts for missing operation/input by default; use `--param`, `--query`, `--body`, or `--json` for scriptable path/query/body input. Use `auth.replay` or `bunx harpist auth replay --curl` when you need a replay bundle or runnable curl command instead.
 - Treat the latest recording as the freshest source of credentials. If current credentials are missing or expired, ask the user to click Add recording while signed in, then refine again.
 - Do not ask the user to manually copy cookies out of DevTools unless Harpist has failed to capture replay material.
 - Keep Harpist source provider-agnostic. Do not add website-specific hostnames, product names, path semantics, auth quirks, or copy to the extension, bridge, CLI, or generic refiner.
@@ -134,7 +134,7 @@ bunx harpist recordings latest [host]
 bunx harpist recordings latest [host] --full
 bunx harpist recordings get <host> <id> [--full]
 bunx harpist refine latest [host]
-bunx harpist auth replay <host> [templateKey|operationName] [--curl|--redacted-curl]
+bunx harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl]
 bunx harpist contract-profile get <host>
 bunx harpist contract get <host>
 bunx harpist openapi get <host>

@@ -204,7 +204,7 @@ const buildCliArtifact = (profile: SiteProfile) =>
 			}),
 		"",
 		"Use `harpist docs review <host>` to check documentation quality.",
-		"Use `harpist auth replay <host> <operationName-or-templateKey>` to execute a captured request with replay credentials. Add `--curl` to print the runnable curl command instead.",
+		"Use `harpist auth replay <host> <operationName-or-templateKey>` to execute a captured request with replay credentials. Add `--param`, `--query`, `--body`, or `--json` for input, and `--curl` to print the runnable curl command instead.",
 	].join("\n");
 
 export const applyProfileDocs = async (

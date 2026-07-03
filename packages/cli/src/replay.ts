@@ -46,6 +46,19 @@ export type ExecutedReplayResponse = {
 	statusText: string;
 };
 
+export type ReplayQueryValue =
+	| boolean
+	| null
+	| number
+	| string
+	| Array<boolean | number | string>;
+
+export type ReplayRequestInput = {
+	body?: unknown;
+	params?: Record<string, string>;
+	query?: Record<string, ReplayQueryValue>;
+};
+
 type ReplayFetch = (
 	url: string,
 	init: RequestInit,
@@ -603,6 +616,130 @@ const isHtmlErrorSample = (entry: PendingEntry) =>
 	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(
 		entry.body ?? "",
 	);
+
+const hasOwn = (value: object, key: string) => Object.hasOwn(value, key);
+
+const jsonBodyFrom = (value: unknown) =>
+	value === undefined ? undefined : JSON.stringify(value);
+
+const requestInputHasBody = (input: ReplayRequestInput) =>
+	hasOwn(input, "body");
+
+const withJsonContentType = (headers: ReplayHeader[]) => {
+	let found = false;
+	const next = headers.map((header) => {
+		if (header.name.toLowerCase() !== "content-type") {
+			return header;
+		}
+		found = true;
+		return {
+			...header,
+			redacted: false,
+			secret: false,
+			value: "application/json",
+		};
+	});
+	if (found) {
+		return next;
+	}
+	return [
+		...next,
+		{
+			name: "Content-Type",
+			redacted: false,
+			secret: false,
+			value: "application/json",
+		},
+	];
+};
+
+const redactedHeadersFrom = (headers: ReplayHeader[]) =>
+	headers.map((header) =>
+		header.secret
+			? {
+					...header,
+					redacted: true,
+					value: redacted,
+				}
+			: header,
+	);
+
+const replacePathParams = (
+	url: URL,
+	template: string,
+	params: Record<string, string>,
+) => {
+	const templateParts = template.split("/").filter(Boolean);
+	if (templateParts.length === 0) {
+		url.pathname = "/";
+		return;
+	}
+	const currentParts = url.pathname.split("/").filter(Boolean);
+	url.pathname = `/${templateParts
+		.map((part, index) => {
+			const match = /^\{([^}]+)\}$/.exec(part);
+			if (!match) {
+				return part;
+			}
+			const name = match[1] ?? "";
+			return encodeURIComponent(
+				params[name] ?? decodeURIComponent(currentParts[index] ?? ""),
+			);
+		})
+		.join("/")}`;
+};
+
+const applyQueryInput = (url: URL, query: Record<string, ReplayQueryValue>) => {
+	for (const [name, rawValue] of Object.entries(query)) {
+		url.searchParams.delete(name);
+		if (rawValue === null) {
+			continue;
+		}
+		const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+		for (const value of values) {
+			url.searchParams.append(name, String(value));
+		}
+	}
+};
+
+export const applyReplayRequestInput = (
+	bundle: ReplayBundle,
+	input: ReplayRequestInput,
+): ReplayBundle => {
+	const url = new URL(bundle.url);
+	if (input.params && Object.keys(input.params).length > 0) {
+		replacePathParams(url, bundle.endpoint.template, input.params);
+	}
+	if (input.query) {
+		applyQueryInput(url, input.query);
+	}
+	const hasBody = requestInputHasBody(input);
+	const body = hasBody ? jsonBodyFrom(input.body) : bundle.body;
+	const headers = hasBody
+		? withJsonContentType(bundle.headers)
+		: bundle.headers;
+	const redactedHeaders = redactedHeadersFrom(headers);
+	const nextUrl = url.toString();
+	return {
+		...bundle,
+		body,
+		contentType: hasBody ? "application/json" : bundle.contentType,
+		curl: curlFrom({
+			body,
+			headers,
+			method: bundle.method,
+			url: nextUrl,
+		}),
+		headers,
+		redactedCurl: curlFrom({
+			body,
+			headers: redactedHeaders,
+			method: bundle.method,
+			url: nextUrl,
+		}),
+		url: nextUrl,
+	};
+};
 
 export const executeReplayBundle = async (
 	bundle: Pick<ReplayBundle, "body" | "headers" | "method" | "url">,

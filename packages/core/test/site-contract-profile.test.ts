@@ -83,6 +83,125 @@ describe("contract profile", () => {
 		});
 	});
 
+	test("models observed query parameters as contract inputs", () => {
+		const contractProfile = createRecordedSiteContractProfile(
+			profile([
+				endpoint({
+					description: "Search",
+					exactKey: "GET api.example.test/api/search",
+					operationName: "search",
+					path: "/api/search",
+					queryParams: [
+						{
+							name: "q",
+							repeated: false,
+							samples: 2,
+							values: ["harpist"],
+						},
+						{
+							name: "tag",
+							repeated: true,
+							samples: 1,
+							values: ["cli", "api"],
+						},
+					],
+					responseBodies: [
+						{
+							contentType: "application/json",
+							schema: {
+								properties: {
+									count: { type: "integer" },
+									query: { type: "string" },
+									skills: {
+										items: {
+											properties: { name: { type: "string" } },
+											type: "object",
+										},
+										type: "array",
+									},
+								},
+								required: ["query", "skills", "count"],
+								type: "object",
+							},
+							status: 200,
+						},
+					],
+					template: "/api/search",
+					templateKey: "GET api.example.test /api/search",
+				}),
+			]),
+		);
+		const operation = contractProfile.operations[0];
+
+		expect(operation?.inputSchema).toMatchObject({
+			properties: {
+				query: {
+					properties: {
+						q: { type: "string" },
+						tag: {
+							items: { type: "string" },
+							type: "array",
+						},
+					},
+					type: "object",
+				},
+			},
+		});
+		expect(operation?.parameters.query).toMatchObject({
+			q: { required: false, schema: { type: "string" } },
+			tag: {
+				required: false,
+				schema: { items: { type: "string" }, type: "array" },
+			},
+		});
+		expect(operation?.outputSchema).toMatchObject({
+			properties: {
+				count: { type: "integer" },
+				query: { type: "string" },
+				skills: { type: "array" },
+			},
+			type: "object",
+		});
+		expect(operation?.responses[0]?.schema).toMatchObject({
+			properties: {
+				count: { type: "integer" },
+				query: { type: "string" },
+				skills: { type: "array" },
+			},
+			type: "object",
+		});
+
+		const openapi = createOpenApiDocumentFromContractProfile(contractProfile);
+		const parameters = openapi.paths["/api/search"]?.get?.parameters;
+		expect(parameters).toContainEqual(
+			expect.objectContaining({
+				in: "query",
+				name: "q",
+				required: false,
+				schema: { type: "string" },
+			}),
+		);
+		expect(parameters).toContainEqual(
+			expect.objectContaining({
+				in: "query",
+				name: "tag",
+				schema: { items: { type: "string" }, type: "array" },
+			}),
+		);
+		expect(
+			openapi.paths["/api/search"]?.get?.responses["200"].content[
+				"application/json"
+			].schema,
+		).toMatchObject({
+			properties: {
+				count: { type: "integer" },
+				query: { type: "string" },
+				skills: { type: "array" },
+			},
+			type: "object",
+		});
+	});
+
 	test("rejects ambiguous or contradictory routes", () => {
 		const contractProfile = createRecordedSiteContractProfile(
 			profile([

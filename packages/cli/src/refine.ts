@@ -10,6 +10,7 @@ import {
 	deriveAuthBundle,
 	deriveAuthSummary,
 	deriveLatestAuth,
+	summariseEndpoints,
 } from "../../core/src/profiles";
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import type { BridgeStore, StoredRecording } from "./store";
@@ -542,6 +543,7 @@ const harSamplesByExactKey = (
 				_harpist?: unknown;
 				headers?: unknown;
 				method?: unknown;
+				postData?: { mimeType?: unknown; text?: unknown };
 				url?: unknown;
 			};
 			response?: {
@@ -577,6 +579,14 @@ const harSamplesByExactKey = (
 					: undefined,
 			bodyBase64: entry.response?.content?.encoding === "base64",
 			method,
+			postData:
+				typeof entry.request.postData?.text === "string"
+					? entry.request.postData.text
+					: undefined,
+			postDataMime:
+				typeof entry.request.postData?.mimeType === "string"
+					? entry.request.postData.mimeType
+					: undefined,
 			requestCookies: requestCookiesFromHar(entry.request),
 			requestHeaders: headersFromHar(entry.request.headers),
 			responseHeaders: headersFromHar(entry.response?.headers),
@@ -601,6 +611,44 @@ const harSamplesByExactKey = (
 		samples.set(key, [...(samples.get(key) ?? []), pendingEntry]);
 	}
 	return samples;
+};
+
+const mergeObservedEndpoint = (
+	existing: EndpointSummary,
+	observed: EndpointSummary,
+): EndpointSummary => ({
+	...existing,
+	...observed,
+	access: existing.access,
+	description: existing.description,
+	included: existing.included,
+	lastSeenAt:
+		existing.lastSeenAt.localeCompare(observed.lastSeenAt) > 0
+			? existing.lastSeenAt
+			: observed.lastSeenAt,
+	notes: existing.notes,
+	operationName: existing.operationName,
+	tags: existing.tags,
+});
+
+export const refreshEndpointObservations = (
+	endpoints: EndpointSummary[],
+	samples: PendingEntry[],
+) => {
+	const byTemplate = new Map<string, EndpointSummary>();
+	for (const endpoint of endpoints) {
+		byTemplate.set(endpoint.templateKey, endpoint);
+	}
+	for (const observed of summariseEndpoints(samples)) {
+		const existing = byTemplate.get(observed.templateKey);
+		byTemplate.set(
+			observed.templateKey,
+			existing ? mergeObservedEndpoint(existing, observed) : observed,
+		);
+	}
+	return [...byTemplate.values()].sort((left, right) =>
+		left.templateKey.localeCompare(right.templateKey),
+	);
 };
 
 const mergeSampleMaps = (recordings: StoredRecording[]) => {
@@ -791,10 +839,15 @@ export const refineLatestProfile = async (
 		);
 	}
 	const samplesByKey = mergeSampleMaps(recordings);
+	const observedSampleEntries = [...samplesByKey.values()].flat();
 	const latestSampleEntries = [
 		...harSamplesByExactKey(latestRecording).values(),
 	].flat();
-	const decisions = profile.endpoints.map((endpoint) => {
+	const endpoints = refreshEndpointObservations(
+		profile.endpoints,
+		observedSampleEntries,
+	);
+	const decisions = endpoints.map((endpoint) => {
 		const classified = classifyEndpoint(endpoint, profile);
 		const samples = samplesForEndpoint(samplesByKey, endpoint);
 		const htmlErrorOnly =

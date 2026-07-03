@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { contractJsonSchemaSchema } from "./json-schema-zod";
 import { createORPCResourceContract, defineResourceOperations } from "./orpc";
 
 const bridgeTags = ["Bridge"] as const;
@@ -170,6 +171,31 @@ const endpointSummarySchema = z.object({
 	notes: z.string().optional(),
 	operationName: z.string().optional(),
 	path: z.string(),
+	queryParams: z
+		.array(
+			z.object({
+				name: z.string(),
+				repeated: z.boolean(),
+				samples: z.number().int(),
+				values: z.array(z.string()),
+			}),
+		)
+		.optional(),
+	requestBody: z
+		.object({
+			contentType: z.string(),
+			schema: contractJsonSchemaSchema,
+		})
+		.optional(),
+	responseBodies: z
+		.array(
+			z.object({
+				contentType: z.string(),
+				schema: contractJsonSchemaSchema,
+				status: z.number().int(),
+			}),
+		)
+		.optional(),
 	samples: z.number().int(),
 	statuses: z.array(z.number().int()),
 	tags: z.array(z.string()).optional(),
