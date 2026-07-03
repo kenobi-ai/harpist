@@ -1,6 +1,6 @@
 {
 	"name": "harpist",
-	"version": "0.0.8",
+	"version": "0.0.9",
 	"description": "Record website traffic and prepare API contracts for agents.",
 	"keywords": [
 		"agents",

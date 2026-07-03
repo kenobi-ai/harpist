@@ -1,4 +1,5 @@
 import {
+	activePageFromTab,
 	authMethodsForProfile,
 	type BackgroundResponse,
 	buildAgentHandoffText,
@@ -98,14 +99,13 @@ function App() {
 		return () => window.clearInterval(timer);
 	}, [load]);
 
+	const documentation = state?.activeDocumentation ?? null;
 	const activeHost = state?.activePage?.host ?? null;
 	const activeProfile = activeHost ? state?.profiles[activeHost] : undefined;
-	const latestProfile = state
-		? Object.values(state.profiles).sort((left, right) =>
-				right.updatedAt.localeCompare(left.updatedAt),
-			)[0]
+	const documentationProfile = documentation
+		? state?.profiles[documentation.host]
 		: undefined;
-	const profile = activeHost ? activeProfile : latestProfile;
+	const profile = documentationProfile ?? activeProfile;
 	const isRecording = state?.capture.recording ?? false;
 	const profileHost = profile?.host ?? null;
 	useEffect(() => {
@@ -163,7 +163,7 @@ function App() {
 	const capturedAuthDetail = capturedAuthDetailLabel(profile);
 	const host = isRecording
 		? state?.activeRecording?.host
-		: (activeHost ?? profile?.host);
+		: (documentation?.host ?? activeHost ?? profile?.host);
 	const bridgeMessage =
 		activeHost && !profile
 			? state?.bridge.active
@@ -221,6 +221,38 @@ function App() {
 		});
 	};
 
+	const openSiteToRecordMore = async () => {
+		if (!documentation) {
+			return;
+		}
+		setBusy(true);
+		setError(null);
+		try {
+			await browser.tabs.create({
+				active: true,
+				url: documentation.siteUrl,
+			});
+			const activePage = activePageFromTab({
+				title: profile?.host ?? documentation.host,
+				url: documentation.siteUrl,
+			});
+			setState((current) =>
+				current
+					? {
+							...current,
+							activeDocumentation: null,
+							activePage,
+						}
+					: current,
+			);
+			await load();
+		} catch (actionError) {
+			setError(messageOf(actionError));
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const copyHandoff = async () => {
 		if (!(profile && state)) {
 			return;
@@ -273,79 +305,116 @@ function App() {
 						</div>
 					) : null}
 
-					<button
-						className="relative isolate inline-flex h-12 w-full translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
-						disabled={busy || !(state?.activePage || isRecording)}
-						onClick={() => void runRecordingAction()}
-						type="button"
-					>
-						<span className="relative z-10 inline-flex items-center gap-2">
-							{isRecording ? (
-								<StopCircleIcon size={18} weight="fill" />
-							) : (
-								<VoicemailIcon size={18} weight="fill" />
-							)}
-							{busy
-								? "Working"
-								: isRecording
-									? "Finish recording"
-									: "Add recording"}
-						</span>
-					</button>
-
-					<div
-						aria-hidden={supportingContentLocked}
-						className={`space-y-4 transition-[filter,opacity] duration-200 ease-out ${
-							supportingContentLocked
-								? "pointer-events-none select-none blur-[2px] opacity-55"
-								: ""
-						}`}
-					>
-						<MetadataLine
-							authHint={capturedAuthDetail}
-							endpointCount={String(endpointCount)}
-							methods={authMethods}
+					{documentation ? (
+						<DocumentationPane
+							busy={busy}
+							onGoToSite={() => void openSiteToRecordMore()}
 						/>
-
-						<div className="grid grid-cols-2 gap-2">
+					) : (
+						<>
 							<button
-								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
-								disabled={!profile || supportingContentLocked}
-								onClick={() => void openDocs(profile)}
+								className="relative isolate inline-flex h-12 w-full translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
+								disabled={busy || !(state?.activePage || isRecording)}
+								onClick={() => void runRecordingAction()}
 								type="button"
 							>
 								<span className="relative z-10 inline-flex items-center gap-2">
-									<BookOpenTextIcon size={16} />
-									Docs
-								</span>
-							</button>
-							<button
-								className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
-								disabled={!profile || supportingContentLocked}
-								onClick={() => void copyHandoff()}
-								type="button"
-							>
-								<span className="relative z-10 inline-flex items-center gap-2">
-									{handoffCopied ? (
-										<CheckCircleIcon size={16} weight="fill" />
+									{isRecording ? (
+										<StopCircleIcon size={18} weight="fill" />
 									) : (
-										<CopyIcon size={16} />
+										<VoicemailIcon size={18} weight="fill" />
 									)}
-									{handoffCopied ? "Copied" : "Handoff"}
+									{busy
+										? "Working"
+										: isRecording
+											? "Finish recording"
+											: "Add recording"}
 								</span>
 							</button>
-						</div>
 
-						<div className="flex items-center justify-between gap-2 pt-1">
-							<p className="min-w-0 truncate text-xs text-amber-900/70">
-								{bridgeMessage}
-							</p>
-							<StatusBadge status={status} />
-						</div>
-					</div>
+							<div
+								aria-hidden={supportingContentLocked}
+								className={`space-y-4 transition-[filter,opacity] duration-200 ease-out ${
+									supportingContentLocked
+										? "pointer-events-none select-none blur-[2px] opacity-55"
+										: ""
+								}`}
+							>
+								<MetadataLine
+									authHint={capturedAuthDetail}
+									endpointCount={String(endpointCount)}
+									methods={authMethods}
+								/>
+
+								<div className="grid grid-cols-2 gap-2">
+									<button
+										className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
+										disabled={!profile || supportingContentLocked}
+										onClick={() => void openDocs(profile)}
+										type="button"
+									>
+										<span className="relative z-10 inline-flex items-center gap-2">
+											<BookOpenTextIcon size={16} />
+											Docs
+										</span>
+									</button>
+									<button
+										className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
+										disabled={!profile || supportingContentLocked}
+										onClick={() => void copyHandoff()}
+										type="button"
+									>
+										<span className="relative z-10 inline-flex items-center gap-2">
+											{handoffCopied ? (
+												<CheckCircleIcon size={16} weight="fill" />
+											) : (
+												<CopyIcon size={16} />
+											)}
+											{handoffCopied ? "Copied" : "Handoff"}
+										</span>
+									</button>
+								</div>
+
+								<div className="flex items-center justify-between gap-2 pt-1">
+									<p className="min-w-0 truncate text-xs text-amber-900/70">
+										{bridgeMessage}
+									</p>
+									<StatusBadge status={status} />
+								</div>
+							</div>
+						</>
+					)}
 				</div>
 			</section>
 		</main>
+	);
+}
+
+function DocumentationPane({
+	busy,
+	onGoToSite,
+}: {
+	busy: boolean;
+	onGoToSite: () => void;
+}) {
+	return (
+		<section className="space-y-4 py-2 text-center text-amber-900">
+			<div className="mx-auto flex size-12 items-center justify-center rounded-sm bg-amber-900/10">
+				<BookOpenTextIcon size={24} weight="fill" />
+			</div>
+			<p className="font-bold text-lg leading-tight">Viewing documentation</p>
+			<button
+				className="relative isolate inline-flex h-12 w-full translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
+				disabled={busy}
+				onClick={onGoToSite}
+				type="button"
+			>
+				<span className="relative z-10 inline-flex items-center gap-2">
+					<GlobeIcon size={18} weight="fill" />
+					{busy ? "Working" : "Go to site to record more"}
+				</span>
+			</button>
+		</section>
 	);
 }
 

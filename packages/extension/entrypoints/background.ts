@@ -4,6 +4,7 @@ import {
 } from "@harpist/core/bridge-client";
 import { buildHar, hostOfEntries, type PendingEntry } from "@harpist/core/har";
 import {
+	type ActiveDocumentation,
 	type ActiveRecording,
 	activePageFromTab,
 	type BackgroundResponse,
@@ -122,6 +123,63 @@ const activeTab = async () => {
 	return tab;
 };
 
+const docsHostFromBridgeUrl = (
+	tabUrl: string | undefined,
+	settings: HarpistSettings,
+) => {
+	if (!tabUrl) {
+		return null;
+	}
+	try {
+		const url = new URL(tabUrl);
+		const bridgeUrl = new URL(normaliseServerUrl(settings.serverUrl));
+		if (!isBridgeHost(url, bridgeUrl)) {
+			return null;
+		}
+		const match = url.pathname.match(/^\/profiles\/([^/]+)\/docs(?:\/.*)?$/);
+		if (!match?.[1]) {
+			return null;
+		}
+		const host = decodeURIComponent(match[1]);
+		return host || null;
+	} catch {
+		return null;
+	}
+};
+
+const normaliseLoopbackHostname = (hostname: string) => {
+	const normalised = hostname.toLowerCase();
+	return normalised === "localhost" ||
+		normalised === "127.0.0.1" ||
+		normalised === "[::1]" ||
+		normalised === "::1"
+		? "localhost"
+		: normalised;
+};
+
+const isBridgeHost = (url: URL, bridgeUrl: URL) =>
+	url.port === bridgeUrl.port &&
+	normaliseLoopbackHostname(url.hostname) ===
+		normaliseLoopbackHostname(bridgeUrl.hostname);
+
+const activeDocumentationFromTab = (
+	tab: Awaited<ReturnType<typeof activeTab>>,
+	settings: HarpistSettings,
+	profiles: ProfilesStore,
+): ActiveDocumentation | null => {
+	const host = docsHostFromBridgeUrl(tab.url, settings);
+	if (!host || !tab.url) {
+		return null;
+	}
+	const profile = profiles[host];
+	return {
+		host,
+		siteUrl: profile?.origin ?? `https://${host}`,
+		title: tab.title ?? `${host} documentation`,
+		url: tab.url,
+	};
+};
+
 const setBadge = (recording: boolean) => {
 	void browser.action.setBadgeBackgroundColor({
 		color: "#e11d48",
@@ -223,11 +281,16 @@ const readState = async (
 	await clearLegacyRecordingStorage();
 	const settings = await getSettings();
 	const tab = await activeTab().catch(() => null);
-	const activePage = tab ? activePageFromTab(tab) : null;
+	const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
+	const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
 	const sync = await syncWithBridge(settings, {
-		activeHost: activePage?.host,
+		activeHost: docsHost ?? activePage?.host,
 	});
+	const activeDocumentation = tab
+		? activeDocumentationFromTab(tab, settings, sync.profiles)
+		: null;
 	return {
+		activeDocumentation,
 		activePage,
 		activeRecording,
 		bridge: {
@@ -342,9 +405,10 @@ const handleMessage = async (message: {
 		if (message.type === "SYNC_BRIDGE") {
 			const settings = await getSettings();
 			const tab = await activeTab().catch(() => null);
-			const activePage = tab ? activePageFromTab(tab) : null;
+			const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
+			const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
 			await syncWithBridge(settings, {
-				activeHost: activePage?.host,
+				activeHost: docsHost ?? activePage?.host,
 				force: true,
 			});
 			return {

@@ -21,6 +21,13 @@ export type ActivePage = {
 	url: string;
 };
 
+export type ActiveDocumentation = {
+	host: string;
+	siteUrl: string;
+	title: string;
+	url: string;
+};
+
 export type ActiveRecording = ActivePage & {
 	startedAt: string;
 	tabId: number;
@@ -257,6 +264,7 @@ export type SiteProfile = {
 export type ProfilesStore = Record<string, SiteProfile>;
 
 export type PopupState = {
+	activeDocumentation: ActiveDocumentation | null;
 	activePage: ActivePage | null;
 	activeRecording: ActiveRecording | null;
 	bridge: {
