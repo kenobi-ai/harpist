@@ -236,6 +236,26 @@ export type RecordingArchive = RecordingSummary & {
 
 export type RecordingsStore = Record<string, RecordingArchive>;
 
+export type RecordingIndexEntry = Omit<RecordingArchive, "har"> & {
+	archiveEntryCount?: number;
+	lastSyncAttemptAt?: string;
+	lastSyncError?: string;
+	storageFormat?: "legacy-full-archive" | "split-archive";
+};
+
+export type RecordingIndexStore = Record<string, RecordingIndexEntry>;
+
+export type ExtensionDiagnostic = {
+	at: string;
+	context?: Record<string, JsonValue>;
+	durationMs?: number;
+	id: string;
+	level: "error" | "info" | "warn";
+	message: string;
+	operation: string;
+	stack?: string;
+};
+
 export type ProfileArtifacts = {
 	auth?: string;
 	cli?: string;
@@ -292,6 +312,8 @@ export type PopupState = {
 		active: boolean;
 		lastSyncedAt?: string;
 		message?: string;
+		pendingRecordingCount?: number;
+		syncing?: boolean;
 		url: string;
 	};
 	capture: {
@@ -299,6 +321,7 @@ export type PopupState = {
 		recording: boolean;
 		tabId: number | null;
 	};
+	diagnostics: ExtensionDiagnostic[];
 	profiles: ProfilesStore;
 	settings: HarpistSettings;
 };
@@ -319,7 +342,7 @@ export type SyncResult = {
 	active: boolean;
 	message?: string;
 	profiles: ProfilesStore;
-	recordings: RecordingsStore;
+	recordings: RecordingIndexStore;
 	syncedAt?: string;
 };
 

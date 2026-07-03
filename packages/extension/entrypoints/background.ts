@@ -18,16 +18,22 @@ import {
 	type ProfilesStore,
 	RECORDINGS_KEY,
 	type RecordingArchive,
+	type RecordingIndexStore,
 	SETTINGS_KEY,
 	type StopResult,
-	type SyncResult,
 	summariseRecording,
 } from "@harpist/core/profiles";
 import { browser, defineBackground } from "#imports";
 import {
-	getRecordings,
+	readDiagnostics,
+	writeDiagnostic,
+	writeErrorDiagnostic,
+} from "../lib/diagnostics";
+import {
+	getRecording,
+	getRecordingIndex,
+	patchRecordingIndexEntry,
 	putRecording,
-	putRecordings,
 } from "../lib/recording-db";
 
 type Controller = {
@@ -43,6 +49,21 @@ type Controller = {
 let activeRecording: ActiveRecording | null = null;
 let captureController: Controller | null = null;
 let legacyRecordingStorageCleared = false;
+let syncInFlight: Promise<SyncResult> | null = null;
+let lastSyncState: Pick<SyncResult, "active" | "message" | "syncedAt"> | null =
+	null;
+let lastScheduledSyncAt = 0;
+
+type SyncResult = {
+	active: boolean;
+	message?: string;
+	profiles: ProfilesStore;
+	recordings: RecordingIndexStore;
+	syncedAt?: string;
+};
+
+const SLOW_OPERATION_MS = 5000;
+const BACKGROUND_SYNC_MIN_INTERVAL_MS = 10_000;
 
 const clearLegacyRecordingStorage = async () => {
 	if (legacyRecordingStorageCleared) {
@@ -85,6 +106,40 @@ const getProfiles = async (): Promise<ProfilesStore> => {
 const saveProfiles = async (profiles: ProfilesStore) => {
 	await browser.storage.local.set({
 		[PROFILES_KEY]: profiles,
+	});
+};
+
+const elapsedMs = (startedAt: number) => Date.now() - startedAt;
+
+const maxSyncedAt = (recordings: RecordingIndexStore) =>
+	Object.values(recordings)
+		.map((recording) => recording.syncedAt)
+		.filter((syncedAt): syncedAt is string => Boolean(syncedAt))
+		.sort((left, right) => right.localeCompare(left))[0];
+
+const unsyncedRecordingCount = (recordings: RecordingIndexStore) =>
+	Object.values(recordings).filter((recording) => !recording.syncedAt).length;
+
+const profilesForHosts = (profiles: ProfilesStore, hosts: Set<string>) =>
+	[...hosts]
+		.map((host) => profiles[host])
+		.filter((profile): profile is ProfilesStore[string] => Boolean(profile));
+
+const slowOperationDiagnostic = async (
+	operation: string,
+	startedAt: number,
+	context?: Record<string, string | number | boolean | null>,
+) => {
+	const durationMs = elapsedMs(startedAt);
+	if (durationMs < SLOW_OPERATION_MS) {
+		return;
+	}
+	await writeDiagnostic({
+		context,
+		durationMs,
+		level: "warn",
+		message: "Operation took longer than expected.",
+		operation,
 	});
 };
 
@@ -216,63 +271,187 @@ const syncWithBridge = async (
 		force?: boolean;
 	} = {},
 ): Promise<SyncResult> => {
+	const startedAt = Date.now();
 	const profiles = await getProfiles();
+	const recordingIndex = await getRecordingIndex();
 	const bridge = await connectBridge(settings);
 	if (!bridge.active) {
-		return {
+		const result = {
 			active: false,
 			message: bridge.message,
 			profiles,
-			recordings: {},
+			recordings: recordingIndex,
+			syncedAt: maxSyncedAt(recordingIndex),
 		};
+		lastSyncState = result;
+		return result;
 	}
 
-	const recordings = await getRecordings();
-	const candidates = Object.values(recordings).filter(
-		(recording) => options.force || !recording.syncedAt,
+	const candidates = Object.values(recordingIndex).filter((recording) =>
+		options.force
+			? !options.activeHost || recording.host === options.activeHost
+			: !recording.syncedAt,
 	);
+	let canonicalProfiles = profiles;
+	let lastSyncedAt = maxSyncedAt(recordingIndex);
+	let failedCount = 0;
+
 	try {
-		const result =
-			candidates.length > 0
-				? await bridge.client.sync.pushExtensionSnapshot({
-						activeHost: options.activeHost,
-						extensionId: browser.runtime.id,
-						profiles: Object.values(profiles),
-						recordings: candidates.map(recordingForBridge),
-					})
-				: await bridge.client.sync.pullExtensionState({});
-		const canonicalProfiles = profilesFromBridge(result.profiles);
-		const syncedAt = "syncedAt" in result ? result.syncedAt : result.pulledAt;
-		const appliedIds =
-			"appliedRecordingIds" in result
-				? new Set(result.appliedRecordingIds)
-				: new Set<string>();
-		const nextRecordings = { ...recordings };
-		for (const [key, recording] of Object.entries(nextRecordings)) {
-			if (options.force || appliedIds.has(recording.id)) {
-				nextRecordings[key] = {
-					...recording,
-					syncedAt,
-				};
+		if (candidates.length === 0) {
+			const pullStartedAt = Date.now();
+			const result = await bridge.client.sync.pullExtensionState({});
+			canonicalProfiles = profilesFromBridge(result.profiles);
+			lastSyncedAt = result.pulledAt;
+			await saveProfiles(canonicalProfiles);
+			await slowOperationDiagnostic("sync.pullExtensionState", pullStartedAt, {
+				profileCount: result.profiles.length,
+			});
+		}
+
+		for (const candidate of candidates) {
+			const attemptAt = new Date().toISOString();
+			await patchRecordingIndexEntry(candidate, {
+				lastSyncAttemptAt: attemptAt,
+				lastSyncError: undefined,
+			});
+
+			const archive = await getRecording(candidate);
+			if (!archive) {
+				failedCount += 1;
+				await patchRecordingIndexEntry(candidate, {
+					lastSyncError: "Missing local HAR archive.",
+				});
+				await writeDiagnostic({
+					context: {
+						host: candidate.host,
+						recordingId: candidate.id,
+					},
+					level: "error",
+					message: "Recording index exists, but the HAR archive is missing.",
+					operation: "sync.loadRecordingArchive",
+				});
+				continue;
+			}
+
+			const pushStartedAt = Date.now();
+			try {
+				const result = await bridge.client.sync.pushExtensionSnapshot({
+					activeHost: options.activeHost,
+					extensionId: browser.runtime.id,
+					profiles: profilesForHosts(
+						canonicalProfiles,
+						new Set(
+							[candidate.host, options.activeHost].filter(
+								(host): host is string => Boolean(host),
+							),
+						),
+					),
+					recordings: [recordingForBridge(archive)],
+				});
+				canonicalProfiles = profilesFromBridge(result.profiles);
+				lastSyncedAt = result.syncedAt;
+				await saveProfiles(canonicalProfiles);
+				if (result.appliedRecordingIds.includes(candidate.id)) {
+					await patchRecordingIndexEntry(candidate, {
+						lastSyncAttemptAt: attemptAt,
+						lastSyncError: undefined,
+						syncedAt: result.syncedAt,
+					});
+				}
+				await slowOperationDiagnostic(
+					"sync.pushExtensionSnapshot",
+					pushStartedAt,
+					{
+						archiveEntryCount:
+							candidate.archiveEntryCount ?? archive.har.log.entries.length,
+						derivedEndpointCount: candidate.derivedEndpointCount,
+						host: candidate.host,
+						recordingId: candidate.id,
+					},
+				);
+			} catch (error) {
+				failedCount += 1;
+				await patchRecordingIndexEntry(candidate, {
+					lastSyncError: messageOf(error),
+				});
+				await writeErrorDiagnostic("sync.pushExtensionSnapshot", error, {
+					context: {
+						archiveEntryCount:
+							candidate.archiveEntryCount ?? archive.har.log.entries.length,
+						derivedEndpointCount: candidate.derivedEndpointCount,
+						host: candidate.host,
+						recordingId: candidate.id,
+					},
+					durationMs: elapsedMs(pushStartedAt),
+				});
 			}
 		}
-		await saveProfiles(canonicalProfiles);
-		await putRecordings(nextRecordings);
-		return {
+
+		const nextRecordings = await getRecordingIndex();
+		const result = {
 			active: true,
-			message: "Bridge synced",
+			message:
+				failedCount > 0
+					? `Bridge sync incomplete: ${failedCount} recording${
+							failedCount === 1 ? "" : "s"
+						} failed`
+					: "Bridge synced",
 			profiles: canonicalProfiles,
 			recordings: nextRecordings,
-			syncedAt,
+			syncedAt: lastSyncedAt,
 		};
+		lastSyncState = result;
+		await slowOperationDiagnostic("syncWithBridge", startedAt, {
+			candidateCount: candidates.length,
+			failedCount,
+			pendingRecordingCount: unsyncedRecordingCount(nextRecordings),
+		});
+		return result;
 	} catch (error) {
-		return {
+		await writeErrorDiagnostic("syncWithBridge", error, {
+			context: {
+				candidateCount: candidates.length,
+				pendingRecordingCount: unsyncedRecordingCount(recordingIndex),
+			},
+			durationMs: elapsedMs(startedAt),
+		});
+		const result = {
 			active: true,
 			message: `Bridge sync failed: ${messageOf(error)}`,
 			profiles,
-			recordings,
+			recordings: recordingIndex,
+			syncedAt: maxSyncedAt(recordingIndex),
 		};
+		lastSyncState = result;
+		return result;
 	}
+};
+
+const scheduleSyncWithBridge = (
+	settings: HarpistSettings,
+	options: {
+		activeHost?: string;
+		force?: boolean;
+		urgent?: boolean;
+	} = {},
+) => {
+	if (syncInFlight) {
+		return syncInFlight;
+	}
+	if (
+		!(options.force || options.urgent) &&
+		Date.now() - lastScheduledSyncAt < BACKGROUND_SYNC_MIN_INTERVAL_MS
+	) {
+		return null;
+	}
+	lastScheduledSyncAt = Date.now();
+	syncInFlight = syncWithBridge(settings, {
+		activeHost: options.activeHost,
+		force: options.force,
+	}).finally(() => {
+		syncInFlight = null;
+	});
+	return syncInFlight;
 };
 
 const readState = async (
@@ -283,20 +462,47 @@ const readState = async (
 	const tab = await activeTab().catch(() => null);
 	const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
 	const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
-	const sync = await syncWithBridge(settings, {
-		activeHost: docsHost ?? activePage?.host,
-	});
+	const activeHost = docsHost ?? activePage?.host;
+	const profiles = await getProfiles();
+	const recordingIndex = await getRecordingIndex();
+	const pendingRecordingCount = unsyncedRecordingCount(recordingIndex);
+	const bridge = syncInFlight
+		? {
+				active: lastSyncState?.active ?? true,
+				message: "Syncing with bridge",
+				syncedAt: lastSyncState?.syncedAt ?? maxSyncedAt(recordingIndex),
+			}
+		: {
+				...(await connectBridge(settings)),
+				syncedAt: lastSyncState?.syncedAt ?? maxSyncedAt(recordingIndex),
+			};
+	if (bridge.active && !syncInFlight) {
+		const scheduledSync = scheduleSyncWithBridge(settings, {
+			activeHost,
+		});
+		if (scheduledSync) {
+			void scheduledSync.catch((error: unknown) =>
+				writeErrorDiagnostic("sync.background", error, {
+					context: {
+						activeHost: activeHost ?? null,
+					},
+				}),
+			);
+		}
+	}
 	const activeDocumentation = tab
-		? activeDocumentationFromTab(tab, settings, sync.profiles)
+		? activeDocumentationFromTab(tab, settings, profiles)
 		: null;
 	return {
 		activeDocumentation,
 		activePage,
 		activeRecording,
 		bridge: {
-			active: sync.active,
-			lastSyncedAt: sync.syncedAt,
-			message: sync.message,
+			active: bridge.active,
+			lastSyncedAt: bridge.syncedAt,
+			message: bridge.message,
+			pendingRecordingCount,
+			syncing: Boolean(syncInFlight),
 			url: normaliseServerUrl(settings.serverUrl),
 		},
 		capture: controller?.state() ?? {
@@ -304,7 +510,8 @@ const readState = async (
 			recording: false,
 			tabId: null,
 		},
-		profiles: sync.profiles,
+		diagnostics: await readDiagnostics(),
+		profiles,
 		settings,
 	};
 };
@@ -365,15 +572,25 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 	});
 
 	const settings = await getSettings();
-	const sync = await syncWithBridge(settings, {
+	const scheduledSync = scheduleSyncWithBridge(settings, {
 		activeHost: meta.host,
+		urgent: true,
 	});
-	const syncedProfile = sync.profiles[meta.host] ?? profile;
+	if (scheduledSync) {
+		void scheduledSync.catch((error: unknown) =>
+			writeErrorDiagnostic("sync.afterStopRecording", error, {
+				context: {
+					host: meta.host,
+					recordingId: summary.recording.id,
+				},
+			}),
+		);
+	}
 
 	return {
-		profile: syncedProfile,
+		profile,
 		recording: summary.recording,
-		synced: Boolean(sync.syncedAt),
+		synced: false,
 	};
 };
 
@@ -407,10 +624,10 @@ const handleMessage = async (message: {
 			const tab = await activeTab().catch(() => null);
 			const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
 			const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
-			await syncWithBridge(settings, {
+			await (scheduleSyncWithBridge(settings, {
 				activeHost: docsHost ?? activePage?.host,
 				force: true,
-			});
+			}) ?? Promise.resolve());
 			return {
 				data: await readState(captureController),
 				ok: true,
@@ -425,6 +642,11 @@ const handleMessage = async (message: {
 		}
 		throw new Error(`Unknown message '${message.type ?? ""}'.`);
 	} catch (error) {
+		await writeErrorDiagnostic("background.handleMessage", error, {
+			context: {
+				messageType: message.type ?? null,
+			},
+		});
 		return {
 			error: messageOf(error),
 			ok: false,

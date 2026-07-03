@@ -30,11 +30,39 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 import { browser } from "#imports";
+import { writeErrorDiagnostic } from "../../lib/diagnostics";
+
+const MESSAGE_TIMEOUT_MS = 12_000;
 
 const sendMessage = async <T,>(
-	message: object,
-): Promise<BackgroundResponse<T>> =>
-	(await browser.runtime.sendMessage(message)) as BackgroundResponse<T>;
+	message: Record<string, unknown> & {
+		type?: string;
+	},
+): Promise<BackgroundResponse<T>> => {
+	let timeout: number | undefined;
+	try {
+		return (await Promise.race([
+			browser.runtime.sendMessage(message),
+			new Promise<never>((_resolve, reject) => {
+				timeout = window.setTimeout(
+					() =>
+						reject(
+							new Error(
+								`Harpist background timed out during ${
+									message.type ?? "message"
+								}.`,
+							),
+						),
+					MESSAGE_TIMEOUT_MS,
+				);
+			}),
+		])) as BackgroundResponse<T>;
+	} finally {
+		if (timeout) {
+			window.clearTimeout(timeout);
+		}
+	}
+};
 
 type WorkflowStatus =
 	| "Bridge active"
@@ -92,7 +120,10 @@ function App() {
 	}, []);
 
 	useEffect(() => {
-		void load().catch((loadError: unknown) => setError(messageOf(loadError)));
+		void load().catch((loadError: unknown) => {
+			setError(messageOf(loadError));
+			void writeErrorDiagnostic("popup.loadState", loadError);
+		});
 		const timer = window.setInterval(() => {
 			void load().catch(() => undefined);
 		}, 1500);
@@ -161,11 +192,18 @@ function App() {
 		profile?.derivedEndpointCount || profile?.scannedEndpointCount || 0;
 	const authMethods = authMethodsForProfile(profile);
 	const capturedAuthDetail = capturedAuthDetailLabel(profile);
-	const host = isRecording
-		? state?.activeRecording?.host
-		: (documentation?.host ?? activeHost ?? profile?.host);
-	const bridgeMessage =
-		activeHost && !profile
+	const host = !state
+		? "Checking website"
+		: isRecording
+			? state.activeRecording?.host
+			: (documentation?.host ?? activeHost ?? profile?.host);
+	const bridgeMessage = state?.bridge.syncing
+		? state.bridge.pendingRecordingCount
+			? `Syncing ${state.bridge.pendingRecordingCount} recording${
+					state.bridge.pendingRecordingCount === 1 ? "" : "s"
+				}`
+			: "Refreshing bridge"
+		: activeHost && !profile
 			? state?.bridge.active
 				? "No recording for this site"
 				: "Bridge not checked"
@@ -175,6 +213,9 @@ function App() {
 	const supportingContentLocked = isRecording || !profile;
 	const spriteUrl = browser.runtime.getURL(
 		spritePathForFrame(spriteState.frame),
+	);
+	const latestDiagnostic = state?.diagnostics.find(
+		(diagnostic) => diagnostic.level === "error" || diagnostic.level === "warn",
 	);
 
 	const runRecordingAction = async () => {
@@ -200,6 +241,11 @@ function App() {
 			await load();
 		} catch (actionError) {
 			setError(messageOf(actionError));
+			void writeErrorDiagnostic("popup.recordingAction", actionError, {
+				context: {
+					action: isRecording ? "stop" : "start",
+				},
+			});
 		} finally {
 			setBusy(false);
 		}
@@ -248,6 +294,7 @@ function App() {
 			await load();
 		} catch (actionError) {
 			setError(messageOf(actionError));
+			void writeErrorDiagnostic("popup.openSiteToRecordMore", actionError);
 		} finally {
 			setBusy(false);
 		}
@@ -257,21 +304,30 @@ function App() {
 		if (!(profile && state)) {
 			return;
 		}
-		const syncResponse = await sendMessage<PopupState>({
-			type: "SYNC_BRIDGE",
-		});
-		const nextState =
-			syncResponse.ok && syncResponse.data ? syncResponse.data : state;
-		if (syncResponse.ok && syncResponse.data) {
-			setState(syncResponse.data);
+		try {
+			const syncResponse = await sendMessage<PopupState>({
+				type: "SYNC_BRIDGE",
+			});
+			const nextState =
+				syncResponse.ok && syncResponse.data ? syncResponse.data : state;
+			if (syncResponse.ok && syncResponse.data) {
+				setState(syncResponse.data);
+			}
+			await navigator.clipboard.writeText(
+				buildAgentHandoffText(
+					nextState.profiles[profile.host] ?? profile,
+					nextState.settings,
+				),
+			);
+			setHandoffCopied(true);
+		} catch (copyError) {
+			setError(messageOf(copyError));
+			void writeErrorDiagnostic("popup.copyHandoff", copyError, {
+				context: {
+					host: profile.host,
+				},
+			});
 		}
-		await navigator.clipboard.writeText(
-			buildAgentHandoffText(
-				nextState.profiles[profile.host] ?? profile,
-				nextState.settings,
-			),
-		);
-		setHandoffCopied(true);
 	};
 
 	return (
@@ -302,6 +358,16 @@ function App() {
 						<div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-900 text-sm">
 							<WarningCircleIcon className="mt-0.5 shrink-0" size={16} />
 							<span>{error}</span>
+						</div>
+					) : null}
+
+					{!error && latestDiagnostic ? (
+						<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-100 px-3 py-2 text-amber-950 text-xs">
+							<WarningCircleIcon className="mt-0.5 shrink-0" size={15} />
+							<span className="min-w-0 break-words">
+								Last issue: {latestDiagnostic.operation}:{" "}
+								{latestDiagnostic.message}
+							</span>
 						</div>
 					) : null}
 

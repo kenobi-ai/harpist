@@ -25,11 +25,37 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { browser } from "#imports";
+import { writeErrorDiagnostic } from "../../lib/diagnostics";
 
 const sendMessage = async <T,>(
-	message: object,
-): Promise<BackgroundResponse<T>> =>
-	(await browser.runtime.sendMessage(message)) as BackgroundResponse<T>;
+	message: Record<string, unknown> & {
+		type?: string;
+	},
+): Promise<BackgroundResponse<T>> => {
+	let timeout: number | undefined;
+	try {
+		return (await Promise.race([
+			browser.runtime.sendMessage(message),
+			new Promise<never>((_resolve, reject) => {
+				timeout = window.setTimeout(
+					() =>
+						reject(
+							new Error(
+								`Harpist background timed out during ${
+									message.type ?? "message"
+								}.`,
+							),
+						),
+					12_000,
+				);
+			}),
+		])) as BackgroundResponse<T>;
+	} finally {
+		if (timeout) {
+			window.clearTimeout(timeout);
+		}
+	}
+};
 
 const dateFormat = new Intl.DateTimeFormat(undefined, {
 	day: "numeric",
@@ -78,7 +104,10 @@ function Dashboard() {
 	}, []);
 
 	useEffect(() => {
-		void load().catch((loadError: unknown) => setError(messageOf(loadError)));
+		void load().catch((loadError: unknown) => {
+			setError(messageOf(loadError));
+			void writeErrorDiagnostic("dashboard.loadState", loadError);
+		});
 	}, [load]);
 
 	const profiles = useMemo(
@@ -89,19 +118,27 @@ function Dashboard() {
 		[state],
 	);
 	const selected = selectedHost ? state?.profiles[selectedHost] : undefined;
+	const latestDiagnostic = state?.diagnostics.find(
+		(diagnostic) => diagnostic.level === "error" || diagnostic.level === "warn",
+	);
 
 	const saveSettings = async () => {
-		const response = await sendMessage<PopupState>({
-			settings,
-			type: "SAVE_SETTINGS",
-		});
-		if (!(response.ok && response.data)) {
-			setError(response.error ?? "Could not save settings.");
-			return;
+		try {
+			const response = await sendMessage<PopupState>({
+				settings,
+				type: "SAVE_SETTINGS",
+			});
+			if (!(response.ok && response.data)) {
+				setError(response.error ?? "Could not save settings.");
+				return;
+			}
+			setState(response.data);
+			setSaved(true);
+			window.setTimeout(() => setSaved(false), 1400);
+		} catch (saveError) {
+			setError(messageOf(saveError));
+			void writeErrorDiagnostic("dashboard.saveSettings", saveError);
 		}
-		setState(response.data);
-		setSaved(true);
-		window.setTimeout(() => setSaved(false), 1400);
 	};
 
 	const openRemoteDocs = async (profile: SiteProfile) => {
@@ -111,11 +148,20 @@ function Dashboard() {
 	};
 
 	const copyHandoff = async (profile: SiteProfile) => {
-		await navigator.clipboard.writeText(
-			buildAgentHandoffText(profile, settings),
-		);
-		setCopied(true);
-		window.setTimeout(() => setCopied(false), 1400);
+		try {
+			await navigator.clipboard.writeText(
+				buildAgentHandoffText(profile, settings),
+			);
+			setCopied(true);
+			window.setTimeout(() => setCopied(false), 1400);
+		} catch (copyError) {
+			setError(messageOf(copyError));
+			void writeErrorDiagnostic("dashboard.copyHandoff", copyError, {
+				context: {
+					host: profile.host,
+				},
+			});
+		}
 	};
 
 	return (
@@ -232,6 +278,16 @@ function Dashboard() {
 							</div>
 						) : null}
 
+						{!error && latestDiagnostic ? (
+							<div className="mb-4 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-100 px-3 py-2 text-amber-950 text-sm">
+								<WarningCircleIcon className="mt-0.5 shrink-0" size={17} />
+								<span className="min-w-0 break-words">
+									Last issue: {latestDiagnostic.operation}:{" "}
+									{latestDiagnostic.message}
+								</span>
+							</div>
+						) : null}
+
 						{selected ? (
 							<ProfileDocs
 								copied={copied}
@@ -245,7 +301,9 @@ function Dashboard() {
 									<GlobeHemisphereWestIcon size={26} />
 								</div>
 								<h2 className="mt-4 font-semibold text-xl">
-									{hostLabel(state?.activePage?.host)}
+									{state
+										? hostLabel(state.activePage?.host)
+										: "Checking website"}
 								</h2>
 								<p className="mt-2 max-w-sm text-sm text-zinc-500">
 									Start with a recording from the popup.
