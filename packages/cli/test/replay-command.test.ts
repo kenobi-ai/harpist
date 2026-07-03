@@ -98,6 +98,25 @@ const seedReplayFixture = async (input: {
 };
 
 describe("auth replay command", () => {
+	test("requires a host outside an interactive terminal", async () => {
+		const directory = await mkdtemp(join(tmpdir(), "harpist-cli-"));
+		try {
+			const result = await runCliWithEnv(["auth", "replay"], {
+				HARPIST_DATA_DIR: join(directory, "data"),
+			});
+
+			expect(result.exitCode).toBe(1);
+			expect(result.stdout).toBe("");
+			expect(result.stderr).toContain("Missing host");
+			expect(result.stderr).toContain("choose a site");
+		} finally {
+			await rm(directory, {
+				force: true,
+				recursive: true,
+			});
+		}
+	});
+
 	test("executor sends captured request details", async () => {
 		let capturedRequest:
 			| {

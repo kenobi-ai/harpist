@@ -2,6 +2,7 @@ import {
 	confirmReplayExecution,
 	isInteractiveTerminal,
 	promptReplayOperation,
+	promptReplayProfile,
 	promptReplayRequestInput,
 } from "./interactive-replay-input";
 import {
@@ -17,7 +18,7 @@ import type { BridgeStore } from "./store";
 type AuthReplayOutput = "curl" | "redacted-curl" | "response";
 
 const usage =
-	"Usage: harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
+	"Usage: harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
 
 const shouldColorReplayResponse = () => {
 	if ("NO_COLOR" in process.env) {
@@ -200,12 +201,12 @@ const parseAuthReplayArgs = (args: string[]) => {
 		}
 	}
 
-	if (positional.length === 0 || positional.length > 2) {
+	if (positional.length > 2) {
 		throw new Error(usage);
 	}
 	return {
 		hasRequestInput,
-		host: positional[0] ?? "",
+		host: positional[0],
 		interactive,
 		output,
 		requestInput,
@@ -219,9 +220,19 @@ export const runAuthReplayCommand = async (
 	args: string[],
 ) => {
 	const parsed = parseAuthReplayArgs(args);
-	const profile = await store.getProfile(parsed.host);
+	const host =
+		parsed.host ??
+		(isInteractiveTerminal() && parsed.interactive !== false
+			? await promptReplayProfile(await store.listProfiles())
+			: undefined);
+	if (!host) {
+		throw new Error(
+			"Missing host. Run `harpist auth replay` in a TTY to choose a site, or pass <host>.",
+		);
+	}
+	const profile = await store.getProfile(host);
 	if (!profile) {
-		throw new Error(`Unknown profile '${parsed.host}'.`);
+		throw new Error(`Unknown profile '${host}'.`);
 	}
 	const shouldPromptOperation =
 		!parsed.selector &&
@@ -247,7 +258,7 @@ export const runAuthReplayCommand = async (
 	const baseBundle = buildReplayBundle({
 		operationName: selector?.includes(" ") ? undefined : selector,
 		profile,
-		recordings: await store.listStoredRecordings(parsed.host),
+		recordings: await store.listStoredRecordings(host),
 		templateKey: selector?.includes(" ") ? selector : undefined,
 	});
 	const promptBaseBundle = applyReplayRequestInput(

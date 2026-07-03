@@ -64,11 +64,13 @@ describe("refine endpoint annotations", () => {
 			description: "Get Abc123 Project",
 			notes:
 				"Gets abc123 project observed during the recorded browser workflow.",
+			operationName: "getApiExampleTestV1ProjectsById",
 			tags: ["same-site", "api"],
 		});
 		const replacement = decision(neutral, {
 			description: "Get Project",
 			notes: "Gets projects observed during the recorded browser workflow.",
+			operationName: "getProject",
 			tags: ["same-site", "api", "projects"],
 		});
 

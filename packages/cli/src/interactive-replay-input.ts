@@ -1,37 +1,70 @@
-import { confirm, editor, input, select } from "@inquirer/prompts";
-import type { EndpointSummary, SiteProfile } from "../../core/src/profiles";
+import { confirm, editor, input, Separator, select } from "@inquirer/prompts";
+import type { SiteProfile } from "../../core/src/profiles";
 import type {
 	ReplayBundle,
 	ReplayQueryValue,
 	ReplayRequestInput,
 } from "./replay";
+import { replayOperationChoices } from "./replay-display";
 
 const mutatingMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
 
 export const isInteractiveTerminal = () =>
 	Boolean(process.stdin.isTTY && process.stdout.isTTY);
 
-const endpointSelector = (endpoint: EndpointSummary) =>
-	endpoint.operationName ?? endpoint.templateKey;
+const profileLabel = (profile: SiteProfile) =>
+	profile.displayName === profile.host
+		? profile.host
+		: `${profile.displayName}  ${profile.host}`;
 
-const endpointLabel = (endpoint: EndpointSummary) =>
-	`${endpointSelector(endpoint)}  ${endpoint.method} ${endpoint.template}`;
-
-export const promptReplayOperation = async (profile: SiteProfile) => {
-	const endpoints = profile.endpoints.filter(
-		(endpoint) => endpoint.included !== false,
-	);
-	if (endpoints.length === 0) {
-		throw new Error(`Profile '${profile.host}' has no replayable endpoints.`);
-	}
-	if (endpoints.length === 1) {
-		return endpointSelector(endpoints[0] as EndpointSummary);
+export const promptReplayProfile = async (profiles: SiteProfile[]) => {
+	if (profiles.length === 0) {
+		throw new Error("No Harpist profile exists yet. Record a site first.");
 	}
 	return select({
-		choices: endpoints.map((endpoint) => ({
-			name: endpointLabel(endpoint),
-			value: endpointSelector(endpoint),
+		choices: profiles.map((profile) => ({
+			description: `${profile.derivedEndpointCount} endpoint(s), updated ${profile.updatedAt}`,
+			name: profileLabel(profile),
+			value: profile.host,
 		})),
+		message: "Site",
+		pageSize: 20,
+	});
+};
+
+export const promptReplayOperation = async (profile: SiteProfile) => {
+	const choices = replayOperationChoices(profile);
+	if (choices.length === 0) {
+		throw new Error(`Profile '${profile.host}' has no replayable endpoints.`);
+	}
+	const selectChoices: Array<
+		| Separator
+		| {
+				description: string;
+				name: string;
+				value: string;
+		  }
+	> = [];
+	let group: string | undefined;
+	let folder: string | undefined;
+	for (const choice of choices) {
+		if (choice.group !== group) {
+			group = choice.group;
+			folder = undefined;
+			selectChoices.push(new Separator(group));
+		}
+		if (choice.folder !== folder) {
+			folder = choice.folder;
+			selectChoices.push(new Separator(`  ${folder}`));
+		}
+		selectChoices.push({
+			description: `${choice.endpoint.method.toUpperCase()} ${choice.endpoint.template}`,
+			name: `    ${choice.label}`,
+			value: choice.selector,
+		});
+	}
+	return select({
+		choices: selectChoices,
 		message: "Operation",
 		pageSize: 20,
 	});

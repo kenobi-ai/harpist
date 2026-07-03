@@ -13,6 +13,10 @@ import {
 	summariseEndpoints,
 } from "../../core/src/profiles";
 import { buildRecordedSiteArtifacts } from "./artifacts";
+import {
+	operationNameFromSummary,
+	uniqueOperationName,
+} from "./replay-display";
 import type { BridgeStore, StoredRecording } from "./store";
 
 export type EndpointDecision = {
@@ -136,7 +140,9 @@ export const applyExistingEndpointAnnotations = (
 			: curated
 				? (endpoint.notes?.trim() ?? decision.notes)
 				: decision.notes,
-		operationName: endpoint.operationName?.trim() || decision.operationName,
+		operationName: curated
+			? endpoint.operationName?.trim() || decision.operationName
+			: decision.operationName,
 		tags: curated && tags.length > 0 ? tags : decision.tags,
 	};
 };
@@ -204,19 +210,6 @@ const isTelemetryEndpoint = (endpoint: EndpointSummary) =>
 	telemetryPatterns.some(
 		(pattern) => pattern.test(endpoint.host) || pattern.test(endpoint.path),
 	);
-
-const slugOperationName = (endpoint: EndpointSummary) => {
-	const raw =
-		`${endpoint.method.toLowerCase()} ${endpoint.host} ${endpoint.template}`
-			.replace(/\{([^}]+)\}/g, "by $1")
-			.replace(/[^a-zA-Z0-9]+(.)/g, (_, next: string) => next.toUpperCase())
-			.replace(/^[A-Z]/, (letter) => letter.toLowerCase());
-	const safe = raw.replace(/[^a-zA-Z0-9_$]/g, "");
-	if (!safe) {
-		return `${endpoint.method.toLowerCase()}Endpoint`;
-	}
-	return /^[a-zA-Z_$]/.test(safe) ? safe : `endpoint${safe}`;
-};
 
 const endpointCategory = (endpoint: EndpointSummary) => {
 	const path = endpoint.template.toLowerCase();
@@ -444,7 +437,10 @@ const classifyEndpoint = (
 		endpoint,
 		included,
 		notes: reason,
-		operationName: slugOperationName(endpoint),
+		operationName: operationNameFromSummary(
+			documentation.summary,
+			endpoint.method,
+		),
 		tags: [...tags],
 	};
 };
@@ -819,6 +815,16 @@ const accessFromSamples = (
 	};
 };
 
+const withUniqueOperationNames = <Decision extends EndpointDecision>(
+	decisions: Decision[],
+): Decision[] => {
+	const used = new Set<string>();
+	return decisions.map((decision) => ({
+		...decision,
+		operationName: uniqueOperationName(decision.operationName, used),
+	}));
+};
+
 export const refineLatestProfile = async (
 	store: BridgeStore,
 	options: {
@@ -847,23 +853,25 @@ export const refineLatestProfile = async (
 		profile.endpoints,
 		observedSampleEntries,
 	);
-	const decisions = endpoints.map((endpoint) => {
-		const classified = classifyEndpoint(endpoint, profile);
-		const samples = samplesForEndpoint(samplesByKey, endpoint);
-		const htmlErrorOnly =
-			samples.length > 0 &&
-			samples.every((sample) => isHtmlErrorSample(sample));
-		const decision = applyExistingEndpointAnnotations(endpoint, classified, {
-			htmlErrorOnly,
-		});
-		return {
-			...decision,
-			access: decision.included
-				? accessFromSamples(endpoint, profile, samples)
-				: undefined,
-			samples,
-		};
-	});
+	const decisions = withUniqueOperationNames(
+		endpoints.map((endpoint) => {
+			const classified = classifyEndpoint(endpoint, profile);
+			const samples = samplesForEndpoint(samplesByKey, endpoint);
+			const htmlErrorOnly =
+				samples.length > 0 &&
+				samples.every((sample) => isHtmlErrorSample(sample));
+			const decision = applyExistingEndpointAnnotations(endpoint, classified, {
+				htmlErrorOnly,
+			});
+			return {
+				...decision,
+				access: decision.included
+					? accessFromSamples(endpoint, profile, samples)
+					: undefined,
+				samples,
+			};
+		}),
+	);
 	const included = decisions.filter((decision) => decision.included);
 	const refinedEndpoints = decisions.map((decision) => ({
 		...decision.endpoint,

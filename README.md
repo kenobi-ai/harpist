@@ -77,7 +77,7 @@ bun run harpist recordings latest [host]
 bun run harpist recordings latest [host] --full
 bun run harpist recordings get <host> <id> [--full]
 bun run harpist refine latest [host]
-bun run harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
+bun run harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
 bun run harpist contract-profile get <host>
 bun run harpist contract get <host>
 bun run harpist openapi get <host>
@@ -88,4 +88,4 @@ bun run harpist handoff [host]
 ```
 <!-- harpist:cli-commands:end -->
 
-`auth replay` executes the captured request with replay credentials applied and prints the response body by default. In a terminal it prompts for missing operation/input by default; use `--param`, `--query`, `--body`, or `--json` for scriptable input. Add `--verbose` to include request and response metadata, or `--curl` to print the runnable curl command instead.
+`auth replay` executes the captured request with replay credentials applied and prints the response body by default. In a terminal it prompts for a site, operation, and missing input when omitted; use `--param`, `--query`, `--body`, or `--json` for scriptable input. Add `--verbose` to include request and response metadata, or `--curl` to print the runnable curl command instead.

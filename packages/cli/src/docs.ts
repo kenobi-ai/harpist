@@ -2,6 +2,10 @@ import type { ProfileArtifacts, SiteProfile } from "../../core/src/profiles";
 import { resolveContractProfile } from "../../core/src/site-contract-profile";
 import { buildRecordedSiteArtifacts } from "./artifacts";
 import { buildReplayBundle } from "./replay";
+import {
+	operationNameFromSummary,
+	uniqueOperationName,
+} from "./replay-display";
 import type { BridgeStore } from "./store";
 
 type OpenApiOperation = Record<string, unknown> & {
@@ -204,7 +208,7 @@ const buildCliArtifact = (profile: SiteProfile) =>
 			}),
 		"",
 		"Use `harpist docs review <host>` to check documentation quality.",
-		"Use `harpist auth replay <host> <operationName-or-templateKey>` to execute a captured request with replay credentials. Add `--param`, `--query`, `--body`, or `--json` for input, and `--curl` to print the runnable curl command instead.",
+		"Use `harpist auth replay [host] [operationName-or-templateKey]` to execute a captured request with replay credentials. In a TTY, omitted site and operation values are selected interactively. Add `--param`, `--query`, `--body`, or `--json` for input, and `--curl` to print the runnable curl command instead.",
 	].join("\n");
 
 export const applyProfileDocs = async (
@@ -234,8 +238,7 @@ export const applyProfileDocs = async (
 		);
 		const operationName =
 			doc.operationName ??
-			endpoint.operationName ??
-			endpoint.templateKey.replace(/[^a-zA-Z0-9_$]/g, "_");
+			operationNameFromSummary(doc.summary, endpoint.method);
 		const included = doc.included ?? endpoint.included ?? true;
 		const tags = doc.tags ?? endpoint.tags;
 		nextEndpoints[index] = {
@@ -249,13 +252,25 @@ export const applyProfileDocs = async (
 		applied.push(endpoint.templateKey);
 	}
 
-	const includedEndpoints = nextEndpoints.filter(
+	const usedOperationNames = new Set<string>();
+	const uniqueEndpoints = nextEndpoints.map((endpoint) =>
+		endpoint.operationName
+			? {
+					...endpoint,
+					operationName: uniqueOperationName(
+						endpoint.operationName,
+						usedOperationNames,
+					),
+				}
+			: endpoint,
+	);
+	const includedEndpoints = uniqueEndpoints.filter(
 		(endpoint) => endpoint.included !== false,
 	);
 	const artifactProfile: SiteProfile = {
 		...profile,
 		derivedEndpointCount: includedEndpoints.length,
-		endpoints: nextEndpoints,
+		endpoints: uniqueEndpoints,
 		endpointTemplateKeys: includedEndpoints.map(
 			(endpoint) => endpoint.templateKey,
 		),
