@@ -17,7 +17,18 @@ import type { BridgeStore } from "./store";
 type AuthReplayOutput = "curl" | "redacted-curl" | "response";
 
 const usage =
-	"Usage: harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl]";
+	"Usage: harpist auth replay <host> [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
+
+const shouldColorReplayResponse = () => {
+	if ("NO_COLOR" in process.env) {
+		return false;
+	}
+	const forceColor = process.env.FORCE_COLOR;
+	if (forceColor !== undefined) {
+		return forceColor !== "0" && forceColor !== "false";
+	}
+	return Boolean(process.stdout.isTTY);
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -135,6 +146,7 @@ const parseAuthReplayArgs = (args: string[]) => {
 	let hasRequestInput = false;
 	let interactive: boolean | undefined;
 	let output: AuthReplayOutput = "response";
+	let verbose = false;
 	const nextValue = (index: number, name: string) => {
 		const value = args[index + 1];
 		if (value === undefined || value.startsWith("--")) {
@@ -153,6 +165,8 @@ const parseAuthReplayArgs = (args: string[]) => {
 			interactive = true;
 		} else if (arg === "--no-interactive") {
 			interactive = false;
+		} else if (arg === "--verbose") {
+			verbose = true;
 		} else if (arg === "--json" || arg.startsWith("--json=")) {
 			const value =
 				arg === "--json" ? nextValue(index, "--json") : arg.slice(7);
@@ -196,6 +210,7 @@ const parseAuthReplayArgs = (args: string[]) => {
 		output,
 		requestInput,
 		selector: positional[1],
+		verbose,
 	};
 };
 
@@ -262,7 +277,11 @@ export const runAuthReplayCommand = async (
 			throw new Error("Replay cancelled.");
 		}
 		console.log(
-			formatExecutedReplayResponse(await executeReplayBundle(bundle)),
+			formatExecutedReplayResponse(await executeReplayBundle(bundle), {
+				color: shouldColorReplayResponse(),
+				request: parsed.verbose ? bundle : undefined,
+				verbose: parsed.verbose,
+			}),
 		);
 	}
 };

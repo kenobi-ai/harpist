@@ -170,13 +170,7 @@ describe("auth replay command", () => {
 			url: "https://api.example.test/api/replay",
 		});
 		expect(formatExecutedReplayResponse(response)).toBe(
-			[
-				"HTTP 202 Accepted",
-				"content-type: application/json",
-				"x-replay: ok",
-				"",
-				'{"ok":true}',
-			].join("\n"),
+			["{", '  "ok": true', "}"].join("\n"),
 		);
 	});
 

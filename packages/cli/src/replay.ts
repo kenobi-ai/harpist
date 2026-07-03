@@ -46,6 +46,12 @@ export type ExecutedReplayResponse = {
 	statusText: string;
 };
 
+export type ReplayResponseFormatOptions = {
+	color?: boolean;
+	request?: Pick<ReplayBundle, "body" | "headers" | "method" | "url">;
+	verbose?: boolean;
+};
+
 export type ReplayQueryValue =
 	| boolean
 	| null
@@ -65,6 +71,18 @@ type ReplayFetch = (
 ) => Promise<Pick<Response, "headers" | "status" | "statusText" | "text">>;
 
 const redacted = "<redacted>";
+
+const ansi = {
+	blue: "\x1b[34m",
+	bold: "\x1b[1m",
+	cyan: "\x1b[36m",
+	dim: "\x1b[2m",
+	green: "\x1b[32m",
+	magenta: "\x1b[35m",
+	red: "\x1b[31m",
+	reset: "\x1b[0m",
+	yellow: "\x1b[33m",
+};
 
 const secretHeaderPattern =
 	/^(?:authorization|cookie|proxy-authorization|x-api-key|api-key|x-auth-token|x-access-token|x-session-token|x-csrf-token|x-xsrf-token|x-amz-security-token)$/i;
@@ -766,16 +784,148 @@ export const executeReplayBundle = async (
 	};
 };
 
+const colorize = (code: string, value: string, enabled: boolean) =>
+	enabled ? `${code}${value}${ansi.reset}` : value;
+
+const statusColor = (status: number) => {
+	if (status >= 500) {
+		return ansi.red;
+	}
+	if (status >= 400) {
+		return ansi.yellow;
+	}
+	if (status >= 300) {
+		return ansi.blue;
+	}
+	return ansi.green;
+};
+
+const headerValueFrom = (headers: [string, string][], name: string) => {
+	const target = name.toLowerCase();
+	return headers.find(
+		([headerName]) => headerName.toLowerCase() === target,
+	)?.[1];
+};
+
+const isJsonContentType = (contentType?: string) => {
+	const mediaType = contentType?.split(";")[0]?.trim().toLowerCase();
+	return (
+		mediaType === "application/json" ||
+		mediaType === "text/json" ||
+		mediaType?.endsWith("+json") === true
+	);
+};
+
+const couldBeJsonBody = (body: string) => {
+	const trimmed = body.trimStart();
+	return trimmed.startsWith("{") || trimmed.startsWith("[");
+};
+
+const jsonTokenPattern =
+	/"(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(?=\s*:)|"(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b/g;
+
+const colorJson = (json: string, enabled: boolean) => {
+	if (!enabled) {
+		return json;
+	}
+	return json.replace(jsonTokenPattern, (token, offset: number) => {
+		if (token.startsWith('"')) {
+			const afterToken = json.slice(offset + token.length);
+			return colorize(
+				/^\s*:/.test(afterToken) ? ansi.cyan : ansi.green,
+				token,
+				true,
+			);
+		}
+		if (token === "true" || token === "false") {
+			return colorize(ansi.magenta, token, true);
+		}
+		if (token === "null") {
+			return colorize(ansi.dim, token, true);
+		}
+		return colorize(ansi.yellow, token, true);
+	});
+};
+
+const formatBody = (
+	body: string,
+	headers: [string, string][],
+	options: ReplayResponseFormatOptions,
+) => {
+	const contentType = headerValueFrom(headers, "content-type");
+	if (!(isJsonContentType(contentType) || couldBeJsonBody(body))) {
+		return body;
+	}
+	try {
+		const formatted = JSON.stringify(JSON.parse(body), null, 2);
+		return formatted === undefined
+			? body
+			: colorJson(formatted, options.color === true);
+	} catch {
+		return body;
+	}
+};
+
+const formatHeaders = (headers: [string, string][], color: boolean) =>
+	headers.map(([name, value]) =>
+		[
+			colorize(ansi.cyan, name, color),
+			colorize(ansi.dim, ":", color),
+			` ${colorize(ansi.dim, value, color)}`,
+		].join(""),
+	);
+
+const requestHeadersFrom = (headers: ReplayHeader[]): [string, string][] =>
+	headers.map((header) => [
+		header.name,
+		header.secret || header.redacted ? redacted : header.value,
+	]);
+
+const formatRequest = (
+	request: Pick<ReplayBundle, "body" | "headers" | "method" | "url">,
+	options: ReplayResponseFormatOptions,
+) => {
+	const color = options.color === true;
+	const headers = requestHeadersFrom(request.headers);
+	const lines = [
+		colorize(ansi.bold, "Request", color),
+		colorize(ansi.magenta, `${request.method} ${request.url}`, color),
+		...formatHeaders(headers, color),
+	];
+	if (request.body !== undefined) {
+		lines.push("", formatBody(request.body, headers, options));
+	}
+	return lines;
+};
+
 export const formatExecutedReplayResponse = (
 	response: ExecutedReplayResponse,
+	options: ReplayResponseFormatOptions = {},
 ) => {
-	const statusLine = `HTTP ${response.status}${
-		response.statusText ? ` ${response.statusText}` : ""
-	}`;
-	const responseHeaders = response.headers.map(
-		([name, value]) => `${name}: ${value}`,
+	const color = options.color === true;
+	const responseBody = formatBody(response.body, response.headers, options);
+	if (options.verbose !== true) {
+		return responseBody;
+	}
+	const statusLine = colorize(
+		`${ansi.bold}${statusColor(response.status)}`,
+		`HTTP ${response.status}${
+			response.statusText ? ` ${response.statusText}` : ""
+		}`,
+		color,
 	);
-	return [statusLine, ...responseHeaders, "", response.body].join("\n");
+	const requestLines = options.request
+		? formatRequest(options.request, options)
+		: [];
+	return [
+		...requestLines,
+		...(requestLines.length > 0 ? [""] : []),
+		colorize(ansi.bold, "Response", color),
+		statusLine,
+		...formatHeaders(response.headers, color),
+		"",
+		responseBody,
+	].join("\n");
 };
 
 export const buildReplayBundle = (input: {
