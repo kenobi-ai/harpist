@@ -39,6 +39,18 @@ export type ReplayBundle = {
 	warnings: string[];
 };
 
+export type ExecutedReplayResponse = {
+	body: string;
+	headers: [string, string][];
+	status: number;
+	statusText: string;
+};
+
+type ReplayFetch = (
+	url: string,
+	init: RequestInit,
+) => Promise<Pick<Response, "headers" | "status" | "statusText" | "text">>;
+
 const redacted = "<redacted>";
 
 const secretHeaderPattern =
@@ -591,6 +603,43 @@ const isHtmlErrorSample = (entry: PendingEntry) =>
 	/(?:<html|<title>[^<]*(?:error|denied|forbidden|unavailable)|access denied|access support|access this page|not authorized|not authorised|request blocked|we'?re sorry)/i.test(
 		entry.body ?? "",
 	);
+
+export const executeReplayBundle = async (
+	bundle: Pick<ReplayBundle, "body" | "headers" | "method" | "url">,
+	options: {
+		fetch?: ReplayFetch;
+	} = {},
+): Promise<ExecutedReplayResponse> => {
+	const headers = new Headers();
+	for (const header of bundle.headers) {
+		headers.set(header.name, header.value);
+	}
+	const fetcher = options.fetch ?? fetch;
+	const response = await fetcher(bundle.url, {
+		body: bundle.body,
+		headers,
+		method: bundle.method,
+		redirect: "manual",
+	});
+	return {
+		body: await response.text(),
+		headers: [...response.headers.entries()],
+		status: response.status,
+		statusText: response.statusText,
+	};
+};
+
+export const formatExecutedReplayResponse = (
+	response: ExecutedReplayResponse,
+) => {
+	const statusLine = `HTTP ${response.status}${
+		response.statusText ? ` ${response.statusText}` : ""
+	}`;
+	const responseHeaders = response.headers.map(
+		([name, value]) => `${name}: ${value}`,
+	);
+	return [statusLine, ...responseHeaders, "", response.body].join("\n");
+};
 
 export const buildReplayBundle = (input: {
 	method?: string;

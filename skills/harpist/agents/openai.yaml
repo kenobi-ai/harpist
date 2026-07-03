@@ -1,6 +1,6 @@
 interface:
   display_name: "Harpist"
   short_description: "Refine website recordings into replayable APIs."
-  default_prompt: "Use $harpist with the local `bunx harpist` CLI to sync the latest recording, refine the selected website profile, review the docs, and expose replayable auth curl commands."
+  default_prompt: "Use $harpist with the local `bunx harpist` CLI to sync the latest recording, refine the selected website profile, review the docs, and expose replayable authenticated requests."
 policy:
   allow_implicit_invocation: true

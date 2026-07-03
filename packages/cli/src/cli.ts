@@ -8,6 +8,7 @@ import {
 	DEFAULT_SETTINGS,
 	normaliseServerUrl,
 } from "../../core/src/profiles";
+import { runAuthReplayCommand } from "./auth-replay-command";
 import {
 	createBridgeRuntime,
 	formatDurationMs,
@@ -15,7 +16,6 @@ import {
 } from "./bridge-runtime";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
 import { refineLatestProfile } from "./refine";
-import { buildReplayBundle } from "./replay";
 import { createHarpistBridgeServer } from "./server";
 import { createBridgeStore } from "./store";
 import { renderHarpistCliUsage } from "./surface";
@@ -251,24 +251,11 @@ if (command === "bridge") {
 		usage();
 		process.exit(1);
 	}
-	const host = hostArg(args[1]);
-	const selector = args.find(
-		(arg) =>
-			arg !== "replay" &&
-			arg !== host &&
-			!arg.startsWith("--") &&
-			args.indexOf(arg) > 1,
-	);
-	const bundle = buildReplayBundle({
-		operationName: selector?.includes(" ") ? undefined : selector,
-		profile: await profileForHost(host),
-		recordings: await store.listStoredRecordings(host),
-		templateKey: selector?.includes(" ") ? selector : undefined,
-	});
-	for (const warning of bundle.warnings) {
-		console.error(`warning: ${warning}`);
+	try {
+		await runAuthReplayCommand(store, args);
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
 	}
-	console.log(bundle.curl);
 } else if (command === "contract") {
 	if (args[0] !== "get") {
 		usage();

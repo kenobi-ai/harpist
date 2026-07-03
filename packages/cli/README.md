@@ -1,6 +1,6 @@
 # Harpist
 
-Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable auth curl commands, and oRPC/OpenAPI artifacts.
+Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable authenticated requests, and oRPC/OpenAPI artifacts.
 
 ## Install
 
@@ -27,7 +27,7 @@ harpist profiles list
 harpist profiles latest [host]
 harpist recordings latest [host]
 harpist refine latest [host]
-harpist auth replay <host> [templateKey|operationName]
+harpist auth replay <host> [templateKey|operationName] [--curl|--redacted-curl]
 harpist openapi get <host>
 harpist docs <host>
 harpist handoff [host]
@@ -36,3 +36,5 @@ harpist handoff [host]
 The bridge runs at `http://127.0.0.1:4277` by default and stores local data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.
 
 Agents should start expiring bridges with `harpist bridge --agent --idle-timeout 15m`. `/health` reports whether a bridge was started by an agent or a user.
+
+`auth replay` executes the captured request with replay credentials applied. Add `--curl` to print the runnable curl command instead.

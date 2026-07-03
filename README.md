@@ -4,7 +4,7 @@
 
 # Harpist
 
-Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable auth curl commands, and oRPC/OpenAPI artifacts.
+Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable authenticated requests, and oRPC/OpenAPI artifacts.
 
 ## Run
 
@@ -77,7 +77,7 @@ bun run harpist recordings latest [host]
 bun run harpist recordings latest [host] --full
 bun run harpist recordings get <host> <id> [--full]
 bun run harpist refine latest [host]
-bun run harpist auth replay <host> [templateKey|operationName]
+bun run harpist auth replay <host> [templateKey|operationName] [--curl|--redacted-curl]
 bun run harpist contract-profile get <host>
 bun run harpist contract get <host>
 bun run harpist openapi get <host>
@@ -88,4 +88,4 @@ bun run harpist handoff [host]
 ```
 <!-- harpist:cli-commands:end -->
 
-`auth replay` prints a runnable curl command with captured browser credentials applied.
+`auth replay` executes the captured request with replay credentials applied. Add `--curl` to print the runnable curl command instead.
