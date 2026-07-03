@@ -5,7 +5,7 @@ import type {
 } from "@harpist/core/profiles";
 
 const DATABASE_NAME = "harpist-recordings";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const ARCHIVE_STORE_NAME = "recordings";
 const INDEX_STORE_NAME = "recording-index";
 
@@ -20,6 +20,7 @@ type StoredRecordingArchive = RecordingArchive & {
 
 type StoredRecordingIndexEntry = RecordingIndexEntry & {
 	key: string;
+	storageFormat?: unknown;
 };
 
 const archiveFromStored = (recording: StoredRecordingArchive) => {
@@ -28,20 +29,18 @@ const archiveFromStored = (recording: StoredRecordingArchive) => {
 };
 
 const indexFromStored = (recording: StoredRecordingIndexEntry) => {
-	const { key: _key, ...index } = recording;
+	const { key: _key, storageFormat: _storageFormat, ...index } = recording;
 	return index;
 };
 
 const indexFromArchive = (
 	recording: RecordingArchive,
-	storageFormat: NonNullable<RecordingIndexEntry["storageFormat"]>,
 ): StoredRecordingIndexEntry => {
 	const { har: _har, ...index } = recording;
 	return {
 		...index,
 		archiveEntryCount: recording.har.log.entries.length,
 		key: keyForRecording(recording),
-		storageFormat,
 	};
 };
 
@@ -52,48 +51,6 @@ const transactionDone = (transaction: IDBTransaction) =>
 		transaction.oncomplete = () => resolve();
 	});
 
-const backfillIndexFromArchives = (
-	archiveStore: IDBObjectStore,
-	indexStore: IDBObjectStore,
-) => {
-	const request = archiveStore.openCursor();
-	request.onsuccess = () => {
-		const cursor = request.result;
-		if (!cursor) {
-			return;
-		}
-		indexStore.put(
-			indexFromArchive(
-				archiveFromStored(cursor.value as StoredRecordingArchive),
-				"legacy-full-archive",
-			),
-		);
-		cursor.continue();
-	};
-};
-
-const ensureIndexBackfilled = async (database: IDBDatabase) => {
-	const countTransaction = database.transaction(INDEX_STORE_NAME, "readonly");
-	const count = await new Promise<number>((resolve, reject) => {
-		const request = countTransaction.objectStore(INDEX_STORE_NAME).count();
-		request.onerror = () => reject(request.error);
-		request.onsuccess = () => resolve(request.result);
-	});
-	if (count > 0) {
-		return;
-	}
-
-	const backfillTransaction = database.transaction(
-		[ARCHIVE_STORE_NAME, INDEX_STORE_NAME],
-		"readwrite",
-	);
-	backfillIndexFromArchives(
-		backfillTransaction.objectStore(ARCHIVE_STORE_NAME),
-		backfillTransaction.objectStore(INDEX_STORE_NAME),
-	);
-	await transactionDone(backfillTransaction);
-};
-
 const openDatabase = () => {
 	if (!databasePromise) {
 		databasePromise = new Promise((resolve, reject) => {
@@ -101,6 +58,12 @@ const openDatabase = () => {
 			request.onupgradeneeded = (event) => {
 				const database = request.result;
 				const transaction = request.transaction;
+				if (
+					event.oldVersion < 2 &&
+					database.objectStoreNames.contains(ARCHIVE_STORE_NAME)
+				) {
+					database.deleteObjectStore(ARCHIVE_STORE_NAME);
+				}
 				const archiveStore = database.objectStoreNames.contains(
 					ARCHIVE_STORE_NAME,
 				)
@@ -135,19 +98,9 @@ const openDatabase = () => {
 						unique: false,
 					});
 				}
-
-				if (event.oldVersion === 1 && archiveStore && indexStore) {
-					backfillIndexFromArchives(archiveStore, indexStore);
-				}
 			};
 			request.onerror = () => reject(request.error);
-			request.onsuccess = () => {
-				const database = request.result;
-				void ensureIndexBackfilled(database).then(
-					() => resolve(database),
-					(error: unknown) => reject(error),
-				);
-			};
+			request.onsuccess = () => resolve(request.result);
 		});
 	}
 	return databasePromise;
@@ -217,9 +170,7 @@ export const putRecording = async (recording: RecordingArchive) => {
 		...recording,
 		key: keyForRecording(recording),
 	});
-	transaction
-		.objectStore(INDEX_STORE_NAME)
-		.put(indexFromArchive(recording, "split-archive"));
+	transaction.objectStore(INDEX_STORE_NAME).put(indexFromArchive(recording));
 	await transactionDone(transaction);
 };
 

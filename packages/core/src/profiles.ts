@@ -240,7 +240,6 @@ export type RecordingIndexEntry = Omit<RecordingArchive, "har"> & {
 	archiveEntryCount?: number;
 	lastSyncAttemptAt?: string;
 	lastSyncError?: string;
-	storageFormat?: "legacy-full-archive" | "split-archive";
 };
 
 export type RecordingIndexStore = Record<string, RecordingIndexEntry>;

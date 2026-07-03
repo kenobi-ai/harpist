@@ -16,7 +16,6 @@ import {
 	type PopupState,
 	PROFILES_KEY,
 	type ProfilesStore,
-	RECORDINGS_KEY,
 	type RecordingArchive,
 	type RecordingIndexStore,
 	SETTINGS_KEY,
@@ -48,7 +47,6 @@ type Controller = {
 
 let activeRecording: ActiveRecording | null = null;
 let captureController: Controller | null = null;
-let legacyRecordingStorageCleared = false;
 let syncInFlight: Promise<SyncResult> | null = null;
 let lastSyncState: Pick<SyncResult, "active" | "message" | "syncedAt"> | null =
 	null;
@@ -64,14 +62,6 @@ type SyncResult = {
 
 const SLOW_OPERATION_MS = 5000;
 const BACKGROUND_SYNC_MIN_INTERVAL_MS = 10_000;
-
-const clearLegacyRecordingStorage = async () => {
-	if (legacyRecordingStorageCleared) {
-		return;
-	}
-	legacyRecordingStorageCleared = true;
-	await browser.storage.local.remove(RECORDINGS_KEY);
-};
 
 const getCaptureController = async () => {
 	if (!captureController) {
@@ -457,7 +447,6 @@ const scheduleSyncWithBridge = (
 const readState = async (
 	controller: Controller | null,
 ): Promise<PopupState> => {
-	await clearLegacyRecordingStorage();
 	const settings = await getSettings();
 	const tab = await activeTab().catch(() => null);
 	const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
