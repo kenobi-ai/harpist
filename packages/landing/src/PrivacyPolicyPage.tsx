@@ -1,3 +1,5 @@
+import { ExternalLink } from "./ExternalLink";
+
 export function PrivacyPolicyPage() {
 	return (
 		<main className="min-h-screen bg-parchment font-sans text-ink">
@@ -109,12 +111,12 @@ export function PrivacyPolicyPage() {
 								</h2>
 								<p className="mt-3">
 									Questions can be opened at{" "}
-									<a
+									<ExternalLink
 										className="font-bold text-lapis underline decoration-2 underline-offset-4"
 										href="https://github.com/kenobi-ai/harpist/issues"
 									>
 										github.com/kenobi-ai/harpist/issues
-									</a>
+									</ExternalLink>
 									.
 								</p>
 							</section>

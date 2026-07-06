@@ -8,6 +8,7 @@ import {
 	RecordIcon,
 } from "@phosphor-icons/react";
 import harpistSprite from "./assets/logo-illustration.webp";
+import { ExternalLink } from "./ExternalLink";
 import { LandingFooter } from "./LandingFooter";
 import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
 
@@ -119,12 +120,12 @@ function LandingPage() {
 							>
 								Privacy
 							</a>
-							<a
+							<ExternalLink
 								className="inline-flex min-h-9 items-center justify-center border-2 border-ink bg-ink px-3 font-bold text-cream transition hover:-translate-y-0.5"
 								href="https://github.com/kenobi-ai/harpist"
 							>
 								GitHub
-							</a>
+							</ExternalLink>
 						</nav>
 					</header>
 
@@ -306,20 +307,20 @@ function LandingPage() {
 							Everything runs on your machine.
 						</p>
 						<div className="mt-8 flex flex-wrap gap-3">
-							<a
+							<ExternalLink
 								className="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-gold bg-gold px-4 font-bold text-ink text-sm uppercase tracking-wider transition hover:-translate-y-0.5"
 								href="https://github.com/kenobi-ai/harpist"
 							>
 								<GithubLogoIcon aria-hidden size={18} weight="bold" />
 								<span>GitHub</span>
-							</a>
-							<a
+							</ExternalLink>
+							<ExternalLink
 								className="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-cream px-4 font-bold text-cream text-sm uppercase tracking-wider transition hover:-translate-y-0.5"
 								href="https://www.npmjs.com/package/harpist"
 							>
 								<PackageIcon aria-hidden size={18} weight="bold" />
 								<span>npm</span>
-							</a>
+							</ExternalLink>
 						</div>
 					</div>
 					<div className="min-w-0 self-center border-2 border-cream/80 bg-[#241f19] p-4">
