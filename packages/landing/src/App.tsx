@@ -95,9 +95,7 @@ function LandingPage() {
 							</span>
 							<span>Harpist</span>
 						</a>
-						<p className="hidden justify-self-center font-display text-2xl normal-case sm:block">
-							· anno domini MMXXVI ·
-						</p>
+						<p className="hidden justify-self-center font-display text-2xl normal-case sm:block"></p>
 						<nav
 							aria-label="Primary"
 							className="flex items-center gap-2 justify-self-start sm:justify-self-end"
@@ -132,15 +130,15 @@ function LandingPage() {
 					<div className="grid items-center gap-10 py-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:py-10">
 						<div className="max-w-3xl">
 							<p className="max-w-max border-2 border-ink bg-gold px-2 py-1 font-bold text-xs uppercase tracking-widest">
-								Chrome extension + CLI
+								July Beta Release
 							</p>
 							<h1 className="mt-6 font-display text-8xl leading-[0.8] sm:text-9xl lg:text-[11rem]">
 								<span className="text-rubric">H</span>arpist
 							</h1>
 							<p className="mt-7 max-w-2xl text-2xl text-ink/85 leading-9 sm:text-3xl sm:leading-11">
-								Every site has an API — most just never wrote it down. Harpist
-								records your browser&rsquo;s real traffic and writes it up:
-								typed contracts, working auth, requests your agents can replay.
+								Use any website just like an API with Harpist. Record sessions
+								with our Chrome extension, and replay them with our CLI. Easy
+								for agents and humans to use.
 							</p>
 							<div className="mt-9 flex flex-wrap gap-3">
 								<a
