@@ -55,6 +55,13 @@
 			"tailwind": {
 				"entry": ["assets/styles.css"]
 			}
+		},
+		"packages/landing": {
+			"entry": ["worker/**/*.ts"],
+			"project": ["src/**/*.tsx", "worker/**/*.ts"],
+			"tailwind": {
+				"entry": ["src/styles.css"]
+			}
 		}
 	}
 }

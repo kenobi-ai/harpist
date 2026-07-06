@@ -1,0 +1,23 @@
+{
+	"$schema": "../../node_modules/wrangler/config-schema.json",
+	"name": "harpist-landing",
+	"account_id": "6f735f3e89aec8751cf8ad7ed37cae12",
+	"compatibility_date": "2026-07-06",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "./worker/index.ts",
+	"workers_dev": false,
+	"routes": [
+		{
+			"pattern": "harpist.kenobi.ai",
+			"custom_domain": true
+		}
+	],
+	"assets": {
+		"not_found_handling": "single-page-application",
+		"run_worker_first": ["/api/*"]
+	},
+	"observability": {
+		"enabled": true,
+		"head_sampling_rate": 1
+	}
+}

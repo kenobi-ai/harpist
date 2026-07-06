@@ -10,6 +10,8 @@
 		],
 		"catalog": {
 			"@biomejs/biome": "^2.5.1",
+			"@cloudflare/vite-plugin": "^1.42.2",
+			"@cloudflare/workers-types": "^4.20260701.1",
 			"@inquirer/prompts": "^8.5.2",
 			"@orpc/client": "^1.14.6",
 			"@orpc/contract": "^1.14.6",
@@ -21,8 +23,9 @@
 			"@types/node": "^26.0.1",
 			"@types/react": "^19.2.14",
 			"@types/react-dom": "^19.2.3",
-			"@wxt-dev/module-react": "^1.1.5",
+			"@vitejs/plugin-react": "^6.0.3",
 			"@wxt-dev/auto-icons": "^1.1.1",
+			"@wxt-dev/module-react": "^1.1.5",
 			"hono": "^4.12.27",
 			"knip": "^6.24.0",
 			"pokayoke": "^0.0.6",
@@ -30,6 +33,8 @@
 			"react-dom": "^19.2.4",
 			"tailwindcss": "^4.3.1",
 			"typescript": "^5.9.3",
+			"vite": "^8.1.0",
+			"wrangler": "^4.107.0",
 			"wxt": "0.20.26",
 			"zod": "^4.4.3"
 		}
