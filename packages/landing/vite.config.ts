@@ -5,4 +5,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
 	plugins: [react(), tailwindcss(), cloudflare()],
+	server: {
+		port: process.env.PORT ? Number(process.env.PORT) : undefined,
+	},
 });

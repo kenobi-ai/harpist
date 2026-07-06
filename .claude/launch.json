@@ -1,0 +1,13 @@
+{
+	"version": "0.0.1",
+	"configurations": [
+		{
+			"name": "landing",
+			"runtimeExecutable": "bun",
+			"runtimeArgs": ["run", "dev"],
+			"cwd": "packages/landing",
+			"port": 5173,
+			"autoPort": true
+		}
+	]
+}

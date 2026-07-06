@@ -1,128 +1,30 @@
+@import url("https://fonts.googleapis.com/css2?family=Jacquard+24&family=Rosario:ital,wght@0,300..700;1,300..700&display=swap");
 @import "tailwindcss";
 
 @theme {
-	--font-sans:
-		Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-		"Segoe UI", sans-serif;
+	--font-display: "Jacquard 24", serif;
+	--font-sans: "Rosario", ui-sans-serif, system-ui, sans-serif;
 	--font-mono:
 		"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+
+	/* Manuscript palette: parchment page, iron-gall ink, rubric red,
+	   lapis blue, gold leaf. */
+	--color-parchment: #e7ddc1;
+	--color-vellum: #f3ead4;
+	--color-ink: #1c1712;
+	--color-rubric: #9e1f20;
+	--color-lapis: #1a4a78;
+	--color-gold: #e3ac3c;
+	--color-cream: #f8efd4;
 }
 
-@layer base {
-	:root {
-		color-scheme: light;
-		font-synthesis: none;
-		text-rendering: optimizeLegibility;
-	}
-
-	* {
-		box-sizing: border-box;
-	}
-
-	html {
-		scroll-behavior: smooth;
-	}
-
-	body {
-		margin: 0;
-		font-family: var(--font-sans);
-	}
-
-	a {
-		color: inherit;
-		text-decoration: none;
-	}
-}
-
-@layer components {
-	.button {
-		display: inline-flex;
-		min-height: 2.5rem;
-		align-items: center;
-		justify-content: center;
-		gap: 0.5rem;
-		border-radius: 0.375rem;
-		border: 1px solid #151414;
-		padding: 0.625rem 0.875rem;
-		font-weight: 700;
-		font-size: 0.875rem;
-		line-height: 1;
-		transition:
-			transform 160ms ease,
-			box-shadow 160ms ease,
-			background-color 160ms ease;
-	}
-
-	.button:hover {
-		transform: translate(-1px, -1px);
-	}
-
-	.button-large {
-		min-height: 3rem;
-		padding-right: 1.125rem;
-		padding-left: 1.125rem;
-	}
-
-	.button-dark {
-		background: #151414;
-		color: #fff;
-		box-shadow: 3px 3px 0 #f7cf3c;
-	}
-
-	.button-light {
-		background: #fff;
-		color: #151414;
-		box-shadow: 3px 3px 0 #151414;
-	}
-
-	.button-yellow {
-		background: #f7cf3c;
-		color: #151414;
-	}
-
-	.button-outline {
-		border-color: rgba(255, 255, 255, 0.26);
-		background: transparent;
-		color: #fff;
-	}
-
-	.nav-link {
-		display: none;
-		border-radius: 0.375rem;
-		padding: 0.625rem 0.75rem;
-		font-weight: 700;
-		font-size: 0.875rem;
-	}
-
-	.nav-link:hover {
-		background: rgba(255, 255, 255, 0.55);
-	}
-
-	.kicker {
-		font-weight: 800;
-		font-size: 0.75rem;
-		letter-spacing: 0;
-		text-transform: uppercase;
-	}
-
-	.command-line {
-		overflow-x: auto;
-		border-radius: 0.375rem;
-		background: #0c0b0a;
-		padding: 1rem;
-		color: #f7cf3c;
-		font-family: var(--font-mono);
-		font-size: 0.875rem;
-		line-height: 1.6;
-	}
-
-	.command-line + .command-line {
-		margin-top: 0.75rem;
-	}
-}
-
-@media (min-width: 640px) {
-	.nav-link {
-		display: inline-flex;
-	}
+/* Faint horizontal rulings, like a scribe's pricked-and-ruled vellum. */
+.ruled {
+	background-image: repeating-linear-gradient(
+		180deg,
+		rgb(28 23 18 / 0.055) 0,
+		rgb(28 23 18 / 0.055) 1px,
+		transparent 1px,
+		transparent 2rem
+	);
 }
