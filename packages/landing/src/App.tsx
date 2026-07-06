@@ -1,7 +1,13 @@
+import {
+	GoogleChromeLogoIcon,
+	NumberCircleOneIcon,
+	NumberCircleTwoIcon,
+} from "@phosphor-icons/react";
 import harpistIllustration from "./assets/logo-illustration.webp";
 import { ExternalLink } from "./ExternalLink";
 import { LandingFooter } from "./LandingFooter";
 import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
+import { ShellCommand } from "./ShellCommand";
 
 const steps = [
 	{
@@ -68,10 +74,10 @@ export function App() {
 
 function LandingPage() {
 	return (
-		<main className="min-h-screen bg-stone-300 font-sans text-stone-900 antialiased">
+		<main className="min-h-screen bg-olive-100 font-sans text-stone-900 antialiased">
 			<div aria-hidden className="h-1.5 bg-red-800" />
 
-			<header className={`sticky top-0 z-10 border-b ${hairline} bg-stone-300`}>
+			<header className={`sticky top-0 z-10 border-b ${hairline} bg-olive-300`}>
 				<div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2 text-xs">
 					<a className="font-display text-2xl leading-none" href="/">
 						harpist
@@ -103,45 +109,96 @@ function LandingPage() {
 				<div className="mx-auto max-w-6xl px-5">
 					<div className="flex items-center justify-between pt-4 text-xs">
 						<p>
-							<span className="font-bold">HRP–440</span> harpist
+							<span className="font-bold"></span>
 						</p>
 						<p className="flex items-center gap-2">
 							<span className="border border-stone-900 bg-amber-400 px-1.5 py-0.5 font-bold text-[10px] uppercase tracking-wider">
 								july beta
 							</span>
-							€0
 						</p>
 					</div>
-					<div className="relative mt-6 mb-14 flex flex-col items-center pt-4 pb-2 sm:mt-8">
-						<span
-							aria-hidden
-							className="absolute top-0 left-0 size-5 border-red-800 border-t border-l"
-						/>
-						<span
-							aria-hidden
-							className="absolute top-0 right-0 size-5 border-red-800 border-t border-r"
-						/>
-						<span
-							aria-hidden
-							className="absolute bottom-0 left-0 size-5 border-red-800 border-b border-l"
-						/>
-						<span
-							aria-hidden
-							className="absolute right-0 bottom-0 size-5 border-red-800 border-r border-b"
-						/>
-						<img
-							alt="Illuminated-manuscript illustration of a harpist at her instrument"
-							className="w-full max-w-[340px] sm:max-w-[400px]"
-							height="1024"
-							src={harpistIllustration}
-							width="1024"
-						/>
-						<p className="mt-8 font-display text-6xl leading-none sm:text-7xl">
-							harpist
-						</p>
-						<p className="mt-4 pb-6 text-stone-900/60 text-xs italic">
-							fig. i — a harpist, playing a HAR file
-						</p>
+					<div className="grid grid-cols-5 mt-6 mb-14 gap-28 perspective-normal">
+						<div className="col-span-2 flex flex-col justify-center gap-8">
+							<h1 className="w-full font-bold text-3xl leading-snug tracking-tight font-heading">
+								<span>Give your agent the API to</span>
+								<span> </span>
+								<span className="text-red-800">
+									automate anything you do on any website.
+								</span>
+							</h1>
+							<div className="flex flex-col justify-start gap-6">
+								<p>
+									The two ingredients required to never manually run workflows
+									again:
+								</p>
+								<div className="flex flex-col items-start w-full gap-4">
+									<div className="flex flex-col gap-2 items-start">
+										<h3 className="font-heading inline-flex items-center gap-2">
+											<NumberCircleOneIcon
+												className="size-6 text-red-800"
+												weight="duotone"
+											/>{" "}
+											Browser extension
+										</h3>
+										<ExternalLink href="https://google.com" className="ml-8">
+											<div className="inline-flex items-center gap-2 border border-red-900 bg-red-800 px-3 py-2 font-bold text-red-50 text-xs uppercase leading-5 transition hover:bg-red-700 cursor-pointer sm:text-sm">
+												<GoogleChromeLogoIcon
+													aria-hidden
+													className="shrink-0"
+													size={18}
+													weight="duotone"
+												/>
+												<span>Install</span>
+											</div>
+										</ExternalLink>
+									</div>
+									<div className="flex flex-col gap-2 items-start">
+										<h3 className="font-heading inline-flex items-center gap-2">
+											<NumberCircleTwoIcon
+												className="size-6 text-red-800"
+												weight="duotone"
+											/>{" "}
+											Agent skill
+										</h3>
+										<ShellCommand
+											command="npx skills add kenobi-ai/harpist"
+											className="w-full ml-8"
+										/>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div className="relative flex flex-col items-center pt-4 pb-2 col-span-3 transform-3d rotate-x-8 bg-olive-300/20">
+							<span
+								aria-hidden
+								className="absolute top-0 left-0 size-5 border-red-800 border-t border-l"
+							/>
+							<span
+								aria-hidden
+								className="absolute top-0 right-0 size-5 border-red-800 border-t border-r"
+							/>
+							<span
+								aria-hidden
+								className="absolute bottom-0 left-0 size-5 border-red-800 border-b border-l"
+							/>
+							<span
+								aria-hidden
+								className="absolute right-0 bottom-0 size-5 border-red-800 border-r border-b"
+							/>
+							<img
+								alt="Illuminated-manuscript illustration of a harpist at her instrument"
+								className="w-full max-w-[340px] sm:max-w-[400px]"
+								height="1024"
+								src={harpistIllustration}
+								width="1024"
+							/>
+							<p className="mt-8 font-display text-6xl leading-none sm:text-7xl">
+								harpist
+							</p>
+							<p className="mt-4 pb-6 text-stone-900/60 text-xs italic">
+								fig. i — a harpist, playing a HAR file
+							</p>
+						</div>
 					</div>
 				</div>
 			</section>
@@ -157,8 +214,8 @@ function LandingPage() {
 					</h1>
 					<p className="mt-8 max-w-xl text-sm leading-6">
 						use any website just like an API. record sessions with the chrome
-						extension, replay them with the CLI — easy for agents and humans
-						to use. now mount your goat and ship.
+						extension, replay them with the CLI — easy for agents and humans to
+						use. now mount your goat and ship.
 					</p>
 					<div className="mt-10 flex flex-wrap gap-3">
 						<a
@@ -258,17 +315,9 @@ function LandingPage() {
 						start the bridge, refine your latest recording, open the docs.
 						everything runs on your machine.
 					</p>
-					<div className="mt-8 max-w-2xl border border-stone-50/20 bg-stone-950 p-5">
+					<div className="mt-8 flex max-w-2xl flex-col gap-2">
 						{commands.map((command) => (
-							<pre
-								className="overflow-x-auto py-1.5 font-mono text-amber-300 text-xs sm:text-sm"
-								key={command}
-							>
-								<code>
-									<span className="select-none text-stone-50/40">$ </span>
-									{command}
-								</code>
-							</pre>
+							<ShellCommand command={command} key={command} tone="dark" />
 						))}
 					</div>
 					<div className="mt-8 flex flex-wrap gap-3">

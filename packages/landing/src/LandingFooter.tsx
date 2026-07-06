@@ -13,7 +13,7 @@ export function LandingFooter() {
 						kenobi.ai
 					</ExternalLink>
 				</p>
-				<p className="font-display text-2xl text-red-800 leading-none">
+				<p className="font-display text-lg bg-red-900/20 text-red-900 leading-none px-3 py-0.5 border-y border-red-800">
 					❦ made in londres · anno domini MMXXVI ❦
 				</p>
 				<div className="flex gap-4">
