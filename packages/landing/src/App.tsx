@@ -1,53 +1,38 @@
-import {
-	ArrowRightIcon,
-	CheckCircleIcon,
-	FeatherIcon,
-	FunnelIcon,
-	GithubLogoIcon,
-	PackageIcon,
-	RecordIcon,
-} from "@phosphor-icons/react";
-import harpistSprite from "./assets/logo-illustration.webp";
+import harpistIllustration from "./assets/logo-illustration.webp";
 import { ExternalLink } from "./ExternalLink";
 import { LandingFooter } from "./LandingFooter";
 import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
 
-const workflow = [
+const steps = [
 	{
 		description:
-			"Hit record in the extension and use the site like you normally would. Harpist captures every request as you go.",
-		icon: RecordIcon,
+			"hit record in the extension and use the site like you normally would. harpist captures every request as you go.",
 		numeral: "I.",
-		title: "Record",
+		title: "record",
 	},
 	{
 		description:
-			"The CLI sifts the recording — which endpoints matter, how auth works, what the payloads look like.",
-		icon: FunnelIcon,
+			"the cli sifts the recording — which endpoints matter, how auth works, what the payloads look like.",
 		numeral: "II.",
-		title: "Refine",
+		title: "refine",
 	},
 	{
 		description:
-			"Then it writes everything down: oRPC and OpenAPI contracts, plus docs an agent can read and replay.",
-		icon: FeatherIcon,
+			"then it writes everything down: orpc and openapi contracts, plus docs an agent can read and replay.",
 		numeral: "III.",
-		title: "Scribe",
+		title: "scribe",
 	},
 ];
 
-const outputs = [
-	"oRPC + OpenAPI contracts",
-	"Docs agents can read",
-	"Authenticated replay",
-	"Plain files you can commit",
-];
-
-const instrumentBanks = [
-	["traffic", "recorded"],
-	["auth", "captured"],
-	["schemas", "inferred"],
-	["docs", "written"],
+const checklist = [
+	"orpc + openapi contracts",
+	"docs agents can read",
+	"authenticated replay",
+	"schemas inferred from real payloads",
+	"session auth captured, not configured",
+	"local bridge — nothing leaves your machine",
+	"plain text files you can commit",
+	"har in, codex out",
 ];
 
 const specifications = [
@@ -55,6 +40,8 @@ const specifications = [
 	["bridge", "local worker"],
 	["output", "orpc + openapi"],
 	["handoff", "agent-ready text"],
+	["runtime", "bun or node"],
+	["price", "€0"],
 ];
 
 const commands = [
@@ -62,6 +49,8 @@ const commands = [
 	"bunx harpist refine latest example.com",
 	"bunx harpist docs example.com",
 ];
+
+const hairline = "border-stone-900/25";
 
 const currentPath = () => {
 	if (typeof window === "undefined") {
@@ -79,260 +68,222 @@ export function App() {
 
 function LandingPage() {
 	return (
-		<main className="min-h-screen bg-parchment font-sans text-ink">
-			<div aria-hidden className="h-1.5 bg-rubric" />
+		<main className="min-h-screen bg-stone-300 font-sans text-stone-900 antialiased">
+			<div aria-hidden className="h-1.5 bg-red-800" />
 
-			<section className="ruled border-ink border-b-2">
-				<div className="mx-auto grid min-h-[92svh] max-w-7xl grid-rows-[auto_1fr_auto] px-4 py-4 sm:px-7 lg:px-9">
-					<header className="flex items-center justify-between gap-3 border-ink border-y-2 bg-vellum px-3 py-2 text-xs uppercase sm:grid sm:grid-cols-[1fr_auto_1fr]">
-						<a
-							aria-label="Harpist home"
-							className="inline-flex items-center gap-2 font-bold tracking-widest"
-							href="/"
-						>
-							<span className="grid size-8 place-items-center border-2 border-ink bg-gold font-display text-2xl leading-none tracking-normal">
-								H
-							</span>
-							<span>Harpist</span>
+			<header className={`sticky top-0 z-10 border-b ${hairline} bg-stone-300`}>
+				<div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2 text-xs">
+					<a className="font-display text-2xl leading-none" href="/">
+						harpist
+					</a>
+					<nav aria-label="Primary" className="flex items-center gap-4">
+						<a className="hidden hover:text-red-800 sm:inline" href="#how">
+							how it works
 						</a>
-						<p className="hidden justify-self-center font-display text-2xl normal-case sm:block"></p>
-						<nav
-							aria-label="Primary"
-							className="flex items-center gap-2 justify-self-start sm:justify-self-end"
+						<a className="hidden hover:text-red-800 sm:inline" href="#specs">
+							specs
+						</a>
+						<a className="hover:text-red-800" href="#install">
+							install
+						</a>
+						<a className="hidden hover:text-red-800 md:inline" href="/privacy">
+							privacy
+						</a>
+						<ExternalLink
+							className="hover:text-red-800"
+							href="https://github.com/kenobi-ai/harpist"
 						>
-							<a
-								className="hidden border-2 border-transparent px-2 py-1 font-bold hover:border-ink sm:inline-flex"
-								href="#workflow"
-							>
-								Workflow
-							</a>
-							<a
-								className="hidden border-2 border-transparent px-2 py-1 font-bold hover:border-ink sm:inline-flex"
-								href="#install"
-							>
-								Install
-							</a>
-							<a
-								className="hidden border-2 border-transparent px-2 py-1 font-bold hover:border-ink md:inline-flex"
-								href="/privacy"
-							>
-								Privacy
-							</a>
-							<ExternalLink
-								className="inline-flex min-h-9 items-center justify-center border-2 border-ink bg-ink px-3 font-bold text-cream transition hover:-translate-y-0.5"
-								href="https://github.com/kenobi-ai/harpist"
-							>
-								GitHub
-							</ExternalLink>
-						</nav>
-					</header>
+							github ↗
+						</ExternalLink>
+					</nav>
+				</div>
+			</header>
 
-					<div className="grid items-center gap-10 py-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:py-10">
-						<div className="max-w-3xl">
-							<p className="max-w-max border-2 border-ink bg-gold px-2 py-1 font-bold text-xs uppercase tracking-widest">
-								July Beta Release
-							</p>
-							<h1 className="mt-6 font-display text-8xl leading-[0.8] sm:text-9xl lg:text-[11rem]">
-								<span className="text-rubric">H</span>arpist
-							</h1>
-							<p className="mt-7 max-w-2xl text-2xl text-ink/85 leading-9 sm:text-3xl sm:leading-11">
-								Use any website just like an API with Harpist. Record sessions
-								with our Chrome extension, and replay them with our CLI. Easy
-								for agents and humans to use.
-							</p>
-							<div className="mt-9 flex flex-wrap gap-3">
-								<a
-									className="inline-flex min-h-12 items-center justify-center gap-2 border-2 border-ink bg-ink px-4 font-bold text-cream text-sm uppercase tracking-wider shadow-[4px_4px_0_var(--color-rubric)] transition hover:-translate-y-0.5"
-									href="#install"
-								>
-									<span>Install the CLI</span>
-									<ArrowRightIcon aria-hidden size={18} weight="bold" />
-								</a>
-								<a
-									className="inline-flex min-h-12 items-center justify-center border-2 border-ink bg-vellum px-4 font-bold text-ink text-sm uppercase tracking-wider transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0_var(--color-ink)]"
-									href="#workflow"
-								>
-									<span>How it works</span>
-								</a>
-							</div>
-						</div>
-
-						<div className="mx-auto grid w-full max-w-[420px] gap-3">
-							<figure className="border-2 border-ink bg-vellum p-2 shadow-[10px_10px_0_var(--color-ink)]">
-								<div className="border border-rubric/70 p-4">
-									<img
-										alt="Illuminated-manuscript illustration of a harpist at her instrument"
-										className="mx-auto aspect-square w-full max-w-[300px] object-contain"
-										height="512"
-										src={harpistSprite}
-										width="512"
-									/>
-								</div>
-								<figcaption className="border-rubric/70 border-t px-2 pt-2 pb-1 text-center text-ink/70 text-sm italic">
-									fig. i — a harpist, playing a HAR file
-								</figcaption>
-							</figure>
-							<div className="grid grid-cols-4 border-2 border-ink bg-ink text-center text-cream text-xs uppercase">
-								{instrumentBanks.map(([label, value]) => (
-									<div
-										className="border-cream/30 border-r p-2 last:border-r-0"
-										key={label}
-									>
-										<p className="font-bold">{label}</p>
-										<p className="mt-1 text-gold">{value}</p>
-									</div>
-								))}
-							</div>
-						</div>
+			<section className={`border-b ${hairline}`}>
+				<div className="mx-auto max-w-6xl px-5">
+					<div className="flex items-center justify-between pt-4 text-xs">
+						<p>
+							<span className="font-bold">HRP–440</span> harpist
+						</p>
+						<p className="flex items-center gap-2">
+							<span className="border border-stone-900 bg-amber-400 px-1.5 py-0.5 font-bold text-[10px] uppercase tracking-wider">
+								july beta
+							</span>
+							€0
+						</p>
 					</div>
-
-					<div className="grid gap-2 border-ink border-t-2 pt-3 pb-5 sm:grid-cols-2 lg:grid-cols-4">
-						{outputs.map((output) => (
-							<div
-								className="flex items-center gap-2 border-2 border-ink bg-vellum px-3 py-2 text-sm uppercase"
-								key={output}
-							>
-								<CheckCircleIcon
-									aria-hidden
-									className="shrink-0 text-lapis"
-									size={17}
-									weight="fill"
-								/>
-								<span>{output}</span>
-							</div>
-						))}
+					<div className="relative mt-6 mb-14 flex flex-col items-center pt-4 pb-2 sm:mt-8">
+						<span
+							aria-hidden
+							className="absolute top-0 left-0 size-5 border-red-800 border-t border-l"
+						/>
+						<span
+							aria-hidden
+							className="absolute top-0 right-0 size-5 border-red-800 border-t border-r"
+						/>
+						<span
+							aria-hidden
+							className="absolute bottom-0 left-0 size-5 border-red-800 border-b border-l"
+						/>
+						<span
+							aria-hidden
+							className="absolute right-0 bottom-0 size-5 border-red-800 border-r border-b"
+						/>
+						<img
+							alt="Illuminated-manuscript illustration of a harpist at her instrument"
+							className="w-full max-w-[340px] sm:max-w-[400px]"
+							height="1024"
+							src={harpistIllustration}
+							width="1024"
+						/>
+						<p className="mt-8 font-display text-6xl leading-none sm:text-7xl">
+							harpist
+						</p>
+						<p className="mt-4 pb-6 text-stone-900/60 text-xs italic">
+							fig. i — a harpist, playing a HAR file
+						</p>
 					</div>
 				</div>
 			</section>
 
-			<section
-				className="border-ink border-b-2 bg-lapis text-cream"
-				id="workflow"
-			>
-				<div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-7 lg:grid-cols-[320px_1fr] lg:px-9">
-					<div>
-						<p className="border-cream border-y-2 py-2 font-bold text-xs uppercase tracking-widest">
-							<span aria-hidden className="text-gold">
-								¶{" "}
-							</span>
-							How it works
-						</p>
-						<h2 className="mt-5 font-display text-6xl leading-none">
-							From clicks to contracts.
-						</h2>
-					</div>
-					<div className="grid gap-4 md:grid-cols-3">
-						{workflow.map((step) => {
-							const Icon = step.icon;
-							return (
-								<article
-									className="border-2 border-ink bg-vellum p-5 text-ink shadow-[6px_6px_0_var(--color-ink)]"
-									key={step.title}
-								>
-									<div className="flex items-start justify-between">
-										<span className="font-display text-6xl text-rubric leading-none">
-											{step.numeral}
-										</span>
-										<Icon
-											aria-hidden
-											className="mt-1 text-lapis"
-											size={26}
-											weight="bold"
-										/>
-									</div>
-									<h3 className="mt-4 font-bold text-lg uppercase tracking-wider">
-										{step.title}
-									</h3>
-									<p className="mt-2 text-ink/80 leading-7">
-										{step.description}
-									</p>
-								</article>
-							);
-						})}
+			<section>
+				<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
+					<h1 className="max-w-4xl font-bold text-2xl uppercase leading-snug tracking-tight sm:text-4xl">
+						Undocumented endpoints, session tokens, gregorian JSON chants and
+						punishing payload schemas. Harpist is the first of its kind:{" "}
+						<span className="text-red-800">
+							the ultimate, and only, medieval API scribe.
+						</span>
+					</h1>
+					<p className="mt-8 max-w-xl text-sm leading-6">
+						use any website just like an API. record sessions with the chrome
+						extension, replay them with the CLI — easy for agents and humans
+						to use. now mount your goat and ship.
+					</p>
+					<div className="mt-10 flex flex-wrap gap-3">
+						<a
+							className="inline-flex items-center border border-stone-900 bg-stone-900 px-4 py-2 text-stone-50 text-xs transition hover:bg-stone-900/85"
+							href="#install"
+						>
+							install cli
+						</a>
+						<a
+							className={`inline-flex items-center border ${hairline} px-4 py-2 text-xs transition hover:border-stone-900`}
+							href="#how"
+						>
+							how it works
+						</a>
 					</div>
 				</div>
 			</section>
 
-			<section
-				className="border-ink border-b-2 bg-parchment"
-				id="specifications"
-			>
-				<div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-7 lg:grid-cols-[1fr_560px] lg:px-9">
-					<div>
-						<p className="border-ink border-y-2 py-2 font-bold text-xs uppercase tracking-widest">
-							<span aria-hidden className="text-rubric">
-								¶{" "}
-							</span>
-							Specifications
-						</p>
-						<h2 className="mt-5 font-display text-6xl text-rubric leading-none">
-							A small machine with no secrets.
-						</h2>
-						<p className="mt-5 max-w-xl text-ink/85 text-xl leading-8">
-							Three parts: the extension records, a local bridge hands
-							recordings to the CLI, and the CLI turns them into contracts.
-							Everything comes out as plain text — read it, diff it, commit it.
-						</p>
-					</div>
-					<div className="self-center border-2 border-ink bg-vellum">
-						{specifications.map(([label, value]) => (
+			<section className="bg-sky-900 text-stone-50" id="how">
+				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-16">
+					<p className="text-xs">
+						<span aria-hidden className="text-amber-400">
+							¶{" "}
+						</span>
+						how it works
+					</p>
+					<div className="mt-10 grid gap-10 sm:grid-cols-3 sm:gap-6">
+						{steps.map((step) => (
 							<div
-								className="grid grid-cols-[130px_1fr] border-ink border-b-2 last:border-b-0"
-								key={label}
+								className="border-stone-50/30 border-t pt-5"
+								key={step.title}
 							>
-								<p className="border-ink border-r-2 bg-ink px-3 py-3 font-bold text-cream text-xs uppercase tracking-widest">
-									{label}
+								<p className="font-display text-5xl text-amber-300 leading-none">
+									{step.numeral}
 								</p>
-								<p className="px-3 py-3 font-bold uppercase">{value}</p>
+								<h2 className="mt-4 font-bold text-sm">{step.title}</h2>
+								<p className="mt-2 max-w-xs text-sm text-stone-50/80 leading-6">
+									{step.description}
+								</p>
 							</div>
 						))}
 					</div>
 				</div>
 			</section>
 
-			<section className="bg-ink text-cream" id="install">
-				<div className="mx-auto grid max-w-7xl gap-8 px-4 py-16 sm:px-7 lg:grid-cols-[1fr_520px] lg:px-9">
+			<section id="specs">
+				<div className="mx-auto grid max-w-6xl gap-12 px-5 py-14 sm:grid-cols-2 sm:py-16">
 					<div>
-						<p className="border-gold border-y-2 py-2 font-bold text-gold text-xs uppercase tracking-widest">
-							<span aria-hidden>¶ </span>
-							Install
+						<p className="text-xs">
+							<span aria-hidden className="text-red-800">
+								¶{" "}
+							</span>
+							feature checklist
 						</p>
-						<h2 className="mt-5 max-w-xl font-display text-6xl leading-none">
-							Three commands and you&rsquo;re away.
-						</h2>
-						<p className="mt-5 max-w-xl text-cream/75 text-xl leading-8">
-							Start the bridge, refine your latest recording, open the docs.
-							Everything runs on your machine.
-						</p>
-						<div className="mt-8 flex flex-wrap gap-3">
-							<ExternalLink
-								className="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-gold bg-gold px-4 font-bold text-ink text-sm uppercase tracking-wider transition hover:-translate-y-0.5"
-								href="https://github.com/kenobi-ai/harpist"
-							>
-								<GithubLogoIcon aria-hidden size={18} weight="bold" />
-								<span>GitHub</span>
-							</ExternalLink>
-							<ExternalLink
-								className="inline-flex min-h-11 items-center justify-center gap-2 border-2 border-cream px-4 font-bold text-cream text-sm uppercase tracking-wider transition hover:-translate-y-0.5"
-								href="https://www.npmjs.com/package/harpist"
-							>
-								<PackageIcon aria-hidden size={18} weight="bold" />
-								<span>npm</span>
-							</ExternalLink>
-						</div>
+						<ul className="mt-6 max-w-sm text-sm leading-7">
+							{checklist.map((item) => (
+								<li className="flex gap-2" key={item}>
+									<span aria-hidden className="text-red-800">
+										–
+									</span>
+									<span>{item}</span>
+								</li>
+							))}
+						</ul>
 					</div>
-					<div className="min-w-0 self-center border-2 border-cream/80 bg-[#241f19] p-4">
+					<div>
+						<p className="font-display text-3xl text-red-800 leading-none">
+							charakteristica technicum
+						</p>
+						<dl className={`mt-6 border-t ${hairline}`}>
+							{specifications.map(([label, value]) => (
+								<div
+									className={`grid grid-cols-[110px_1fr] gap-4 border-b ${hairline} py-2.5 text-sm`}
+									key={label}
+								>
+									<dt className="text-stone-900/60">{label}</dt>
+									<dd>{value}</dd>
+								</div>
+							))}
+						</dl>
+					</div>
+				</div>
+			</section>
+
+			<section className="bg-stone-900 text-stone-50" id="install">
+				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-16">
+					<p className="text-xs">
+						<span aria-hidden className="text-amber-400">
+							¶{" "}
+						</span>
+						install
+					</p>
+					<h2 className="mt-6 max-w-2xl font-bold text-xl uppercase leading-snug tracking-tight sm:text-2xl">
+						Three commands and you&rsquo;re away.
+					</h2>
+					<p className="mt-3 max-w-lg text-sm text-stone-50/75 leading-6">
+						start the bridge, refine your latest recording, open the docs.
+						everything runs on your machine.
+					</p>
+					<div className="mt-8 max-w-2xl border border-stone-50/20 bg-stone-950 p-5">
 						{commands.map((command) => (
 							<pre
-								className="overflow-x-auto border-cream/20 border-b py-4 font-mono text-gold text-sm last:border-b-0"
+								className="overflow-x-auto py-1.5 font-mono text-amber-300 text-xs sm:text-sm"
 								key={command}
 							>
 								<code>
-									<span className="select-none text-cream/40">$ </span>
+									<span className="select-none text-stone-50/40">$ </span>
 									{command}
 								</code>
 							</pre>
 						))}
+					</div>
+					<div className="mt-8 flex flex-wrap gap-3">
+						<ExternalLink
+							className="inline-flex items-center border border-amber-400 bg-amber-400 px-4 py-2 font-bold text-stone-900 text-xs transition hover:bg-amber-300"
+							href="https://github.com/kenobi-ai/harpist"
+						>
+							github ↗
+						</ExternalLink>
+						<ExternalLink
+							className="inline-flex items-center border border-stone-50/60 px-4 py-2 text-stone-50 text-xs transition hover:border-stone-50"
+							href="https://www.npmjs.com/package/harpist"
+						>
+							npm ↗
+						</ExternalLink>
 					</div>
 				</div>
 			</section>

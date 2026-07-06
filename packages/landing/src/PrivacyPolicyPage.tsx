@@ -2,40 +2,32 @@ import { ExternalLink } from "./ExternalLink";
 
 export function PrivacyPolicyPage() {
 	return (
-		<main className="min-h-screen bg-parchment font-sans text-ink">
-			<div aria-hidden className="h-1.5 bg-rubric" />
-			<section className="ruled min-h-screen border-ink border-b-2">
-				<div className="mx-auto max-w-4xl px-4 py-4 sm:px-7 lg:px-9">
-					<header className="flex items-center justify-between gap-3 border-ink border-y-2 bg-vellum px-3 py-2 text-xs uppercase">
-						<a
-							aria-label="Harpist home"
-							className="inline-flex items-center gap-2 font-bold tracking-widest"
-							href="/"
-						>
-							<span className="grid size-8 place-items-center border-2 border-ink bg-gold font-display text-2xl leading-none tracking-normal">
-								H
-							</span>
-							<span>Harpist</span>
+		<main className="min-h-screen bg-stone-300 font-sans text-stone-900 antialiased">
+			<section className="min-h-screen">
+				<div className="mx-auto max-w-4xl px-5 py-3">
+					<header className="flex items-center justify-between gap-3 border-stone-900/25 border-b py-2 text-xs">
+						<a className="font-bold" href="/">
+							harpist
 						</a>
-						<a className="font-bold hover:text-rubric" href="/">
-							Home
+						<a className="hover:text-red-800" href="/">
+							home
 						</a>
 					</header>
 
-					<article className="my-10 border-2 border-ink bg-vellum p-5 shadow-[8px_8px_0_var(--color-ink)] sm:p-8">
-						<p className="max-w-max border-2 border-ink bg-gold px-2 py-1 font-bold text-xs uppercase tracking-widest">
+					<article className="my-10 border border-stone-900/25 bg-amber-50 p-5 sm:p-8">
+						<p className="max-w-max border border-stone-900 px-2 py-1 font-bold text-xs uppercase tracking-widest">
 							Privacy Policy
 						</p>
-						<h1 className="mt-6 font-display text-7xl leading-none text-rubric sm:text-8xl">
+						<h1 className="mt-6 font-display text-7xl leading-none text-red-800 sm:text-8xl">
 							Harpist Privacy Policy
 						</h1>
-						<p className="mt-4 text-ink/70 text-sm uppercase tracking-widest">
+						<p className="mt-4 text-stone-900/70 text-sm uppercase tracking-widest">
 							Effective July 6, 2026
 						</p>
 
-						<div className="mt-8 grid gap-8 text-lg leading-8">
+						<div className="mt-8 grid gap-8 text-sm leading-6">
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									Summary
 								</h2>
 								<p className="mt-3">
@@ -47,7 +39,7 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									What Harpist Records
 								</h2>
 								<p className="mt-3">
@@ -59,7 +51,7 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									Where Data Goes
 								</h2>
 								<p className="mt-3">
@@ -71,7 +63,7 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									What Kenobi Receives
 								</h2>
 								<p className="mt-3">
@@ -83,7 +75,7 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									Retention And Deletion
 								</h2>
 								<p className="mt-3">
@@ -95,7 +87,7 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									Permissions
 								</h2>
 								<p className="mt-3">
@@ -106,13 +98,13 @@ export function PrivacyPolicyPage() {
 							</section>
 
 							<section>
-								<h2 className="border-ink border-b-2 pb-2 font-bold text-xl uppercase tracking-wider">
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
 									Contact
 								</h2>
 								<p className="mt-3">
 									Questions can be opened at{" "}
 									<ExternalLink
-										className="font-bold text-lapis underline decoration-2 underline-offset-4"
+										className="font-bold text-red-800 underline underline-offset-4"
 										href="https://github.com/kenobi-ai/harpist/issues"
 									>
 										github.com/kenobi-ai/harpist/issues
