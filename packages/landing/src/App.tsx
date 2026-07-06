@@ -8,6 +8,8 @@ import {
 	RecordIcon,
 } from "@phosphor-icons/react";
 import harpistSprite from "./assets/logo-illustration.webp";
+import { LandingFooter } from "./LandingFooter";
+import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
 
 const workflow = [
 	{
@@ -60,7 +62,21 @@ const commands = [
 	"bunx harpist docs example.com",
 ];
 
+const currentPath = () => {
+	if (typeof window === "undefined") {
+		return "/";
+	}
+	return window.location.pathname.replace(/\/+$/, "") || "/";
+};
+
 export function App() {
+	if (currentPath() === "/privacy") {
+		return <PrivacyPolicyPage />;
+	}
+	return <LandingPage />;
+}
+
+function LandingPage() {
 	return (
 		<main className="min-h-screen bg-parchment font-sans text-ink">
 			<div aria-hidden className="h-1.5 bg-rubric" />
@@ -96,6 +112,12 @@ export function App() {
 								href="#install"
 							>
 								Install
+							</a>
+							<a
+								className="hidden border-2 border-transparent px-2 py-1 font-bold hover:border-ink md:inline-flex"
+								href="/privacy"
+							>
+								Privacy
 							</a>
 							<a
 								className="inline-flex min-h-9 items-center justify-center border-2 border-ink bg-ink px-3 font-bold text-cream transition hover:-translate-y-0.5"
@@ -316,20 +338,7 @@ export function App() {
 				</div>
 			</section>
 
-			<footer className="border-ink border-t-2 bg-parchment">
-				<div className="mx-auto grid items-center gap-2 px-4 py-4 text-center text-xs uppercase tracking-widest sm:grid-cols-3 sm:px-7 sm:text-left lg:px-9">
-					<p>Harpist — built by Kenobi</p>
-					<p className="font-display text-2xl normal-case tracking-normal sm:text-center">
-						❦ finis ❦
-					</p>
-					<a
-						className="font-bold hover:text-rubric sm:text-right"
-						href="https://github.com/kenobi-ai/harpist"
-					>
-						GitHub ↗
-					</a>
-				</div>
-			</footer>
+			<LandingFooter />
 		</main>
 	);
 }
