@@ -102,6 +102,16 @@ export const formatDurationMs = (durationMs: number) => {
 	return `${durationMs}ms`;
 };
 
+/**
+ * Paths whose traffic must not reset the bridge idle timer. The extension
+ * polls these in the background (command pulls, wake pings); counting them
+ * as activity would keep agent-started bridges alive past --idle-timeout.
+ */
+const maintenancePathPattern = /^(?:\/rpc)?\/commands(?:\/|$)|^\/wake$/;
+
+export const isMaintenanceRequestPath = (pathname: string) =>
+	maintenancePathPattern.test(pathname);
+
 export const createBridgeRuntime = (options: {
 	bridgeUrl: string;
 	dataDir: string;

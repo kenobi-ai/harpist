@@ -4,6 +4,7 @@ import { renderHarpistCliCommandLines } from "../../packages/cli/src/surface";
 import {
 	authOperations,
 	bridgeOperations,
+	commandOperations,
 	endpointOperations,
 	handoffOperations,
 	profileOperations,
@@ -38,6 +39,7 @@ const bridgeOperationGroups: readonly BridgeOperationGroup[] = [
 	{ operations: recordingOperations },
 	{ operations: endpointOperations },
 	{ operations: authOperations },
+	{ operations: commandOperations },
 	{ operations: handoffOperations },
 	{ operations: syncOperations },
 ];

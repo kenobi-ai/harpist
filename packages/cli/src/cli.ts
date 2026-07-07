@@ -8,10 +8,11 @@ import {
 	DEFAULT_SETTINGS,
 	normaliseServerUrl,
 } from "../../core/src/profiles";
-import { runAuthReplayCommand } from "./auth-replay-command";
+import { runAuthCommand } from "./auth-command";
 import {
 	createBridgeRuntime,
 	formatDurationMs,
+	isMaintenanceRequestPath,
 	parseBridgeServeOptions,
 } from "./bridge-runtime";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
@@ -168,7 +169,9 @@ const serveBridge = (bridgeArgs: string[]) => {
 	});
 	server = Bun.serve({
 		fetch: (request) => {
-			runtime?.touch();
+			if (!isMaintenanceRequestPath(new URL(request.url).pathname)) {
+				runtime?.touch();
+			}
 			return app.fetch(request);
 		},
 		hostname,
@@ -246,13 +249,11 @@ if (command === "bridge") {
 		),
 	);
 } else if (command === "auth") {
-	const subcommand = args[0] ?? "replay";
-	if (subcommand !== "replay") {
-		usage();
-		process.exit(1);
-	}
 	try {
-		await runAuthReplayCommand(store, args);
+		if (!(await runAuthCommand(store, args, { bridgeUrl }))) {
+			usage();
+			process.exit(1);
+		}
 	} catch (error) {
 		fail(error instanceof Error ? error.message : String(error));
 	}

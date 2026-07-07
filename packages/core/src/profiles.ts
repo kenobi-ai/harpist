@@ -429,6 +429,9 @@ const entryCookieNames = (entry: PendingEntry) => [
 const sessionCookiePattern =
 	/(?:^|[-_.])(?:auth|idp|jwt|login|oauth|refresh|sess|session|sid|sso|token|user)(?:$|[-_.])/i;
 
+export const isSessionCookieName = (name: string) =>
+	sessionCookiePattern.test(name);
+
 const anonymousCookiePattern =
 	/(?:^|[-_.])(?:analytics|anon|client|consent|device|ga|gid|guest|optimizely|tracking|visitor|uuid)(?:$|[-_.])/i;
 
@@ -1005,7 +1008,7 @@ export const deriveLatestAuth = (
 	};
 };
 
-const secretPreview = (value: string) => {
+export const secretPreview = (value: string) => {
 	if (value.length <= 8) {
 		return "<redacted>";
 	}

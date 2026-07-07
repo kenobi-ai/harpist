@@ -1,9 +1,11 @@
 import { implement, ORPCError } from "@orpc/server";
 import { harpistContract } from "../../core/src/bridge-contract";
+import { redactAuthLedger } from "../../core/src/credentials";
 import {
 	buildAgentHandoffText,
 	DEFAULT_SETTINGS,
 } from "../../core/src/profiles";
+import { credentialSetById } from "./auth-ledger";
 import type { BridgeHealthSnapshot } from "./bridge-runtime";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
@@ -99,11 +101,22 @@ const endpointsRouter = {
 };
 
 const authRouter = {
+	credentials: os.auth.credentials.handler(async ({ context, input }) => {
+		await requireProfile(context, input.host);
+		return redactAuthLedger(await context.store.getAuthLedger(input.host));
+	}),
 	replay: os.auth.replay.handler(async ({ context, input }) => {
 		const profile = await requireProfile(context, input.host);
 		const recordings = await context.store.listStoredRecordings(input.host);
 		try {
+			const credentialSet = input.credentialId
+				? credentialSetById(
+						await context.store.getAuthLedger(input.host),
+						input.credentialId,
+					)
+				: undefined;
 			return buildReplayBundle({
+				credentialSet,
 				method: input.method,
 				operationName: input.operationName,
 				path: input.path,
@@ -117,6 +130,32 @@ const authRouter = {
 			});
 		}
 	}),
+	useCredential: os.auth.useCredential.handler(async ({ context, input }) => {
+		await requireProfile(context, input.host);
+		try {
+			return redactAuthLedger(
+				await context.store.setActiveCredential(input.host, input.credentialId),
+			);
+		} catch (error) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}),
+};
+
+const commandsRouter = {
+	complete: os.commands.complete.handler(async ({ context, input }) => {
+		try {
+			return await context.store.commands.complete(input.id, input.error);
+		} catch (error) {
+			throw notFound(error instanceof Error ? error.message : String(error));
+		}
+	}),
+	pull: os.commands.pull.handler(async ({ context, input }) => ({
+		commands: await context.store.commands.pull(input.consumerId),
+		pulledAt: new Date().toISOString(),
+	})),
 };
 
 const handoffRouter = {
@@ -164,18 +203,23 @@ const syncRouter = {
 		}),
 	),
 	pushExtensionSnapshot: os.sync.pushExtensionSnapshot.handler(
-		async ({ context, input }) =>
-			context.store.ingestExtensionSnapshot({
+		async ({ context, input }) => {
+			if (input.extensionId) {
+				await context.store.recordExtensionPresence(input.extensionId);
+			}
+			return context.store.ingestExtensionSnapshot({
 				bridgeUrl: context.bridgeUrl,
 				profiles: input.profiles,
 				recordings: input.recordings,
-			}),
+			});
+		},
 	),
 };
 
 export const harpistRouter = os.router({
 	auth: authRouter,
 	bridge: bridgeRouter,
+	commands: commandsRouter,
 	endpoints: endpointsRouter,
 	handoff: handoffRouter,
 	profiles: profilesRouter,

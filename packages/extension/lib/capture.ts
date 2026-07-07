@@ -303,7 +303,11 @@ export const createCaptureController = () => {
 		tabId: session?.tabId ?? null,
 	});
 
+	const entries = (): PendingEntry[] =>
+		session ? [...session.entries.values()] : [];
+
 	return {
+		entries,
 		start,
 		state,
 		stop,

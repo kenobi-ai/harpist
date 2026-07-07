@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import type { CredentialValidation } from "../../core/src/credentials";
 import type {
 	CapturedCookie,
 	HarArchive,
@@ -19,6 +20,8 @@ import {
 	summariseRecording,
 } from "../../core/src/profiles";
 import type { SiteArtifactFiles, SiteArtifactPaths } from "./artifacts";
+import { createAuthLedgerStore, slug } from "./auth-ledger";
+import { createCommandQueue } from "./command-queue";
 
 export type StoredRecording = RecordingSummary & {
 	har: HarArchive;
@@ -58,9 +61,6 @@ const writeText = async (file: string, value: string) => {
 	});
 	await writeFile(file, value, "utf8");
 };
-
-const slug = (value: string) =>
-	encodeURIComponent(value).replace(/%/g, "_").replace(/\./g, "-");
 
 const headersFromHar = (headers: unknown): Record<string, string> => {
 	if (!Array.isArray(headers)) {
@@ -122,7 +122,7 @@ const requestCookiesFromHar = (
 		.filter((cookie): cookie is CapturedCookie => cookie !== null);
 };
 
-const entriesFromHar = (har: HarArchive): PendingEntry[] =>
+export const entriesFromHar = (har: HarArchive): PendingEntry[] =>
 	har.log.entries
 		.map((raw): PendingEntry | null => {
 			if (typeof raw !== "object" || raw === null) {
@@ -283,6 +283,9 @@ const mergeProfileSnapshot = (
 };
 
 export const createBridgeStore = (dataDir: string) => {
+	const authLedgers = createAuthLedgerStore(dataDir);
+	const commands = createCommandQueue(dataDir);
+	const extensionFile = join(dataDir, "extension.json");
 	const indexFile = join(dataDir, "profiles.json");
 	const recordingFile = (host: string, id: string) =>
 		join(dataDir, "recordings", slug(host), `${id}.json`);
@@ -378,6 +381,7 @@ export const createBridgeStore = (dataDir: string) => {
 		index.profiles[profile.host] = profile;
 		await writeIndex(index);
 		await writeJson(recordingFile(recording.host, recording.id), recording);
+		await authLedgers.getLedger(profile);
 		return {
 			profile,
 			recording,
@@ -423,11 +427,13 @@ export const createBridgeStore = (dataDir: string) => {
 		const appliedRecordingIds: string[] = [];
 
 		for (const profile of input.profiles) {
-			index.profiles[profile.host] = mergeProfileSnapshot(
+			const merged = mergeProfileSnapshot(
 				index.profiles[profile.host],
 				profile,
 				input.bridgeUrl,
 			);
+			index.profiles[profile.host] = merged;
+			await authLedgers.getLedger(merged);
 		}
 
 		for (const recording of input.recordings) {
@@ -444,6 +450,21 @@ export const createBridgeStore = (dataDir: string) => {
 			profiles: sortProfiles(Object.values(index.profiles)),
 			syncedAt: new Date().toISOString(),
 		};
+	};
+
+	const getAuthLedger = async (host: string) =>
+		authLedgers.getLedger(await requireProfile(host));
+
+	const getExtensionPresence = () =>
+		readJsonOrNull<{ extensionId: string; lastSeenAt: string }>(extensionFile);
+
+	const recordExtensionPresence = async (extensionId: string) => {
+		const presence = {
+			extensionId,
+			lastSeenAt: new Date().toISOString(),
+		};
+		await writeJson(extensionFile, presence);
+		return presence;
 	};
 
 	return {
@@ -468,11 +489,15 @@ export const createBridgeStore = (dataDir: string) => {
 			);
 			return saveProfile(refreshEndpointCounts({ ...profile, endpoints }));
 		},
+		commands,
+		getAuthLedger,
+		getExtensionPresence,
 		getProfile,
 		getRecording: readRecording,
 		getSiteArtifactPaths: siteArtifactPaths,
 		ingestExtensionSnapshot,
 		ingestRecording,
+		recordExtensionPresence,
 		latestProfile,
 		latestRecording,
 		listProfiles,
@@ -516,6 +541,16 @@ export const createBridgeStore = (dataDir: string) => {
 		},
 		readProfileContract: (host: string) =>
 			readProfileArtifactText(host, "contractPath"),
+		recordCredentialValidation: async (
+			host: string,
+			credentialId: string,
+			validation: CredentialValidation,
+		) =>
+			authLedgers.recordValidation(
+				await requireProfile(host),
+				credentialId,
+				validation,
+			),
 		readProfileContractProfile: (host: string) =>
 			readProfileArtifactJson<unknown>(host, "contractProfilePath"),
 		readProfileMetadata: (host: string) =>
@@ -535,6 +570,8 @@ export const createBridgeStore = (dataDir: string) => {
 		},
 		requireProfile,
 		saveProfile,
+		setActiveCredential: async (host: string, credentialId: string | null) =>
+			authLedgers.setActiveCredential(await requireProfile(host), credentialId),
 		setArtifacts: async (host: string, artifacts: ProfileArtifacts) => {
 			const profile = await requireProfile(host);
 			return saveProfile({
@@ -543,6 +580,8 @@ export const createBridgeStore = (dataDir: string) => {
 				updatedAt: new Date().toISOString(),
 			});
 		},
+		setAuthLoginUrl: async (host: string, loginUrl: string) =>
+			authLedgers.setLoginUrl(await requireProfile(host), loginUrl),
 		setAuth: async (host: string, auth: AuthSummary) => {
 			const profile = await requireProfile(host);
 			return saveProfile({

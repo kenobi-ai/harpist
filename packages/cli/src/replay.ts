@@ -1,8 +1,13 @@
+import {
+	type CredentialSet,
+	credentialSetStatus,
+} from "../../core/src/credentials";
 import type { CapturedCookie, PendingEntry } from "../../core/src/har";
 import {
 	type AuthBundle,
 	deriveAuthBundle,
 	type EndpointSummary,
+	type LatestAuthValue,
 	type RedactedLatestAuth,
 	redactLatestAuth,
 	type SiteProfile,
@@ -23,11 +28,12 @@ type ReplayCookie = CapturedCookie & {
 
 export type ReplayBundle = {
 	authBundle: AuthBundle;
-	authValueSource: "latest-auth" | "recording";
+	authValueSource: "credential-set" | "latest-auth" | "recording";
 	body?: string;
 	contentType?: string;
 	cookies: ReplayCookie[];
-	credentialSource: "recording";
+	credentialSetId?: string;
+	credentialSource: "ledger" | "recording";
 	curl: string;
 	endpoint: EndpointSummary;
 	headers: ReplayHeader[];
@@ -65,7 +71,7 @@ export type ReplayRequestInput = {
 	query?: Record<string, ReplayQueryValue>;
 };
 
-type ReplayFetch = (
+export type ReplayFetch = (
 	url: string,
 	init: RequestInit,
 ) => Promise<Pick<Response, "headers" | "status" | "statusText" | "text">>;
@@ -224,15 +230,12 @@ const authValueMatchesHost = (
 	return true;
 };
 
-const latestAuthEntryForEndpoint = (
-	profile: SiteProfile,
+const authValuesEntryForEndpoint = (
+	authValues: LatestAuthValue[],
 	endpoint: EndpointSummary,
+	capturedAt?: string,
 ): PendingEntry | null => {
-	const latestAuth = profile.latestAuth;
-	if (!latestAuth || latestAuth.values.length === 0) {
-		return null;
-	}
-	const values = latestAuth.values.filter(
+	const values = authValues.filter(
 		(value) =>
 			value.replayable &&
 			value.value &&
@@ -267,12 +270,22 @@ const latestAuthEntryForEndpoint = (
 		requestCookies: requestCookies.length > 0 ? requestCookies : undefined,
 		requestHeaders,
 		startedDateTime:
-			latestAuth.capturedAt ??
-			values[0]?.capturedAt ??
-			new Date().toISOString(),
+			capturedAt ?? values[0]?.capturedAt ?? new Date().toISOString(),
 		url: `https://${endpoint.host}${endpoint.path}`,
 	};
 };
+
+const latestAuthEntryForEndpoint = (
+	profile: SiteProfile,
+	endpoint: EndpointSummary,
+): PendingEntry | null =>
+	profile.latestAuth && profile.latestAuth.values.length > 0
+		? authValuesEntryForEndpoint(
+				profile.latestAuth.values,
+				endpoint,
+				profile.latestAuth.capturedAt,
+			)
+		: null;
 
 const selectedEndpoints = (
 	profile: SiteProfile,
@@ -929,6 +942,7 @@ export const formatExecutedReplayResponse = (
 };
 
 export const buildReplayBundle = (input: {
+	credentialSet?: CredentialSet | null;
 	method?: string;
 	operationName?: string;
 	path?: string;
@@ -987,11 +1001,26 @@ export const buildReplayBundle = (input: {
 	if (!(endpoint && entry && sampleRecording)) {
 		throw new Error("No sampled request was found for this endpoint.");
 	}
-	const latestAuthEntry = latestAuthEntryForEndpoint(input.profile, endpoint);
-	const authValueSource = latestAuthEntry ? "latest-auth" : "recording";
+	const credentialSetEntry = input.credentialSet
+		? authValuesEntryForEndpoint(
+				input.credentialSet.values,
+				endpoint,
+				input.credentialSet.capturedAt,
+			)
+		: null;
+	const latestAuthEntry = credentialSetEntry
+		? null
+		: latestAuthEntryForEndpoint(input.profile, endpoint);
+	const authValueSource = credentialSetEntry
+		? "credential-set"
+		: latestAuthEntry
+			? "latest-auth"
+			: "recording";
 	entry = withCredentialMaterial(
 		entry,
-		latestAuthEntry ?? credentialEntryForEndpoint(recordings, endpoint),
+		credentialSetEntry ??
+			latestAuthEntry ??
+			credentialEntryForEndpoint(recordings, endpoint),
 	);
 	const headers = replayHeaders(entry, {
 		includeSecrets: true,
@@ -1003,6 +1032,27 @@ export const buildReplayBundle = (input: {
 	const warnings: string[] = [];
 	if (authBundle.status !== "ready") {
 		warnings.push("Auth bundle needs recapture.");
+	}
+	if (input.credentialSet && !credentialSetEntry) {
+		warnings.push(
+			`Credential '${input.credentialSet.id}' has no values matching ${endpoint.host}; falling back to the latest captured auth.`,
+		);
+	}
+	if (input.credentialSet && credentialSetEntry) {
+		const setStatus = credentialSetStatus(input.credentialSet);
+		if (setStatus === "expired") {
+			warnings.push(
+				`Credential '${input.credentialSet.id}' is expired; run \`harpist auth login ${endpoint.host}\` to capture fresh credentials.`,
+			);
+		} else if (setStatus === "invalid") {
+			warnings.push(
+				`Credential '${input.credentialSet.id}' failed its last check${
+					input.credentialSet.validation?.statusCode
+						? ` (HTTP ${input.credentialSet.validation.statusCode})`
+						: ""
+				}; run \`harpist auth login ${endpoint.host}\` to capture fresh credentials.`,
+			);
+		}
 	}
 	if (authValueSource === "latest-auth" && input.profile.latestAuth) {
 		if (input.profile.latestAuth.status === "expired") {
@@ -1044,7 +1094,10 @@ export const buildReplayBundle = (input: {
 		cookies: replayCookies(entry.requestCookies, {
 			includeSecrets: true,
 		}),
-		credentialSource: "recording",
+		...(credentialSetEntry && input.credentialSet
+			? { credentialSetId: input.credentialSet.id }
+			: {}),
+		credentialSource: credentialSetEntry ? "ledger" : "recording",
 		curl: curlFrom({
 			body,
 			headers,

@@ -3,6 +3,7 @@ import {
 	type HarpistBridgeClient,
 } from "@harpist/core/bridge-client";
 import { buildHar, hostOfEntries, type PendingEntry } from "@harpist/core/har";
+import { captureAutoStopSignal } from "@harpist/core/login-url";
 import {
 	type ActiveDocumentation,
 	type ActiveRecording,
@@ -36,6 +37,7 @@ import {
 } from "../lib/recording-db";
 
 type Controller = {
+	entries: () => PendingEntry[];
 	start: (tabId: number) => Promise<void>;
 	state: () => {
 		entryCount: number;
@@ -583,6 +585,143 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 	};
 };
 
+const AUTO_CAPTURE_TIMEOUT_MS = 3 * 60 * 1000;
+const AUTO_CAPTURE_GRACE_MS = 10_000;
+const AUTO_CAPTURE_POLL_MS = 2_000;
+const COMMAND_ALARM_NAME = "harpist-command-poll";
+
+let autoCaptureTimer: ReturnType<typeof setInterval> | null = null;
+
+const clearAutoCaptureTimer = () => {
+	if (autoCaptureTimer !== null) {
+		clearInterval(autoCaptureTimer);
+		autoCaptureTimer = null;
+	}
+};
+
+/**
+ * Watch an automatic login capture and stop it once the session-grant
+ * signal is satisfied (plus a grace window so the post-login page finishes
+ * its API calls), or after a hard timeout. The active debugger session
+ * keeps the service worker alive for the duration, same as manual capture.
+ */
+const watchAutoCapture = (controller: Controller, host: string) => {
+	const startedAt = Date.now();
+	let graceDeadline: number | null = null;
+	clearAutoCaptureTimer();
+	autoCaptureTimer = setInterval(() => {
+		if (!controller.state().recording) {
+			clearAutoCaptureTimer();
+			return;
+		}
+		const now = Date.now();
+		if (
+			graceDeadline === null &&
+			captureAutoStopSignal(controller.entries(), host).satisfied
+		) {
+			graceDeadline = now + AUTO_CAPTURE_GRACE_MS;
+		}
+		if (
+			(graceDeadline !== null && now >= graceDeadline) ||
+			now - startedAt >= AUTO_CAPTURE_TIMEOUT_MS
+		) {
+			clearAutoCaptureTimer();
+			void stopRecording(controller).catch((error: unknown) =>
+				writeErrorDiagnostic("commands.autoCaptureStop", error, {
+					context: { host },
+				}),
+			);
+		}
+	}, AUTO_CAPTURE_POLL_MS);
+};
+
+const executeCaptureAuth = async (payload: {
+	host: string;
+	loginUrl: string;
+}) => {
+	const url = new URL(payload.loginUrl);
+	if (url.protocol !== "http:" && url.protocol !== "https:") {
+		throw new Error("capture-auth requires an http(s) login URL.");
+	}
+	const controller = await getCaptureController();
+	if (controller.state().recording || activeRecording) {
+		await browser.tabs.create({ active: true, url: url.toString() });
+		throw new Error(
+			"A recording is already in progress; opened the login page without auto-recording.",
+		);
+	}
+	const tab = await browser.tabs.create({ active: true, url: url.toString() });
+	if (tab.id === undefined) {
+		throw new Error("Could not open a tab for the login page.");
+	}
+	await controller.start(tab.id);
+	activeRecording = {
+		host: payload.host,
+		origin: `https://${payload.host}`,
+		startedAt: new Date().toISOString(),
+		tabId: tab.id,
+		title: `Login capture — ${payload.host}`,
+		url: url.toString(),
+	};
+	setBadge(true);
+	watchAutoCapture(controller, payload.host);
+};
+
+let commandPullInFlight = false;
+
+const pullAndRunCommands = async () => {
+	if (commandPullInFlight) {
+		return;
+	}
+	commandPullInFlight = true;
+	try {
+		const settings = await getSettings();
+		const bridge = await connectBridge(settings);
+		if (!bridge.active) {
+			return;
+		}
+		const result = await bridge.client.commands.pull({
+			consumerId: browser.runtime.id,
+		});
+		for (const command of result.commands) {
+			try {
+				if (command.kind === "capture-auth") {
+					await executeCaptureAuth(command.payload);
+				}
+				await bridge.client.commands.complete({ id: command.id });
+			} catch (error) {
+				await bridge.client.commands
+					.complete({ error: messageOf(error), id: command.id })
+					.catch(() => undefined);
+				await writeErrorDiagnostic("commands.execute", error, {
+					context: {
+						commandId: command.id,
+						host: command.payload.host,
+						kind: command.kind,
+					},
+				});
+			}
+		}
+	} catch (error) {
+		await writeErrorDiagnostic("commands.pull", error, {});
+	} finally {
+		commandPullInFlight = false;
+	}
+};
+
+const handleExternalWake = (message: unknown, senderTabId?: number) => {
+	if ((message as { type?: string } | null)?.type !== "PULL_COMMANDS") {
+		return undefined;
+	}
+	setTimeout(() => {
+		if (senderTabId !== undefined) {
+			void browser.tabs.remove(senderTabId).catch(() => undefined);
+		}
+		void pullAndRunCommands();
+	}, 300);
+	return { ok: true };
+};
+
 const handleMessage = async (message: {
 	settings?: Partial<HarpistSettings>;
 	type?: string;
@@ -653,5 +792,23 @@ export default defineBackground({
 				},
 			),
 		);
+		// Chrome: bridge-served loopback pages wake the service worker via
+		// externally_connectable, so commands arrive without any polling.
+		browser.runtime.onMessageExternal?.addListener((message, sender) =>
+			Promise.resolve(handleExternalWake(message, sender.tab?.id)),
+		);
+		// Firefox has no externally_connectable; poll on the platform-minimum
+		// alarm cadence instead. The bridge treats command pulls as
+		// maintenance traffic, so this never keeps an idle bridge alive.
+		if (import.meta.env.FIREFOX) {
+			void browser.alarms?.create(COMMAND_ALARM_NAME, {
+				periodInMinutes: 0.5,
+			});
+			browser.alarms?.onAlarm.addListener((alarm) => {
+				if (alarm.name === COMMAND_ALARM_NAME) {
+					void pullAndRunCommands();
+				}
+			});
+		}
 	},
 });

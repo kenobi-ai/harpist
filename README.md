@@ -77,7 +77,12 @@ bun run harpist recordings latest [host]
 bun run harpist recordings latest [host] --full
 bun run harpist recordings get <host> <id> [--full]
 bun run harpist refine latest [host]
-bun run harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
+bun run harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
+bun run harpist auth list [host] [--json]
+bun run harpist auth use [host] [credentialId|--clear]
+bun run harpist auth check [host] [credentialId] [--all] [--json]
+bun run harpist auth login [host] [--url <url>] [--no-open] [--no-wait] [--timeout <duration>]
+bun run harpist auth set-login-url [host] [url]
 bun run harpist contract-profile get <host>
 bun run harpist contract get <host>
 bun run harpist openapi get <host>

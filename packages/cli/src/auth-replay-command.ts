@@ -1,9 +1,12 @@
+import { credentialValidationFromResponse } from "../../core/src/credential-validation";
+import { shouldColorOutput } from "./auth-commands";
 import {
 	confirmReplayExecution,
 	isInteractiveTerminal,
 	promptReplayOperation,
 	promptReplayProfile,
 	promptReplayRequestInput,
+	resolveCredentialSet,
 } from "./interactive-replay-input";
 import {
 	applyReplayRequestInput,
@@ -18,18 +21,7 @@ import type { BridgeStore } from "./store";
 type AuthReplayOutput = "curl" | "redacted-curl" | "response";
 
 const usage =
-	"Usage: harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
-
-const shouldColorReplayResponse = () => {
-	if ("NO_COLOR" in process.env) {
-		return false;
-	}
-	const forceColor = process.env.FORCE_COLOR;
-	if (forceColor !== undefined) {
-		return forceColor !== "0" && forceColor !== "false";
-	}
-	return Boolean(process.stdout.isTTY);
-};
+	"Usage: harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -144,6 +136,7 @@ const parseKeyValue = (value: string, label: string) => {
 const parseAuthReplayArgs = (args: string[]) => {
 	const positional: string[] = [];
 	const requestInput: ReplayRequestInput = {};
+	let credentialId: string | undefined;
 	let hasRequestInput = false;
 	let interactive: boolean | undefined;
 	let output: AuthReplayOutput = "response";
@@ -168,6 +161,10 @@ const parseAuthReplayArgs = (args: string[]) => {
 			interactive = false;
 		} else if (arg === "--verbose") {
 			verbose = true;
+		} else if (arg === "--auth" || arg.startsWith("--auth=")) {
+			credentialId =
+				arg === "--auth" ? nextValue(index, "--auth") : arg.slice(7);
+			index += arg === "--auth" ? 1 : 0;
 		} else if (arg === "--json" || arg.startsWith("--json=")) {
 			const value =
 				arg === "--json" ? nextValue(index, "--json") : arg.slice(7);
@@ -205,6 +202,7 @@ const parseAuthReplayArgs = (args: string[]) => {
 		throw new Error(usage);
 	}
 	return {
+		credentialId,
 		hasRequestInput,
 		host: positional[0],
 		interactive,
@@ -234,6 +232,11 @@ export const runAuthReplayCommand = async (
 	if (!profile) {
 		throw new Error(`Unknown profile '${host}'.`);
 	}
+	const credentialSet = await resolveCredentialSet(
+		await store.getAuthLedger(host),
+		parsed,
+		parsed.interactive !== false && isInteractiveTerminal(),
+	);
 	const shouldPromptOperation =
 		!parsed.selector &&
 		(parsed.interactive === true ||
@@ -256,6 +259,7 @@ export const runAuthReplayCommand = async (
 		? await promptReplayOperation(profile)
 		: parsed.selector;
 	const baseBundle = buildReplayBundle({
+		credentialSet,
 		operationName: selector?.includes(" ") ? undefined : selector,
 		profile,
 		recordings: await store.listStoredRecordings(host),
@@ -287,9 +291,27 @@ export const runAuthReplayCommand = async (
 		) {
 			throw new Error("Replay cancelled.");
 		}
+		const executed = await executeReplayBundle(bundle);
+		if (bundle.credentialSetId) {
+			const validation = credentialValidationFromResponse(executed, {
+				checkedAt: new Date().toISOString(),
+			});
+			if (validation) {
+				await store.recordCredentialValidation(
+					host,
+					bundle.credentialSetId,
+					validation,
+				);
+				if (validation.result === "invalid") {
+					console.error(
+						`warning: ${validation.reason} Run \`harpist auth login ${host}\` to capture fresh credentials, or \`harpist auth list ${host}\` to pick another set.`,
+					);
+				}
+			}
+		}
 		console.log(
-			formatExecutedReplayResponse(await executeReplayBundle(bundle), {
-				color: shouldColorReplayResponse(),
+			formatExecutedReplayResponse(executed, {
+				color: shouldColorOutput(),
 				request: parsed.verbose ? bundle : undefined,
 				verbose: parsed.verbose,
 			}),

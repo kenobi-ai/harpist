@@ -7,6 +7,7 @@ const profileTags = ["Profiles"] as const;
 const recordingTags = ["Recordings"] as const;
 const endpointTags = ["Endpoints"] as const;
 const authTags = ["Auth"] as const;
+const commandTags = ["Commands"] as const;
 const handoffTags = ["Handoff"] as const;
 const syncTags = ["Sync"] as const;
 
@@ -32,18 +33,20 @@ const authMechanismSchema = z.object({
 	type: authTypeSchema,
 });
 
+const credentialKindSchema = z.enum([
+	"api-key",
+	"authorization",
+	"browser-session",
+	"csrf-token",
+	"public-client-key",
+]);
+
 const authBundleMethodSchema = z.object({
 	count: z.number().int(),
 	credentialed: z.boolean(),
 	label: z.string(),
 	replayable: z.boolean(),
-	type: z.enum([
-		"api-key",
-		"authorization",
-		"browser-session",
-		"csrf-token",
-		"public-client-key",
-	]),
+	type: credentialKindSchema,
 });
 
 const authBundleSchema = z.object({
@@ -127,6 +130,36 @@ const redactedLatestAuthSchema = latestAuthSchema
 	.extend({
 		values: z.array(redactedLatestAuthValueSchema),
 	});
+
+const credentialValidationSchema = z.object({
+	checkedAt: z.string(),
+	reason: z.string().optional(),
+	result: z.enum(["invalid", "valid"]),
+	statusCode: z.number().int().optional(),
+});
+
+const redactedCredentialSetSchema = z.object({
+	capturedAt: z.string(),
+	credentialed: z.boolean(),
+	expiresAt: z.string().optional(),
+	id: z.string(),
+	kinds: z.array(credentialKindSchema),
+	label: z.string(),
+	recordingId: z.string().optional(),
+	redacted: z.literal(true),
+	status: z.enum(["expired", "invalid", "ready", "valid"]),
+	validation: credentialValidationSchema.optional(),
+	values: z.array(redactedLatestAuthValueSchema),
+});
+
+const redactedAuthLedgerSchema = z.object({
+	activeCredentialId: z.string().optional(),
+	host: z.string(),
+	loginUrl: z.string().optional(),
+	sets: z.array(redactedCredentialSetSchema),
+	updatedAt: z.string(),
+	version: z.literal(1),
+});
 
 const accessTypeSchema = z.enum([
 	"api-key",
@@ -318,11 +351,12 @@ const replayCookieSchema = z.object({
 
 const replayBundleSchema = z.object({
 	authBundle: authBundleSchema,
-	authValueSource: z.enum(["latest-auth", "recording"]),
+	authValueSource: z.enum(["credential-set", "latest-auth", "recording"]),
 	body: z.string().optional(),
 	contentType: z.string().optional(),
 	cookies: z.array(replayCookieSchema),
-	credentialSource: z.literal("recording"),
+	credentialSetId: z.string().optional(),
+	credentialSource: z.enum(["ledger", "recording"]),
 	curl: z.string(),
 	endpoint: endpointSummarySchema,
 	headers: z.array(replayHeaderSchema),
@@ -573,8 +607,22 @@ export const endpointOperations = defineResourceOperations({
 });
 
 export const authOperations = defineResourceOperations({
+	credentials: {
+		input: z.object({ host: z.string() }),
+		output: redactedAuthLedgerSchema,
+		route: {
+			description:
+				"List the captured credential generations (auth history) for a host, redacted. Each set can be replayed with auth.replay via credentialId.",
+			method: "GET",
+			operationId: "auth.credentials",
+			path: "/profiles/{host}/auth/credentials",
+			summary: "List captured credential sets",
+			tags: authTags,
+		},
+	},
 	replay: {
 		input: z.object({
+			credentialId: z.string().optional(),
 			host: z.string(),
 			method: z.string().optional(),
 			operationName: z.string().optional(),
@@ -584,12 +632,79 @@ export const authOperations = defineResourceOperations({
 		output: replayBundleSchema,
 		route: {
 			description:
-				"Build a curl/replay bundle from the latest sampled browser request and auth bundle for an endpoint.",
+				"Build a curl/replay bundle from the latest sampled browser request and auth bundle for an endpoint. Pass credentialId to replay with a specific captured credential set.",
 			method: "POST",
 			operationId: "auth.replay",
 			path: "/profiles/{host}/auth/replay",
 			summary: "Build endpoint auth replay material",
 			tags: authTags,
+		},
+	},
+	useCredential: {
+		input: z.object({
+			credentialId: z.string().nullable(),
+			host: z.string(),
+		}),
+		output: redactedAuthLedgerSchema,
+		route: {
+			description:
+				"Pin a credential set as the default for replays, or pass null to clear the pin.",
+			method: "POST",
+			operationId: "auth.useCredential",
+			path: "/profiles/{host}/auth/credentials/active",
+			summary: "Pin the active credential set",
+			tags: authTags,
+		},
+	},
+});
+
+const bridgeCommandSchema = z.object({
+	claimedAt: z.string().optional(),
+	claimedBy: z.string().optional(),
+	completedAt: z.string().optional(),
+	createdAt: z.string(),
+	error: z.string().optional(),
+	expiresAt: z.string(),
+	id: z.string(),
+	kind: z.literal("capture-auth"),
+	payload: z.object({
+		host: z.string(),
+		loginUrl: z.string(),
+	}),
+	status: z.enum(["claimed", "done", "expired", "failed", "pending"]),
+});
+
+export const commandOperations = defineResourceOperations({
+	complete: {
+		input: z.object({
+			error: z.string().optional(),
+			id: z.string(),
+		}),
+		output: bridgeCommandSchema,
+		route: {
+			description:
+				"Report the outcome of a claimed bridge command. Omit error for success.",
+			method: "POST",
+			operationId: "commands.complete",
+			path: "/commands/{id}/complete",
+			summary: "Complete a bridge command",
+			tags: commandTags,
+		},
+	},
+	pull: {
+		input: z.object({ consumerId: z.string() }),
+		output: z.object({
+			commands: z.array(bridgeCommandSchema),
+			pulledAt: z.string(),
+		}),
+		route: {
+			description:
+				"Atomically claim pending browser-facing commands (e.g. capture-auth) for a consumer such as the Harpist extension. Maintenance traffic: pulling does not reset the bridge idle timer.",
+			method: "POST",
+			operationId: "commands.pull",
+			path: "/commands/pull",
+			summary: "Claim pending bridge commands",
+			tags: commandTags,
 		},
 	},
 });
@@ -656,6 +771,7 @@ export const syncOperations = defineResourceOperations({
 export const harpistContract = {
 	auth: createORPCResourceContract(authOperations),
 	bridge: createORPCResourceContract(bridgeOperations),
+	commands: createORPCResourceContract(commandOperations),
 	endpoints: createORPCResourceContract(endpointOperations),
 	handoff: createORPCResourceContract(handoffOperations),
 	profiles: createORPCResourceContract(profileOperations),

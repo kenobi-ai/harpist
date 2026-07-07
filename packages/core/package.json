@@ -9,6 +9,7 @@
 		"./bridge-contract": "./src/bridge-contract.ts",
 		"./har": "./src/har.ts",
 		"./json-schema-zod": "./src/json-schema-zod.ts",
+		"./login-url": "./src/login-url.ts",
 		"./orpc": "./src/orpc.ts",
 		"./orpc-types": "./src/orpc-types.ts",
 		"./profiles": "./src/profiles.ts",

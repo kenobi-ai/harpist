@@ -1,5 +1,6 @@
+import type { CredentialKind } from "./credentials";
 import type { ContractJsonSchema, JsonValue } from "./json-schema-zod";
-import type { EndpointSummary, SiteProfile } from "./profiles";
+import type { AccessType, EndpointSummary, SiteProfile } from "./profiles";
 import {
 	CONTRACT_PROFILE_FORMAT,
 	CONTRACT_PROFILE_SCHEMA_ID,
@@ -142,6 +143,32 @@ export const visibleTagsForEndpoint = (
 const replayCommand = (profile: SiteProfile, operationName: string) =>
 	`harpist auth replay ${profile.host} ${operationName}`;
 
+const accessTypeCredentialKinds: Partial<Record<AccessType, CredentialKind[]>> =
+	{
+		"api-key": ["api-key"],
+		"basic-auth": ["authorization"],
+		"bearer-token": ["authorization"],
+		"browser-context": ["browser-session"],
+		"public-client-key": ["public-client-key"],
+		"session-cookie": ["browser-session"],
+		"signed-request": ["authorization"],
+	};
+
+const runtimeAuthKindsForEndpoint = (
+	profile: SiteProfile,
+	endpoint: EndpointSummary,
+): CredentialKind[] => {
+	const fromAccess = endpoint.access?.type
+		? accessTypeCredentialKinds[endpoint.access.type]
+		: undefined;
+	if (fromAccess) {
+		return fromAccess;
+	}
+	return (profile.authBundle?.methods ?? [])
+		.filter((method) => method.credentialed)
+		.map((method) => method.type);
+};
+
 const descriptionForEndpoint = (
 	profile: SiteProfile,
 	endpoint: EndpointSummary,
@@ -247,6 +274,9 @@ export const createRecordedSiteContractProfile = (
 			bundle: profile.authBundle,
 			runtime: {
 				bindsCredentialValues: false,
+				credentials: "auth.credentials",
+				credentialsCommand: `harpist auth list ${profile.host}`,
+				loginCommand: `harpist auth login ${profile.host}`,
 				replay: "auth.replay",
 				source: "profile.latestAuth",
 			},
@@ -270,6 +300,7 @@ export const createRecordedSiteContractProfile = (
 							replayCommand: replayCommand(profile, operationId),
 							runtimeAuth: {
 								bindsCredentialValues: false,
+								kinds: runtimeAuthKindsForEndpoint(profile, endpoint),
 								mode: "latest-auth-option",
 								source: "profile.latestAuth",
 							},

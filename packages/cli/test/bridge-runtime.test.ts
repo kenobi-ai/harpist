@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
 	createBridgeRuntime,
 	DEFAULT_AGENT_IDLE_TIMEOUT_MS,
+	isMaintenanceRequestPath,
 	parseBridgeServeOptions,
 	parseDurationMs,
 } from "../src/bridge-runtime";
@@ -29,6 +30,17 @@ describe("bridge runtime", () => {
 			idleTimeoutMs: 3_600_000,
 			startedBy: "user",
 		});
+	});
+
+	test("classifies maintenance paths that must not reset the idle timer", () => {
+		expect(isMaintenanceRequestPath("/commands/pull")).toBe(true);
+		expect(isMaintenanceRequestPath("/commands/cmd_123/complete")).toBe(true);
+		expect(isMaintenanceRequestPath("/rpc/commands/pull")).toBe(true);
+		expect(isMaintenanceRequestPath("/wake")).toBe(true);
+		expect(isMaintenanceRequestPath("/bridge/health")).toBe(false);
+		expect(isMaintenanceRequestPath("/profiles")).toBe(false);
+		expect(isMaintenanceRequestPath("/rpc/profiles/list")).toBe(false);
+		expect(isMaintenanceRequestPath("/commandsx")).toBe(false);
 	});
 
 	test("reports ownership and idle metadata in health", () => {

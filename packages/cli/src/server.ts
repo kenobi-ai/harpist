@@ -10,6 +10,7 @@ import { docsPage, openApiWithReplayExamples } from "./profile-docs";
 import { buildReplayBundle } from "./replay";
 import { type BridgeContext, harpistRouter } from "./router";
 import type { BridgeStore } from "./store";
+import { wakePage } from "./wake-page";
 
 const shouldLog = (error: unknown) =>
 	!(error instanceof ORPCError) ||
@@ -92,6 +93,11 @@ export const createHarpistBridgeServer = (options: {
 	);
 
 	app.get("/health", (c) => c.json(options.health()));
+
+	app.get("/wake", async (c) => {
+		const presence = await options.store.getExtensionPresence();
+		return c.html(wakePage(presence?.extensionId));
+	});
 
 	app.get("/profiles/:host/docs", (c) => c.html(docsPage(c.req.param("host"))));
 

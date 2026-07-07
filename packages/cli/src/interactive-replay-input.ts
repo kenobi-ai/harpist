@@ -1,5 +1,12 @@
 import { confirm, editor, input, Separator, select } from "@inquirer/prompts";
+import {
+	type AuthLedger,
+	type CredentialSet,
+	credentialSetStatus,
+} from "../../core/src/credentials";
 import type { SiteProfile } from "../../core/src/profiles";
+import { credentialSetById } from "./auth-ledger";
+import { describeCredentialSet } from "./credential-display";
 import type {
 	ReplayBundle,
 	ReplayQueryValue,
@@ -30,6 +37,90 @@ export const promptReplayProfile = async (profiles: SiteProfile[]) => {
 		message: "Site",
 		pageSize: 20,
 	});
+};
+
+export const promptAuthCredential = async (
+	ledger: AuthLedger,
+	options: {
+		allowClear?: boolean;
+	} = {},
+) => {
+	if (ledger.sets.length === 0) {
+		throw new Error(
+			`No captured credentials for '${ledger.host}'. Record the site while signed in.`,
+		);
+	}
+	return select<string>({
+		choices: [
+			...ledger.sets.map((set) => ({
+				description: describeCredentialSet(set),
+				name: `${set.id}${ledger.activeCredentialId === set.id ? " ●" : ""}  ${set.label}`,
+				value: set.id,
+			})),
+			...(options.allowClear && ledger.activeCredentialId
+				? [
+						new Separator(),
+						{
+							description: "Replay goes back to the newest captured set.",
+							name: "Clear the pinned credential",
+							value: "--clear",
+						},
+					]
+				: []),
+		],
+		default: ledger.activeCredentialId ?? ledger.sets[0]?.id,
+		message: "Credentials",
+		pageSize: 20,
+	});
+};
+
+export const promptLoginUrl = (defaultUrl?: string) =>
+	input({
+		default: defaultUrl,
+		message: "Login page URL",
+		validate: (value) => {
+			try {
+				const url = new URL(value);
+				return url.protocol === "http:" || url.protocol === "https:"
+					? true
+					: "Login URL must be http(s).";
+			} catch {
+				return "Enter a full URL, e.g. https://example.com/login";
+			}
+		},
+	});
+
+const defaultCredentialSet = (ledger: AuthLedger): CredentialSet | null =>
+	ledger.sets.find((set) => set.id === ledger.activeCredentialId) ??
+	ledger.sets[0] ??
+	null;
+
+export const resolveCredentialSet = async (
+	ledger: AuthLedger,
+	parsed: {
+		credentialId?: string;
+		interactive?: boolean;
+	},
+	canPrompt: boolean,
+): Promise<CredentialSet | null> => {
+	if (parsed.credentialId) {
+		return credentialSetById(ledger, parsed.credentialId);
+	}
+	const fallback = defaultCredentialSet(ledger);
+	if (!fallback || ledger.sets.length < 2 || !canPrompt) {
+		return fallback;
+	}
+	const status = credentialSetStatus(fallback);
+	const degraded = status === "expired" || status === "invalid";
+	if (!(degraded || parsed.interactive === true)) {
+		return fallback;
+	}
+	if (degraded) {
+		console.error(
+			`warning: the default credential ${fallback.id} is ${status}; pick another or re-capture with \`harpist auth login\`.`,
+		);
+	}
+	return credentialSetById(ledger, await promptAuthCredential(ledger));
 };
 
 export const promptReplayOperation = async (profile: SiteProfile) => {
