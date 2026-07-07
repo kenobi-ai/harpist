@@ -164,7 +164,7 @@ Bridge methods exposed by the contract:
 - `auth.credentials`, `auth.replay`, `auth.useCredential`
 - `commands.complete`, `commands.pull`
 - `handoff.get`
-- `sync.pullExtensionState`, `sync.pushExtensionSnapshot`
+- `sync.pullExtensionState`, `sync.pushExtensionSnapshot`, `sync.pushExtensionRecordingChunk`, `sync.restoreExtensionProfile`
 <!-- harpist:bridge-methods:end -->
 
 The bridge is the canonical cache while active. The extension remains the recording UI and local outbox.

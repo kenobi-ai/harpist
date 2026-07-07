@@ -11,7 +11,9 @@
 			"packages/core/src/site-contract-profile.ts:351",
 			"packages/extension/entrypoints/background.ts:351",
 			"packages/extension/entrypoints/dashboard/Dashboard.tsx:351",
-			"packages/extension/entrypoints/popup/App.tsx:351"
+			"packages/extension/entrypoints/popup/App.tsx:351",
+			"packages/extension/lib/recording-db.ts:351",
+			"packages/landing/src/App.tsx:351"
 		]
 	},
 	"extends": ["pokayoke/recommended"],

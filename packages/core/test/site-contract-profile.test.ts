@@ -68,19 +68,56 @@ describe("contract profile", () => {
 			"getProject2",
 		]);
 		expect(contractProfile.operations[1]?.path).toBe(
-			"/v1/projects/{id}/tasks/{id2}",
+			"/v1/projects/{projectId}/tasks/{taskId}",
 		);
 		expect(contractProfile.operations[1]?.parameters.path).toHaveProperty(
-			"id2",
+			"taskId",
 		);
 
 		const openapi = createOpenApiDocumentFromContractProfile(contractProfile);
 		expect(openapi["x-harpist"].sourceArtifact).toBe("contract-profile.json");
-		expect(openapi.paths["/v1/projects/{id}"]?.get).toMatchObject({
+		expect(openapi.paths["/v1/projects/{projectId}"]?.get).toMatchObject({
 			operationId: "getProject",
 			summary: "Get Project",
 			tags: ["Projects"],
 		});
+	});
+
+	test("infers path parameter names from parent path segments", () => {
+		const contractProfile = createRecordedSiteContractProfile(
+			profile([
+				endpoint({
+					description: "Get field run status",
+					exactKey:
+						"GET https://api.example.test/v3/tables/t_123/views/v_456/fields/f_789/runstatus",
+					operationName: "getFieldRunStatus",
+					path: "/v3/tables/t_123/views/v_456/fields/f_789/runstatus",
+					template: "/v3/tables/{id}/views/{id}/fields/{id}/runstatus",
+					templateKey:
+						"GET api.example.test /v3/tables/{id}/views/{id}/fields/{id}/runstatus",
+				}),
+				endpoint({
+					description: "Get billing plan",
+					exactKey: "GET https://api.example.test/v3/billingplans/123",
+					operationName: "getBillingPlan",
+					path: "/v3/billingplans/123",
+					template: "/v3/billingplans/{id}",
+					templateKey: "GET api.example.test /v3/billingplans/{id}",
+				}),
+			]),
+		);
+
+		expect(contractProfile.operations[0]?.path).toBe(
+			"/v3/tables/{tableId}/views/{viewId}/fields/{fieldId}/runstatus",
+		);
+		expect(contractProfile.operations[0]?.parameters.path).toEqual({
+			fieldId: { required: true, schema: { type: "string" } },
+			tableId: { required: true, schema: { type: "string" } },
+			viewId: { required: true, schema: { type: "string" } },
+		});
+		expect(contractProfile.operations[1]?.path).toBe(
+			"/v3/billingplans/{billingPlanId}",
+		);
 	});
 
 	test("models observed query parameters as contract inputs", () => {

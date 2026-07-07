@@ -8,6 +8,36 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
 
+const MAX_ANY_OF_SCHEMAS = 8;
+const MAX_ARRAY_SCHEMA_SAMPLES = 50;
+const MAX_OBJECT_SCHEMA_PROPERTIES = 200;
+const MAX_SCHEMA_DEPTH = 8;
+const COMPLEX_SCHEMA_MARKER = "schema-complexity-limit";
+
+const complexSchema = (): ContractJsonSchemaObject => ({
+	"x-harpist-inference": COMPLEX_SCHEMA_MARKER,
+});
+
+const isComplexSchema = (schema: ContractJsonSchema) =>
+	schema !== true &&
+	schema !== false &&
+	schema["x-harpist-inference"] === COMPLEX_SCHEMA_MARKER;
+
+const sampleArrayItems = <T>(items: T[]) => {
+	if (items.length <= MAX_ARRAY_SCHEMA_SAMPLES) {
+		return items;
+	}
+	const sampled: T[] = [];
+	const step = (items.length - 1) / (MAX_ARRAY_SCHEMA_SAMPLES - 1);
+	for (let index = 0; index < MAX_ARRAY_SCHEMA_SAMPLES; index++) {
+		const item = items[Math.round(index * step)];
+		if (item !== undefined) {
+			sampled.push(item);
+		}
+	}
+	return sampled;
+};
+
 const schemaTypes = (schema: ContractJsonSchemaObject) => {
 	const type = schema.type;
 	if (typeof type === "string") {
@@ -23,6 +53,25 @@ const schemasFromKeyword = (
 	value: JsonValue | undefined,
 ): ContractJsonSchema[] =>
 	Array.isArray(value) ? value.filter(isContractJsonSchema) : [];
+
+const schemaAlternatives = (
+	schema: ContractJsonSchema,
+	seen = new Set<string>(),
+): ContractJsonSchema[] => {
+	if (schema === true || schema === false || isComplexSchema(schema)) {
+		return [schema];
+	}
+	const key = schemaKey(schema);
+	if (seen.has(key)) {
+		return [];
+	}
+	seen.add(key);
+	const anyOf = schemasFromKeyword(schema.anyOf);
+	if (anyOf.length === 0) {
+		return [schema];
+	}
+	return anyOf.flatMap((item) => schemaAlternatives(item, seen));
+};
 
 const objectProperties = (schema: ContractJsonSchemaObject) =>
 	isRecord(schema.properties) ? schema.properties : {};
@@ -55,6 +104,9 @@ export const mergeJsonSchemas = (
 	left: ContractJsonSchema,
 	right: ContractJsonSchema,
 ): ContractJsonSchema => {
+	if (isComplexSchema(left) || isComplexSchema(right)) {
+		return complexSchema();
+	}
 	if (left === true) {
 		return right;
 	}
@@ -123,16 +175,39 @@ export const mergeJsonSchemas = (
 	if (schemaKey(left) === schemaKey(right)) {
 		return left;
 	}
+	if (
+		leftTypes.includes("number") &&
+		rightTypes.includes("integer") &&
+		leftTypes.length === 1 &&
+		rightTypes.length === 1
+	) {
+		return left;
+	}
+	if (
+		leftTypes.includes("integer") &&
+		rightTypes.includes("number") &&
+		leftTypes.length === 1 &&
+		rightTypes.length === 1
+	) {
+		return right;
+	}
 	const anyOf = uniqueSchemas([
-		...schemasFromKeyword(left.anyOf),
-		...schemasFromKeyword(right.anyOf),
-		left,
-		right,
+		...schemaAlternatives(left),
+		...schemaAlternatives(right),
 	]);
+	if (anyOf.length > MAX_ANY_OF_SCHEMAS) {
+		return complexSchema();
+	}
 	return anyOf.length === 1 ? (anyOf[0] ?? true) : { anyOf };
 };
 
-export const inferJsonSchema = (value: JsonValue): ContractJsonSchema => {
+const inferJsonSchemaValue = (
+	value: JsonValue,
+	depth: number,
+): ContractJsonSchema => {
+	if (depth > MAX_SCHEMA_DEPTH) {
+		return complexSchema();
+	}
 	if (value === null) {
 		return { type: "null" };
 	}
@@ -146,7 +221,9 @@ export const inferJsonSchema = (value: JsonValue): ContractJsonSchema => {
 		return { type: "string" };
 	}
 	if (Array.isArray(value)) {
-		const itemSchemas = value.map(inferJsonSchema);
+		const itemSchemas = sampleArrayItems(value).map((item) =>
+			inferJsonSchemaValue(item, depth + 1),
+		);
 		const items = itemSchemas.reduce<ContractJsonSchema | undefined>(
 			(merged, schema) => (merged ? mergeJsonSchemas(merged, schema) : schema),
 			undefined,
@@ -157,11 +234,19 @@ export const inferJsonSchema = (value: JsonValue): ContractJsonSchema => {
 		};
 	}
 	const properties = Object.fromEntries(
-		Object.entries(value).map(([name, item]) => [name, inferJsonSchema(item)]),
+		Object.entries(value)
+			.slice(0, MAX_OBJECT_SCHEMA_PROPERTIES)
+			.map(([name, item]) => [name, inferJsonSchemaValue(item, depth + 1)]),
 	);
 	return {
+		...(Object.keys(value).length > MAX_OBJECT_SCHEMA_PROPERTIES
+			? { additionalProperties: true }
+			: {}),
 		properties,
 		required: Object.keys(properties),
 		type: "object",
 	};
 };
+
+export const inferJsonSchema = (value: JsonValue): ContractJsonSchema =>
+	inferJsonSchemaValue(value, 0);

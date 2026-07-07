@@ -40,6 +40,7 @@ type RequestWillBeSentExtraInfo = {
 };
 
 type LoadingFinished = {
+	encodedDataLength?: number;
 	requestId: string;
 };
 
@@ -53,6 +54,17 @@ const isMissingResponseBody = (error: unknown) =>
 	error !== null &&
 	"code" in error &&
 	(error as { code?: unknown }).code === -32_000;
+
+const shouldCaptureResponseBody = (entry: PendingEntry) => {
+	const mime = entry.responseMime ?? "";
+	if (/(?:json|\+json)/i.test(mime)) {
+		return true;
+	}
+	if (/(?:html|text\/plain)/i.test(mime)) {
+		return true;
+	}
+	return false;
+};
 
 export type CaptureState = {
 	entryCount: number;
@@ -190,6 +202,9 @@ export const createCaptureController = () => {
 		}
 		const entry = session.entries.get(data.requestId);
 		if (!entry || entry.status === undefined) {
+			return;
+		}
+		if (!shouldCaptureResponseBody(entry)) {
 			return;
 		}
 		try {

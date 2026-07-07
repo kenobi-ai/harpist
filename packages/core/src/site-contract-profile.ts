@@ -53,19 +53,102 @@ const jsonObject = (value: unknown) =>
 export const methodAllowsBody = (method: string) =>
 	["DELETE", "PATCH", "POST", "PUT"].includes(method.toUpperCase());
 
+const versionSegmentPattern = /^v\d+(?:\.\d+)?$/i;
+const genericPathParameterPattern = /^(?:id|uuid|slug)(?:\d+)?$/i;
+
+const singularizePathWord = (word: string) => {
+	if (word.endsWith("ies") && word.length > 3) {
+		return `${word.slice(0, -3)}y`;
+	}
+	if (word.endsWith("sses")) {
+		return word.slice(0, -2);
+	}
+	if (word.endsWith("ses") || word.endsWith("xes") || word.endsWith("zes")) {
+		return word.slice(0, -2);
+	}
+	if (word.endsWith("s") && !word.endsWith("ss") && word.length > 1) {
+		return word.slice(0, -1);
+	}
+	return word;
+};
+
+const pathSegmentWords = (segment: string) =>
+	segment
+		.replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+		.split(/[^a-zA-Z0-9]+/)
+		.flatMap((part) => {
+			const word = part.trim().toLowerCase();
+			if (!word) {
+				return [];
+			}
+			for (const suffix of ["plans", "status", "run"]) {
+				if (word.length > suffix.length && word.endsWith(suffix)) {
+					return [word.slice(0, -suffix.length), suffix];
+				}
+			}
+			return [word];
+		});
+
+const camelIdentifier = (words: string[]) => {
+	const [first, ...rest] = words;
+	if (!first) {
+		return;
+	}
+	return [
+		first,
+		...rest.map((word) => `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`),
+	].join("");
+};
+
+const semanticPathParameterName = (
+	segments: string[],
+	index: number,
+	rawName: string,
+) => {
+	if (!genericPathParameterPattern.test(rawName)) {
+		return rawName;
+	}
+	const fallback = rawName.replace(/\d+$/, "") || "id";
+	const previous = segments[index - 1];
+	if (
+		!previous ||
+		previous.startsWith("{") ||
+		versionSegmentPattern.test(previous)
+	) {
+		return fallback;
+	}
+	const words = pathSegmentWords(previous);
+	if (words.length === 0) {
+		return fallback;
+	}
+	const last = words.at(-1);
+	const noun = last ? singularizePathWord(last) : undefined;
+	const base = camelIdentifier([...words.slice(0, -1), noun].filter(Boolean));
+	return base ? `${base}Id` : fallback;
+};
+
 const uniquePathParameterTemplate = (template: string) => {
 	const used = new Set<string>();
 	const counts = new Map<string, number>();
-	return template.replace(/\{([^}]+)\}/g, (_, rawName: string) => {
-		const count = (counts.get(rawName) ?? 0) + 1;
-		counts.set(rawName, count);
-		let name = count === 1 ? rawName : `${rawName}${count}`;
-		while (used.has(name)) {
-			name = `${rawName}${used.size + 1}`;
-		}
-		used.add(name);
-		return `{${name}}`;
-	});
+	const segments = template.split("/");
+	return segments
+		.map((segment, index) => {
+			const match = /^\{([^}]+)\}$/.exec(segment);
+			if (!match) {
+				return segment;
+			}
+			const rawName = match[1] ?? "id";
+			const inferredName = semanticPathParameterName(segments, index, rawName);
+			const count = (counts.get(inferredName) ?? 0) + 1;
+			counts.set(inferredName, count);
+			let name = count === 1 ? inferredName : `${inferredName}${count}`;
+			while (used.has(name)) {
+				name = `${inferredName}${used.size + 1}`;
+			}
+			used.add(name);
+			return `{${name}}`;
+		})
+		.join("/");
 };
 
 export const routePathForEndpoint = (endpoint: EndpointSummary) =>

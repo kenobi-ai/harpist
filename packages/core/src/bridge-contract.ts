@@ -325,6 +325,16 @@ const harArchiveSchema = z
 	})
 	.passthrough();
 
+const harLogMetadataSchema = z
+	.object({
+		creator: z.object({
+			name: z.string(),
+			version: z.string(),
+		}),
+		version: z.string(),
+	})
+	.passthrough();
+
 const recordingDetailSchema = recordingSummarySchema.extend({
 	har: harArchiveSchema,
 	host: z.string(),
@@ -373,6 +383,21 @@ const extensionSnapshotSchema = z.object({
 	extensionId: z.string().optional(),
 	profiles: z.array(siteProfileSchema),
 	recordings: z.array(recordingDetailSchema),
+});
+
+const extensionRecordingChunkSchema = z.object({
+	activeHost: z.string().optional(),
+	chunk: z.object({
+		entries: z.array(z.unknown()),
+		index: z.number().int().nonnegative(),
+		total: z.number().int().positive(),
+	}),
+	extensionId: z.string().optional(),
+	profiles: z.array(siteProfileSchema),
+	recording: recordingSummarySchema.extend({
+		harLog: harLogMetadataSchema,
+		host: z.string(),
+	}),
 });
 
 export const bridgeOperations = defineResourceOperations({
@@ -763,6 +788,46 @@ export const syncOperations = defineResourceOperations({
 			operationId: "sync.pushExtensionSnapshot",
 			path: "/sync/extension-snapshot",
 			summary: "Sync recordings from the extension",
+			tags: syncTags,
+		},
+	},
+	pushExtensionRecordingChunk: {
+		input: extensionRecordingChunkSchema,
+		output: z.object({
+			acceptedChunkIndex: z.number().int().nonnegative(),
+			appliedRecordingIds: z.array(z.string()),
+			complete: z.boolean(),
+			profiles: z.array(siteProfileSchema),
+			syncedAt: z.string(),
+		}),
+		route: {
+			description:
+				"Accept one extension recording HAR-entry chunk and assemble the recording once all chunks arrive.",
+			method: "POST",
+			operationId: "sync.pushExtensionRecordingChunk",
+			path: "/sync/extension-recording-chunk",
+			summary: "Sync one extension recording chunk",
+			tags: syncTags,
+		},
+	},
+	restoreExtensionProfile: {
+		input: z.object({
+			extensionId: z.string().optional(),
+			host: z.string(),
+			profile: siteProfileSchema.nullable(),
+			removedRecordingId: z.string().optional(),
+		}),
+		output: z.object({
+			profiles: z.array(siteProfileSchema),
+			restoredAt: z.string(),
+		}),
+		route: {
+			description:
+				"Restore the bridge mirror after the extension undoes an unprocessed local recording.",
+			method: "POST",
+			operationId: "sync.restoreExtensionProfile",
+			path: "/sync/extension-profile-restore",
+			summary: "Restore an extension profile snapshot",
 			tags: syncTags,
 		},
 	},

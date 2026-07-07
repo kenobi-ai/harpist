@@ -6,6 +6,7 @@ import {
 	DEFAULT_SETTINGS,
 	type HarpistSettings,
 	hostLabel,
+	latestRecordingNeedsRefinement,
 	messageOf,
 	normaliseServerUrl,
 	type PopupState,
@@ -328,14 +329,19 @@ function ProfileDocs({
 	onOpenRemoteDocs: () => void;
 	profile: SiteProfile;
 }) {
-	const BridgeIcon =
-		profile.status === "synced"
+	const needsRefinement = latestRecordingNeedsRefinement(profile);
+	const BridgeIcon = needsRefinement
+		? WarningCircleIcon
+		: profile.status === "synced"
 			? CheckCircleIcon
 			: profile.status === "offline"
 				? WarningCircleIcon
 				: PlugsConnectedIcon;
 	const authMethods = authMethodsForProfile(profile);
 	const authDetail = capturedAuthDetailLabel(profile);
+	const profileMessage = needsRefinement
+		? "Needs refinement"
+		: (profile.lastBridgeMessage ?? "Stored locally");
 
 	return (
 		<div className="grid gap-5">
@@ -350,7 +356,7 @@ function ProfileDocs({
 						</h2>
 						<div className="mt-3 flex items-center gap-2 text-sm text-zinc-500">
 							<BridgeIcon size={16} />
-							<span>{profile.lastBridgeMessage ?? "Stored locally"}</span>
+							<span>{profileMessage}</span>
 						</div>
 					</div>
 					<div className="flex items-center gap-2">

@@ -229,7 +229,7 @@ void main() {
 				try {
 					renderer.render({ scene: mesh });
 					animationIdRef.current = requestAnimationFrame(loop);
-				} catch (e) {
+				} catch (_e) {
 					return;
 				}
 			};
@@ -249,9 +249,8 @@ void main() {
 						const loseCtx = renderer.gl.getExtension("WEBGL_lose_context");
 						if (loseCtx) loseCtx.loseContext();
 						const canvas = renderer.gl.canvas;
-						if (canvas && canvas.parentNode)
-							canvas.parentNode.removeChild(canvas);
-					} catch (e) {}
+						if (canvas?.parentNode) canvas.parentNode.removeChild(canvas);
+					} catch (_e) {}
 				}
 				rendererRef.current = null;
 				uniformsRef.current = null;

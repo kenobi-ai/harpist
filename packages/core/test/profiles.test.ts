@@ -64,6 +64,36 @@ describe("agent handoff text", () => {
 		expect(handoff).not.toContain("auth.replay");
 		expect(handoff).not.toContain("Recapture auth");
 	});
+
+	test("marks unprocessed latest recordings as needing refinement", () => {
+		const handoff = buildAgentHandoffText(
+			profile({
+				recordings: [
+					{
+						auth: {
+							confidence: "high",
+							credentialed: true,
+							evidence: ["Cookie header"],
+							label: "Browser session",
+							type: "session-cookie",
+						},
+						createdAt: "2026-07-01T00:00:00.000Z",
+						derivedEndpointCount: 78,
+						durationMs: 1000,
+						entryCount: 100,
+						id: "recording-123",
+						methodBreakdown: { GET: 100 },
+						processingStatus: "new",
+						scannedEndpointCount: 78,
+						sourceUrl: "https://www.example.test",
+					},
+				],
+			}),
+			DEFAULT_SETTINGS,
+		);
+
+		expect(handoff).toContain("Status: Needs refinement.");
+	});
 });
 
 describe("recording summaries", () => {
@@ -145,5 +175,104 @@ describe("recording summaries", () => {
 			},
 			status: 200,
 		});
+	});
+
+	test("can defer body schema inference while preserving endpoint counts", () => {
+		const summary = summariseRecording(
+			[
+				{
+					body: JSON.stringify({
+						items: [{ id: "one" }, { id: "two" }],
+					}),
+					method: "POST",
+					postData: JSON.stringify({ query: "harpist" }),
+					postDataMime: "application/json",
+					requestHeaders: {},
+					responseMime: "application/json",
+					startedDateTime: "2026-07-01T00:00:00.000Z",
+					status: 200,
+					url: "https://www.example.test/api/search",
+				},
+			],
+			{
+				host: "www.example.test",
+				origin: "https://www.example.test",
+				title: "Example",
+				url: "https://www.example.test",
+			},
+			{ inferBodies: false },
+		);
+
+		expect(summary.recording.derivedEndpointCount).toBe(1);
+		expect(summary.endpoints[0]?.requestBody).toBeUndefined();
+		expect(summary.endpoints[0]?.responseBodies).toBeUndefined();
+	});
+
+	test("infers large JSON response bodies when requested", () => {
+		const summary = summariseRecording(
+			[
+				{
+					body: JSON.stringify({
+						payload: "x".repeat(150_000),
+					}),
+					method: "GET",
+					requestHeaders: {},
+					responseMime: "application/json",
+					startedDateTime: "2026-07-01T00:00:00.000Z",
+					status: 200,
+					url: "https://www.example.test/api/large",
+				},
+			],
+			{
+				host: "www.example.test",
+				origin: "https://www.example.test",
+				title: "Example",
+				url: "https://www.example.test",
+			},
+		);
+
+		expect(summary.endpoints[0]?.responseBodies?.[0]?.schema).toMatchObject({
+			properties: {
+				payload: { type: "string" },
+			},
+			type: "object",
+		});
+	});
+
+	test("keeps heterogeneous array schema inference bounded", () => {
+		const summary = summariseRecording(
+			[
+				{
+					body: JSON.stringify(
+						Array.from({ length: 500 }, (_item, index) => ({
+							id: index,
+							[`dynamic_${index}`]: {
+								deep: {
+									value: index % 2 === 0 ? String(index) : index,
+								},
+							},
+							nested: Array.from({ length: 12 }, (_nested, nestedIndex) => ({
+								[`choice_${index}_${nestedIndex}`]: nestedIndex,
+							})),
+						})),
+					),
+					method: "GET",
+					requestHeaders: {},
+					responseMime: "application/json",
+					startedDateTime: "2026-07-01T00:00:00.000Z",
+					status: 200,
+					url: "https://www.example.test/api/heterogeneous",
+				},
+			],
+			{
+				host: "www.example.test",
+				origin: "https://www.example.test",
+				title: "Example",
+				url: "https://www.example.test",
+			},
+		);
+
+		const schema = summary.endpoints[0]?.responseBodies?.[0]?.schema;
+		expect(JSON.stringify(schema).length).toBeLessThan(100_000);
 	});
 });

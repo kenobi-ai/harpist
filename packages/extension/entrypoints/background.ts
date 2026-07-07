@@ -11,15 +11,17 @@ import {
 	type BackgroundResponse,
 	DEFAULT_SETTINGS,
 	type HarpistSettings,
+	latestRecordingForProfile,
+	latestRecordingNeedsRefinement,
 	mergeProfile,
 	messageOf,
 	normaliseServerUrl,
 	type PopupState,
 	PROFILES_KEY,
 	type ProfilesStore,
-	type RecordingArchive,
 	type RecordingIndexStore,
 	SETTINGS_KEY,
+	type SiteProfile,
 	type StopResult,
 	summariseRecording,
 } from "@harpist/core/profiles";
@@ -30,8 +32,10 @@ import {
 	writeErrorDiagnostic,
 } from "../lib/diagnostics";
 import {
-	getRecording,
+	deleteRecording,
 	getRecordingIndex,
+	getRecordingUploadChunk,
+	getRecordingUploadPlan,
 	patchRecordingIndexEntry,
 	putRecording,
 } from "../lib/recording-db";
@@ -49,10 +53,17 @@ type Controller = {
 
 let activeRecording: ActiveRecording | null = null;
 let captureController: Controller | null = null;
+let stopRecordingInFlight: Promise<StopResult> | null = null;
 let syncInFlight: Promise<SyncResult> | null = null;
 let lastSyncState: Pick<SyncResult, "active" | "message" | "syncedAt"> | null =
 	null;
 let lastScheduledSyncAt = 0;
+let lastRecordingIndexState: {
+	pendingRecordingCount: number;
+	syncedAt?: string;
+} = {
+	pendingRecordingCount: 0,
+};
 
 type SyncResult = {
 	active: boolean;
@@ -64,6 +75,41 @@ type SyncResult = {
 
 const SLOW_OPERATION_MS = 5000;
 const BACKGROUND_SYNC_MIN_INTERVAL_MS = 10_000;
+const BRIDGE_HEALTH_TIMEOUT_MS = 2500;
+const BRIDGE_WRITE_TIMEOUT_MS = 6000;
+const STOP_RECORDING_SLOW_PHASE_MS = 1000;
+const REFINED_PROFILES_KEY = "harpist.refinedProfiles";
+const PENDING_PROFILE_RESTORES_KEY = "harpist.pendingProfileRestores";
+const ACTIVE_RECORDING_KEY = "harpist.activeRecording";
+const PROFILE_RESTORE_PENDING_MESSAGE = "Profile restore pending";
+const DEBUG_BUILD_MARKER = "stop-fire-and-poll-v3";
+
+type PendingProfileRestore = {
+	createdAt: string;
+	host: string;
+	profile: SiteProfile | null;
+	removedRecordingId: string;
+};
+
+const withTimeout = async <T>(
+	promise: Promise<T>,
+	timeoutMs: number,
+	message: string,
+): Promise<T> => {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<never>((_resolve, reject) => {
+				timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+			}),
+		]);
+	} finally {
+		if (timeout) {
+			clearTimeout(timeout);
+		}
+	}
+};
 
 const getCaptureController = async () => {
 	if (!captureController) {
@@ -101,6 +147,103 @@ const saveProfiles = async (profiles: ProfilesStore) => {
 	});
 };
 
+const saveActiveRecording = async (recording: ActiveRecording | null) => {
+	if (recording) {
+		await browser.storage.local.set({
+			[ACTIVE_RECORDING_KEY]: recording,
+		});
+		return;
+	}
+	await browser.storage.local.remove(ACTIVE_RECORDING_KEY);
+};
+
+const getRefinedProfiles = async (): Promise<ProfilesStore> => {
+	const stored = await browser.storage.local.get(REFINED_PROFILES_KEY);
+	return (stored[REFINED_PROFILES_KEY] as ProfilesStore | undefined) ?? {};
+};
+
+const saveRefinedProfiles = async (profiles: ProfilesStore) => {
+	await browser.storage.local.set({
+		[REFINED_PROFILES_KEY]: profiles,
+	});
+};
+
+const saveRefinedProfileSnapshot = async (profile: SiteProfile) => {
+	if (latestRecordingNeedsRefinement(profile)) {
+		return;
+	}
+	const snapshots = await getRefinedProfiles();
+	snapshots[profile.host] = profile;
+	await saveRefinedProfiles(snapshots);
+};
+
+const saveRefinedProfileSnapshots = async (profiles: ProfilesStore) => {
+	const snapshots = await getRefinedProfiles();
+	let changed = false;
+	for (const profile of Object.values(profiles)) {
+		if (latestRecordingNeedsRefinement(profile)) {
+			continue;
+		}
+		snapshots[profile.host] = profile;
+		changed = true;
+	}
+	if (changed) {
+		await saveRefinedProfiles(snapshots);
+	}
+};
+
+const removeRefinedProfileSnapshot = async (host: string) => {
+	const snapshots = await getRefinedProfiles();
+	if (!(host in snapshots)) {
+		return;
+	}
+	delete snapshots[host];
+	await saveRefinedProfiles(snapshots);
+};
+
+const getPendingProfileRestores = async () => {
+	const stored = await browser.storage.local.get(PENDING_PROFILE_RESTORES_KEY);
+	return (
+		(stored[PENDING_PROFILE_RESTORES_KEY] as
+			| Record<string, PendingProfileRestore>
+			| undefined) ?? {}
+	);
+};
+
+const savePendingProfileRestores = async (
+	restores: Record<string, PendingProfileRestore>,
+) => {
+	await browser.storage.local.set({
+		[PENDING_PROFILE_RESTORES_KEY]: restores,
+	});
+};
+
+const savePendingProfileRestore = async (restore: PendingProfileRestore) => {
+	const restores = await getPendingProfileRestores();
+	restores[restore.host] = restore;
+	await savePendingProfileRestores(restores);
+};
+
+const removePendingProfileRestore = async (host: string) => {
+	const restores = await getPendingProfileRestores();
+	if (!(host in restores)) {
+		return;
+	}
+	delete restores[host];
+	await savePendingProfileRestores(restores);
+};
+
+const throwIfProfileRestorePending = async () => {
+	const count = Object.keys(await getPendingProfileRestores()).length;
+	if (count > 0) {
+		throw new Error(
+			`${PROFILE_RESTORE_PENDING_MESSAGE} for ${count} profile${
+				count === 1 ? "" : "s"
+			}.`,
+		);
+	}
+};
+
 const elapsedMs = (startedAt: number) => Date.now() - startedAt;
 
 const maxSyncedAt = (recordings: RecordingIndexStore) =>
@@ -111,6 +254,14 @@ const maxSyncedAt = (recordings: RecordingIndexStore) =>
 
 const unsyncedRecordingCount = (recordings: RecordingIndexStore) =>
 	Object.values(recordings).filter((recording) => !recording.syncedAt).length;
+
+const rememberRecordingIndex = (recordings: RecordingIndexStore) => {
+	lastRecordingIndexState = {
+		pendingRecordingCount: unsyncedRecordingCount(recordings),
+		syncedAt: maxSyncedAt(recordings),
+	};
+	return lastRecordingIndexState;
+};
 
 const profilesForHosts = (profiles: ProfilesStore, hosts: Set<string>) =>
 	[...hosts]
@@ -135,28 +286,35 @@ const slowOperationDiagnostic = async (
 	});
 };
 
+const stopPhaseDiagnostic = async (
+	operation: string,
+	startedAt: number,
+	context?: Record<string, string | number | boolean | null>,
+) => {
+	const durationMs = elapsedMs(startedAt);
+	if (durationMs < STOP_RECORDING_SLOW_PHASE_MS) {
+		return;
+	}
+	await writeDiagnostic({
+		context,
+		durationMs,
+		level: "warn",
+		message: "Stop recording phase took longer than expected.",
+		operation,
+	});
+};
+
+const preserveEntriesForStorage = (entries: PendingEntry[]) => {
+	return {
+		entries,
+		strippedBodyCount: 0,
+	};
+};
+
 const profilesFromBridge = (
 	profiles: Awaited<ReturnType<HarpistBridgeClient["profiles"]["list"]>>,
 ): ProfilesStore =>
 	Object.fromEntries(profiles.map((profile) => [profile.host, profile]));
-
-const recordingForBridge = (recording: RecordingArchive) => ({
-	auth: recording.auth,
-	authBundle: recording.authBundle,
-	createdAt: recording.createdAt,
-	derivedEndpointCount: recording.derivedEndpointCount,
-	durationMs: recording.durationMs,
-	entryCount: recording.entryCount,
-	har: recording.har,
-	host: recording.host,
-	id: recording.id,
-	latestAuth: recording.latestAuth,
-	methodBreakdown: recording.methodBreakdown,
-	processedAt: recording.processedAt,
-	processingStatus: recording.processingStatus,
-	scannedEndpointCount: recording.scannedEndpointCount,
-	sourceUrl: recording.sourceUrl,
-});
 
 const activeTab = async () => {
 	const tabs = await browser.tabs.query({
@@ -240,7 +398,11 @@ const connectBridge = async (settings: HarpistSettings) => {
 	const bridgeUrl = normaliseServerUrl(settings.serverUrl);
 	const client = createHarpistBridgeClient(bridgeUrl);
 	try {
-		await client.bridge.health({});
+		await withTimeout(
+			client.bridge.health({}),
+			BRIDGE_HEALTH_TIMEOUT_MS,
+			`Bridge health timed out after ${BRIDGE_HEALTH_TIMEOUT_MS}ms.`,
+		);
 		return {
 			active: true as const,
 			client,
@@ -256,6 +418,45 @@ const connectBridge = async (settings: HarpistSettings) => {
 	}
 };
 
+const pushPendingProfileRestores = async (client: HarpistBridgeClient) => {
+	const restores = Object.values(await getPendingProfileRestores());
+	let canonicalProfiles: ProfilesStore | null = null;
+	let failedCount = 0;
+	for (const restore of restores) {
+		try {
+			const result = await withTimeout(
+				client.sync.restoreExtensionProfile({
+					extensionId: browser.runtime.id,
+					host: restore.host,
+					profile: restore.profile,
+					removedRecordingId: restore.removedRecordingId,
+				}),
+				BRIDGE_WRITE_TIMEOUT_MS,
+				`Bridge restore timed out after ${BRIDGE_WRITE_TIMEOUT_MS}ms.`,
+			);
+			canonicalProfiles = profilesFromBridge(result.profiles);
+			await removePendingProfileRestore(restore.host);
+		} catch (error) {
+			failedCount += 1;
+			await writeErrorDiagnostic("sync.restoreExtensionProfile", error, {
+				context: {
+					host: restore.host,
+					recordingId: restore.removedRecordingId,
+				},
+			});
+		}
+	}
+	if (canonicalProfiles) {
+		await saveProfiles(canonicalProfiles);
+		await saveRefinedProfileSnapshots(canonicalProfiles);
+	}
+	return {
+		failedCount,
+		profiles: canonicalProfiles,
+		restoreCount: restores.length,
+	};
+};
+
 const syncWithBridge = async (
 	settings: HarpistSettings,
 	options: {
@@ -266,6 +467,7 @@ const syncWithBridge = async (
 	const startedAt = Date.now();
 	const profiles = await getProfiles();
 	const recordingIndex = await getRecordingIndex();
+	rememberRecordingIndex(recordingIndex);
 	const bridge = await connectBridge(settings);
 	if (!bridge.active) {
 		const result = {
@@ -279,22 +481,45 @@ const syncWithBridge = async (
 		return result;
 	}
 
+	let canonicalProfiles = profiles;
+	let lastSyncedAt = maxSyncedAt(recordingIndex);
+	const restoreResult = await pushPendingProfileRestores(bridge.client);
+	if (restoreResult.profiles) {
+		canonicalProfiles = restoreResult.profiles;
+		lastSyncedAt = new Date().toISOString();
+	}
+	if (restoreResult.failedCount > 0) {
+		const nextRecordings = await getRecordingIndex();
+		rememberRecordingIndex(nextRecordings);
+		const result = {
+			active: true,
+			message: `Bridge restore pending: ${restoreResult.failedCount} rollback${
+				restoreResult.failedCount === 1 ? "" : "s"
+			} failed`,
+			profiles: canonicalProfiles,
+			recordings: nextRecordings,
+			syncedAt: lastSyncedAt,
+		};
+		lastSyncState = result;
+		return result;
+	}
+
 	const candidates = Object.values(recordingIndex).filter((recording) =>
 		options.force
 			? !options.activeHost || recording.host === options.activeHost
 			: !recording.syncedAt,
 	);
-	let canonicalProfiles = profiles;
-	let lastSyncedAt = maxSyncedAt(recordingIndex);
 	let failedCount = 0;
 
 	try {
 		if (candidates.length === 0) {
 			const pullStartedAt = Date.now();
 			const result = await bridge.client.sync.pullExtensionState({});
+			await throwIfProfileRestorePending();
 			canonicalProfiles = profilesFromBridge(result.profiles);
 			lastSyncedAt = result.pulledAt;
 			await saveProfiles(canonicalProfiles);
+			await saveRefinedProfileSnapshots(canonicalProfiles);
 			await slowOperationDiagnostic("sync.pullExtensionState", pullStartedAt, {
 				profileCount: result.profiles.length,
 			});
@@ -307,8 +532,8 @@ const syncWithBridge = async (
 				lastSyncError: undefined,
 			});
 
-			const archive = await getRecording(candidate);
-			if (!archive) {
+			const upload = await getRecordingUploadPlan(candidate);
+			if (!upload) {
 				failedCount += 1;
 				await patchRecordingIndexEntry(candidate, {
 					lastSyncError: "Missing local HAR archive.",
@@ -327,22 +552,58 @@ const syncWithBridge = async (
 
 			const pushStartedAt = Date.now();
 			try {
-				const result = await bridge.client.sync.pushExtensionSnapshot({
-					activeHost: options.activeHost,
-					extensionId: browser.runtime.id,
-					profiles: profilesForHosts(
-						canonicalProfiles,
-						new Set(
-							[candidate.host, options.activeHost].filter(
-								(host): host is string => Boolean(host),
-							),
+				const profiles = profilesForHosts(
+					canonicalProfiles,
+					new Set(
+						[candidate.host, options.activeHost].filter(
+							(host): host is string => Boolean(host),
 						),
 					),
-					recordings: [recordingForBridge(archive)],
-				});
+				);
+				let completeResult: Awaited<
+					ReturnType<HarpistBridgeClient["sync"]["pushExtensionRecordingChunk"]>
+				> | null = null;
+				for (let chunkIndex = 0; chunkIndex < upload.chunkCount; chunkIndex++) {
+					const chunk = await getRecordingUploadChunk(
+						candidate,
+						chunkIndex,
+						upload.chunkCount,
+					);
+					if (!chunk) {
+						throw new Error(
+							`Missing local HAR chunk ${chunkIndex + 1}/${upload.chunkCount}.`,
+						);
+					}
+					const result = await withTimeout(
+						bridge.client.sync.pushExtensionRecordingChunk({
+							activeHost: options.activeHost,
+							chunk,
+							extensionId: browser.runtime.id,
+							profiles,
+							recording: upload.recording,
+						}),
+						BRIDGE_WRITE_TIMEOUT_MS,
+						`Bridge chunk write timed out after ${BRIDGE_WRITE_TIMEOUT_MS}ms.`,
+					);
+					await throwIfProfileRestorePending();
+					if (result.complete) {
+						completeResult = result;
+						break;
+					}
+				}
+				if (!completeResult) {
+					throw new Error(
+						`Bridge accepted ${upload.chunkCount} chunk${
+							upload.chunkCount === 1 ? "" : "s"
+						}, but did not assemble the recording.`,
+					);
+				}
+				const result = completeResult;
+				await throwIfProfileRestorePending();
 				canonicalProfiles = profilesFromBridge(result.profiles);
 				lastSyncedAt = result.syncedAt;
 				await saveProfiles(canonicalProfiles);
+				await saveRefinedProfileSnapshots(canonicalProfiles);
 				if (result.appliedRecordingIds.includes(candidate.id)) {
 					await patchRecordingIndexEntry(candidate, {
 						lastSyncAttemptAt: attemptAt,
@@ -351,25 +612,30 @@ const syncWithBridge = async (
 					});
 				}
 				await slowOperationDiagnostic(
-					"sync.pushExtensionSnapshot",
+					"sync.pushExtensionRecordingChunk",
 					pushStartedAt,
 					{
 						archiveEntryCount:
-							candidate.archiveEntryCount ?? archive.har.log.entries.length,
+							candidate.archiveEntryCount ?? upload.archiveEntryCount,
+						chunkCount: upload.chunkCount,
 						derivedEndpointCount: candidate.derivedEndpointCount,
 						host: candidate.host,
 						recordingId: candidate.id,
 					},
 				);
 			} catch (error) {
+				if (messageOf(error).startsWith(PROFILE_RESTORE_PENDING_MESSAGE)) {
+					throw error;
+				}
 				failedCount += 1;
 				await patchRecordingIndexEntry(candidate, {
 					lastSyncError: messageOf(error),
 				});
-				await writeErrorDiagnostic("sync.pushExtensionSnapshot", error, {
+				await writeErrorDiagnostic("sync.pushExtensionRecordingChunk", error, {
 					context: {
 						archiveEntryCount:
-							candidate.archiveEntryCount ?? archive.har.log.entries.length,
+							candidate.archiveEntryCount ?? upload.archiveEntryCount,
+						chunkCount: upload.chunkCount,
 						derivedEndpointCount: candidate.derivedEndpointCount,
 						host: candidate.host,
 						recordingId: candidate.id,
@@ -380,6 +646,7 @@ const syncWithBridge = async (
 		}
 
 		const nextRecordings = await getRecordingIndex();
+		rememberRecordingIndex(nextRecordings);
 		const result = {
 			active: true,
 			message:
@@ -410,7 +677,7 @@ const syncWithBridge = async (
 		const result = {
 			active: true,
 			message: `Bridge sync failed: ${messageOf(error)}`,
-			profiles,
+			profiles: await getProfiles(),
 			recordings: recordingIndex,
 			syncedAt: maxSyncedAt(recordingIndex),
 		};
@@ -446,6 +713,24 @@ const scheduleSyncWithBridge = (
 	return syncInFlight;
 };
 
+const scheduleStateRefresh = (
+	settings: HarpistSettings,
+	activeHost?: string,
+) => {
+	const scheduledSync = scheduleSyncWithBridge(settings, {
+		activeHost,
+	});
+	if (scheduledSync) {
+		void scheduledSync.catch((error: unknown) =>
+			writeErrorDiagnostic("sync.background", error, {
+				context: {
+					activeHost: activeHost ?? null,
+				},
+			}),
+		);
+	}
+};
+
 const readState = async (
 	controller: Controller | null,
 ): Promise<PopupState> => {
@@ -455,31 +740,19 @@ const readState = async (
 	const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
 	const activeHost = docsHost ?? activePage?.host;
 	const profiles = await getProfiles();
-	const recordingIndex = await getRecordingIndex();
-	const pendingRecordingCount = unsyncedRecordingCount(recordingIndex);
 	const bridge = syncInFlight
 		? {
 				active: lastSyncState?.active ?? true,
 				message: "Syncing with bridge",
-				syncedAt: lastSyncState?.syncedAt ?? maxSyncedAt(recordingIndex),
+				syncedAt: lastSyncState?.syncedAt ?? lastRecordingIndexState.syncedAt,
 			}
-		: {
-				...(await connectBridge(settings)),
-				syncedAt: lastSyncState?.syncedAt ?? maxSyncedAt(recordingIndex),
-			};
-	if (bridge.active && !syncInFlight) {
-		const scheduledSync = scheduleSyncWithBridge(settings, {
-			activeHost,
-		});
-		if (scheduledSync) {
-			void scheduledSync.catch((error: unknown) =>
-				writeErrorDiagnostic("sync.background", error, {
-					context: {
-						activeHost: activeHost ?? null,
-					},
-				}),
-			);
-		}
+		: (lastSyncState ?? {
+				active: false,
+				message: "Bridge not checked",
+				syncedAt: lastRecordingIndexState.syncedAt,
+			});
+	if (!syncInFlight) {
+		scheduleStateRefresh(settings, activeHost);
 	}
 	const activeDocumentation = tab
 		? activeDocumentationFromTab(tab, settings, profiles)
@@ -492,18 +765,50 @@ const readState = async (
 			active: bridge.active,
 			lastSyncedAt: bridge.syncedAt,
 			message: bridge.message,
-			pendingRecordingCount,
+			pendingRecordingCount: lastRecordingIndexState.pendingRecordingCount,
 			syncing: Boolean(syncInFlight),
 			url: normaliseServerUrl(settings.serverUrl),
 		},
-		capture: controller?.state() ?? {
-			entryCount: 0,
-			recording: false,
-			tabId: null,
+		capture: {
+			...(controller?.state() ?? {
+				entryCount: 0,
+				recording: false,
+				tabId: null,
+			}),
+			stopping: Boolean(stopRecordingInFlight),
 		},
 		diagnostics: await readDiagnostics(),
 		profiles,
 		settings,
+	};
+};
+
+const readDebugInfo = async () => {
+	const manifest = browser.runtime.getManifest();
+	const recordingIndex = await getRecordingIndex().catch(() => ({}));
+	const pendingRestores = await getPendingProfileRestores().catch(() => ({}));
+	const diagnostics = await readDiagnostics().catch(() => []);
+	const state = await readState(captureController).catch((error: unknown) => ({
+		error: messageOf(error),
+	}));
+	return {
+		build: DEBUG_BUILD_MARKER,
+		captureControllerState: captureController?.state() ?? null,
+		diagnostics,
+		generatedAt: new Date().toISOString(),
+		manifest: {
+			name: manifest.name,
+			version: manifest.version,
+		},
+		pendingProfileRestores: Object.values(pendingRestores).map((restore) => ({
+			createdAt: restore.createdAt,
+			host: restore.host,
+			hasProfile: Boolean(restore.profile),
+			removedRecordingId: restore.removedRecordingId,
+		})),
+		recordingIndex: Object.values(recordingIndex),
+		runtimeId: browser.runtime.id,
+		state,
 	};
 };
 
@@ -519,6 +824,7 @@ const startRecording = async (controller: Controller) => {
 		startedAt: new Date().toISOString(),
 		tabId: tab.id as number,
 	};
+	await saveActiveRecording(activeRecording);
 	setBadge(true);
 	return readState(controller);
 };
@@ -537,30 +843,83 @@ const fallbackMeta = (entries: PendingEntry[]): ActiveRecording => {
 };
 
 const stopRecording = async (controller: Controller): Promise<StopResult> => {
+	const startedAt = Date.now();
+	const stopStartedAt = Date.now();
 	const entries = await controller.stop();
+	await stopPhaseDiagnostic("stopRecording.detachDebugger", stopStartedAt, {
+		entryCount: entries.length,
+	});
+	if (entries.length === 0 && !activeRecording) {
+		throw new Error("No recording is in progress.");
+	}
 	setBadge(false);
 	const meta = activeRecording ?? fallbackMeta(entries);
 	activeRecording = null;
 
 	const endedAt = new Date().toISOString();
-	const har = buildHar(entries);
-	const summary = summariseRecording(entries, meta, {
+	const compactStartedAt = Date.now();
+	const compacted = preserveEntriesForStorage(entries);
+	await stopPhaseDiagnostic("stopRecording.compactEntries", compactStartedAt, {
+		entryCount: entries.length,
+		strippedBodyCount: compacted.strippedBodyCount,
+	});
+	const buildHarStartedAt = Date.now();
+	const har = buildHar(compacted.entries);
+	await stopPhaseDiagnostic("stopRecording.buildHar", buildHarStartedAt, {
+		entryCount: har.log.entries.length,
+		strippedBodyCount: compacted.strippedBodyCount,
+	});
+	const summarizeStartedAt = Date.now();
+	const summary = summariseRecording(compacted.entries, meta, {
 		endedAt,
+		inferBodies: false,
 		startedAt: meta.startedAt,
 	});
+	await stopPhaseDiagnostic(
+		"stopRecording.summariseRecording",
+		summarizeStartedAt,
+		{
+			derivedEndpointCount: summary.templateKeys.size,
+			entryCount: compacted.entries.length,
+		},
+	);
+	const profileStartedAt = Date.now();
 	const profiles = await getProfiles();
+	const previousProfile = profiles[meta.host];
+	if (previousProfile && !latestRecordingNeedsRefinement(previousProfile)) {
+		await saveRefinedProfileSnapshot(previousProfile);
+	}
 	const profile = mergeProfile(profiles[meta.host], meta, summary, {
-		message: "Stored locally",
+		message: "Needs refinement",
 		status: "idle",
 	});
 	profiles[meta.host] = profile;
 	await saveProfiles(profiles);
+	await stopPhaseDiagnostic("stopRecording.saveProfile", profileStartedAt, {
+		host: meta.host,
+		recordingId: summary.recording.id,
+	});
 
+	const persistStartedAt = Date.now();
 	await putRecording({
 		...summary.recording,
 		har,
 		host: meta.host,
 	});
+	await saveActiveRecording(null);
+	lastRecordingIndexState = {
+		...lastRecordingIndexState,
+		pendingRecordingCount: lastRecordingIndexState.pendingRecordingCount + 1,
+	};
+	await stopPhaseDiagnostic(
+		"stopRecording.persistRecording",
+		persistStartedAt,
+		{
+			entryCount: har.log.entries.length,
+			host: meta.host,
+			recordingId: summary.recording.id,
+		},
+	);
 
 	const settings = await getSettings();
 	const scheduledSync = scheduleSyncWithBridge(settings, {
@@ -577,12 +936,83 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 			}),
 		);
 	}
+	await slowOperationDiagnostic("stopRecording", startedAt, {
+		derivedEndpointCount: summary.recording.derivedEndpointCount,
+		entryCount: summary.recording.entryCount,
+		host: meta.host,
+		recordingId: summary.recording.id,
+		strippedBodyCount: compacted.strippedBodyCount,
+	});
 
 	return {
 		profile,
 		recording: summary.recording,
 		synced: false,
 	};
+};
+
+const stopRecordingOnce = (controller: Controller) => {
+	if (!stopRecordingInFlight) {
+		stopRecordingInFlight = stopRecording(controller).finally(() => {
+			stopRecordingInFlight = null;
+		});
+	}
+	return stopRecordingInFlight;
+};
+
+const undoLatestRecording = async (host?: string) => {
+	const settings = await getSettings();
+	const tab = await activeTab().catch(() => null);
+	const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
+	const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
+	const targetHost = host ?? docsHost ?? activePage?.host;
+	if (!targetHost) {
+		throw new Error("No profile selected to undo.");
+	}
+	const profiles = await getProfiles();
+	const profile = profiles[targetHost];
+	if (!profile) {
+		throw new Error(`No profile exists for '${targetHost}'.`);
+	}
+	const latestRecording = latestRecordingForProfile(profile);
+	if (!latestRecording || !latestRecordingNeedsRefinement(profile)) {
+		throw new Error("Latest recording does not need refinement.");
+	}
+
+	const snapshots = await getRefinedProfiles();
+	const refinedProfile = snapshots[targetHost] ?? null;
+	if (refinedProfile) {
+		profiles[targetHost] = refinedProfile;
+	} else {
+		delete profiles[targetHost];
+		await removeRefinedProfileSnapshot(targetHost);
+	}
+	await saveProfiles(profiles);
+	await deleteRecording({
+		host: targetHost,
+		id: latestRecording.id,
+	});
+	await savePendingProfileRestore({
+		createdAt: new Date().toISOString(),
+		host: targetHost,
+		profile: refinedProfile,
+		removedRecordingId: latestRecording.id,
+	});
+
+	const scheduledSync = scheduleSyncWithBridge(settings, {
+		activeHost: targetHost,
+		urgent: true,
+	});
+	if (scheduledSync) {
+		void scheduledSync.catch((error: unknown) =>
+			writeErrorDiagnostic("sync.afterUndoRecording", error, {
+				context: {
+					host: targetHost,
+					recordingId: latestRecording.id,
+				},
+			}),
+		);
+	}
 };
 
 const AUTO_CAPTURE_TIMEOUT_MS = 3 * 60 * 1000;
@@ -626,7 +1056,7 @@ const watchAutoCapture = (controller: Controller, host: string) => {
 			now - startedAt >= AUTO_CAPTURE_TIMEOUT_MS
 		) {
 			clearAutoCaptureTimer();
-			void stopRecording(controller).catch((error: unknown) =>
+			void stopRecordingOnce(controller).catch((error: unknown) =>
 				writeErrorDiagnostic("commands.autoCaptureStop", error, {
 					context: { host },
 				}),
@@ -723,6 +1153,8 @@ const handleExternalWake = (message: unknown, senderTabId?: number) => {
 };
 
 const handleMessage = async (message: {
+	activeHost?: string;
+	host?: string;
 	settings?: Partial<HarpistSettings>;
 	type?: string;
 }): Promise<BackgroundResponse<unknown>> => {
@@ -741,9 +1173,37 @@ const handleMessage = async (message: {
 			};
 		}
 		if (message.type === "STOP_RECORDING") {
-			const controller = await getCaptureController();
+			void getCaptureController()
+				.then((controller) =>
+					stopRecordingOnce(controller).catch((error: unknown) =>
+						writeErrorDiagnostic("recording.stop", error, {
+							context: {
+								messageType: message.type ?? null,
+							},
+						}),
+					),
+				)
+				.catch((error: unknown) => {
+					void writeErrorDiagnostic("recording.stop.start", error, {
+						context: {
+							messageType: message.type ?? null,
+						},
+					});
+				});
 			return {
-				data: await stopRecording(controller),
+				ok: true,
+			};
+		}
+		if (message.type === "GET_DEBUG_INFO") {
+			return {
+				data: await readDebugInfo(),
+				ok: true,
+			};
+		}
+		if (message.type === "UNDO_LATEST_RECORDING") {
+			await undoLatestRecording(message.host);
+			return {
+				data: await readState(captureController),
 				ok: true,
 			};
 		}
@@ -753,11 +1213,34 @@ const handleMessage = async (message: {
 			const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
 			const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
 			await (scheduleSyncWithBridge(settings, {
-				activeHost: docsHost ?? activePage?.host,
+				activeHost: message.activeHost ?? docsHost ?? activePage?.host,
 				force: true,
 			}) ?? Promise.resolve());
 			return {
 				data: await readState(captureController),
+				ok: true,
+			};
+		}
+		if (message.type === "SCHEDULE_SYNC_BRIDGE") {
+			const settings = await getSettings();
+			const tab = await activeTab().catch(() => null);
+			const docsHost = tab ? docsHostFromBridgeUrl(tab.url, settings) : null;
+			const activePage = tab && !docsHost ? activePageFromTab(tab) : null;
+			const activeHost = message.activeHost ?? docsHost ?? activePage?.host;
+			const scheduledSync = scheduleSyncWithBridge(settings, {
+				activeHost,
+				urgent: true,
+			});
+			if (scheduledSync) {
+				void scheduledSync.catch((error: unknown) =>
+					writeErrorDiagnostic("sync.scheduled", error, {
+						context: {
+							activeHost: activeHost ?? null,
+						},
+					}),
+				);
+			}
+			return {
 				ok: true,
 			};
 		}
@@ -784,14 +1267,24 @@ const handleMessage = async (message: {
 
 export default defineBackground({
 	main() {
-		browser.runtime.onMessage.addListener((message) =>
-			handleMessage(
+		browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+			void handleMessage(
 				(message ?? {}) as {
+					activeHost?: string;
+					host?: string;
 					settings?: Partial<HarpistSettings>;
 					type?: string;
 				},
-			),
-		);
+			)
+				.then(sendResponse)
+				.catch((error: unknown) => {
+					sendResponse({
+						error: messageOf(error),
+						ok: false,
+					});
+				});
+			return true;
+		});
 		// Chrome: bridge-served loopback pages wake the service worker via
 		// externally_connectable, so commands arrive without any polling.
 		browser.runtime.onMessageExternal?.addListener((message, sender) =>

@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type { CredentialValidation } from "../../core/src/credentials";
 import type {
@@ -11,6 +11,7 @@ import {
 	type AuthSummary,
 	type EndpointSummary,
 	type LatestAuth,
+	latestRecordingNeedsRefinement,
 	mergeProfile,
 	normaliseServerUrl,
 	type ProfileArtifacts,
@@ -26,6 +27,19 @@ import { createCommandQueue } from "./command-queue";
 export type StoredRecording = RecordingSummary & {
 	har: HarArchive;
 	host: string;
+};
+
+type StoredRecordingChunkInput = {
+	chunk: {
+		entries: unknown[];
+		index: number;
+		total: number;
+	};
+	profiles: SiteProfile[];
+	recording: RecordingSummary & {
+		harLog: Omit<HarArchive["log"], "entries">;
+		host: string;
+	};
 };
 
 type StoreIndex = {
@@ -264,7 +278,7 @@ const mergeProfileSnapshot = (
 		existing?.latestAuth,
 		incoming.latestAuth,
 	);
-	return refreshEndpointCounts({
+	const merged = refreshEndpointCounts({
 		...base,
 		agentNotes: existing?.agentNotes ?? incoming.agentNotes,
 		artifacts: existing?.artifacts ?? incoming.artifacts,
@@ -280,6 +294,12 @@ const mergeProfileSnapshot = (
 		remoteProjectId: incoming.host,
 		status: "synced",
 	});
+	return {
+		...merged,
+		lastBridgeMessage: latestRecordingNeedsRefinement(merged)
+			? "Needs refinement"
+			: "Bridge synced",
+	};
 };
 
 export const createBridgeStore = (dataDir: string) => {
@@ -289,6 +309,10 @@ export const createBridgeStore = (dataDir: string) => {
 	const indexFile = join(dataDir, "profiles.json");
 	const recordingFile = (host: string, id: string) =>
 		join(dataDir, "recordings", slug(host), `${id}.json`);
+	const recordingChunkDirectory = (host: string, id: string) =>
+		join(dataDir, "recording-chunks", slug(host), id);
+	const recordingChunkFile = (host: string, id: string, index: number) =>
+		join(recordingChunkDirectory(host, id), `${index}.json`);
 	const siteArtifactPaths = (host: string): SiteArtifactPaths => {
 		const directory = join("sites", slug(host));
 		return {
@@ -327,6 +351,22 @@ export const createBridgeStore = (dataDir: string) => {
 	const readRecording = (host: string, id: string) =>
 		readJsonOrNull<StoredRecording>(recordingFile(host, id));
 
+	const mergeExtensionProfiles = async (
+		index: StoreIndex,
+		profiles: SiteProfile[],
+		bridgeUrl: string,
+	) => {
+		for (const profile of profiles) {
+			const merged = mergeProfileSnapshot(
+				index.profiles[profile.host],
+				profile,
+				bridgeUrl,
+			);
+			index.profiles[profile.host] = merged;
+			await authLedgers.getLedger(merged);
+		}
+	};
+
 	const readProfileArtifactText = async (
 		host: string,
 		pathKey: "contractPath",
@@ -364,7 +404,7 @@ export const createBridgeStore = (dataDir: string) => {
 		const remoteDocsUrl = canonicalDocsUrl(input.bridgeUrl, input.meta.host);
 		const profile = {
 			...mergeProfile(index.profiles[input.meta.host], input.meta, summary, {
-				message: "Bridge active",
+				message: "Needs refinement",
 				projectId: input.meta.host,
 				serverUrl: input.bridgeUrl,
 				status: "synced",
@@ -426,15 +466,7 @@ export const createBridgeStore = (dataDir: string) => {
 		const index = await readIndex();
 		const appliedRecordingIds: string[] = [];
 
-		for (const profile of input.profiles) {
-			const merged = mergeProfileSnapshot(
-				index.profiles[profile.host],
-				profile,
-				input.bridgeUrl,
-			);
-			index.profiles[profile.host] = merged;
-			await authLedgers.getLedger(merged);
-		}
+		await mergeExtensionProfiles(index, input.profiles, input.bridgeUrl);
 
 		for (const recording of input.recordings) {
 			const existing = await readRecording(recording.host, recording.id);
@@ -449,6 +481,108 @@ export const createBridgeStore = (dataDir: string) => {
 			appliedRecordingIds,
 			profiles: sortProfiles(Object.values(index.profiles)),
 			syncedAt: new Date().toISOString(),
+		};
+	};
+
+	const ingestExtensionRecordingChunk = async (
+		input: StoredRecordingChunkInput & {
+			bridgeUrl: string;
+		},
+	) => {
+		if (input.chunk.index >= input.chunk.total) {
+			throw new Error(
+				`Recording chunk ${input.chunk.index} is outside total ${input.chunk.total}.`,
+			);
+		}
+
+		await writeJson(
+			recordingChunkFile(
+				input.recording.host,
+				input.recording.id,
+				input.chunk.index,
+			),
+			input.chunk.entries,
+		);
+
+		const chunkEntries = await Promise.all(
+			Array.from({ length: input.chunk.total }, (_value, index) =>
+				readJsonOrNull<unknown[]>(
+					recordingChunkFile(input.recording.host, input.recording.id, index),
+				),
+			),
+		);
+		const index = await readIndex();
+		const syncedAt = new Date().toISOString();
+		if (chunkEntries.some((entries) => entries === null)) {
+			return {
+				acceptedChunkIndex: input.chunk.index,
+				appliedRecordingIds: [],
+				complete: false,
+				profiles: sortProfiles(Object.values(index.profiles)),
+				syncedAt,
+			};
+		}
+
+		await mergeExtensionProfiles(index, input.profiles, input.bridgeUrl);
+
+		const { harLog, host, ...recordingMeta } = input.recording;
+		const recording: StoredRecording = {
+			...recordingMeta,
+			har: {
+				log: {
+					...harLog,
+					entries: chunkEntries.flatMap((entries) => entries ?? []),
+				},
+			},
+			host,
+		};
+		const existing = await readRecording(recording.host, recording.id);
+		if (!existing) {
+			await writeJson(recordingFile(recording.host, recording.id), recording);
+		}
+		await writeIndex(index);
+		await rm(recordingChunkDirectory(recording.host, recording.id), {
+			force: true,
+			recursive: true,
+		});
+
+		return {
+			acceptedChunkIndex: input.chunk.index,
+			appliedRecordingIds: [recording.id],
+			complete: true,
+			profiles: sortProfiles(Object.values(index.profiles)),
+			syncedAt,
+		};
+	};
+
+	const restoreExtensionProfile = async (input: {
+		bridgeUrl: string;
+		host: string;
+		profile: SiteProfile | null;
+		removedRecordingId?: string;
+	}) => {
+		const index = await readIndex();
+		if (input.profile) {
+			index.profiles[input.host] = {
+				...input.profile,
+				remoteDocsUrl: canonicalDocsUrl(input.bridgeUrl, input.host),
+				remoteProjectId: input.host,
+				status: "synced",
+				updatedAt: new Date().toISOString(),
+			};
+			await authLedgers.getLedger(index.profiles[input.host]);
+		} else {
+			delete index.profiles[input.host];
+		}
+		if (input.removedRecordingId) {
+			await rm(recordingFile(input.host, input.removedRecordingId), {
+				force: true,
+			});
+		}
+		await writeIndex(index);
+		return {
+			profiles: sortProfiles(Object.values(index.profiles)),
+			restoredAt: new Date().toISOString(),
 		};
 	};
 
@@ -495,6 +629,7 @@ export const createBridgeStore = (dataDir: string) => {
 		getProfile,
 		getRecording: readRecording,
 		getSiteArtifactPaths: siteArtifactPaths,
+		ingestExtensionRecordingChunk,
 		ingestExtensionSnapshot,
 		ingestRecording,
 		recordExtensionPresence,
@@ -569,6 +704,7 @@ export const createBridgeStore = (dataDir: string) => {
 			);
 		},
 		requireProfile,
+		restoreExtensionProfile,
 		saveProfile,
 		setActiveCredential: async (host: string, credentialId: string | null) =>
 			authLedgers.setActiveCredential(await requireProfile(host), credentialId),

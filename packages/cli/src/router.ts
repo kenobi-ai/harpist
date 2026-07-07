@@ -214,6 +214,32 @@ const syncRouter = {
 			});
 		},
 	),
+	pushExtensionRecordingChunk: os.sync.pushExtensionRecordingChunk.handler(
+		async ({ context, input }) => {
+			if (input.extensionId) {
+				await context.store.recordExtensionPresence(input.extensionId);
+			}
+			return context.store.ingestExtensionRecordingChunk({
+				bridgeUrl: context.bridgeUrl,
+				chunk: input.chunk,
+				profiles: input.profiles,
+				recording: input.recording,
+			});
+		},
+	),
+	restoreExtensionProfile: os.sync.restoreExtensionProfile.handler(
+		async ({ context, input }) => {
+			if (input.extensionId) {
+				await context.store.recordExtensionPresence(input.extensionId);
+			}
+			return context.store.restoreExtensionProfile({
+				bridgeUrl: context.bridgeUrl,
+				host: input.host,
+				profile: input.profile,
+				removedRecordingId: input.removedRecordingId,
+			});
+		},
+	),
 };
 
 export const harpistRouter = os.router({

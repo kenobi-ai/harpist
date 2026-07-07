@@ -1,18 +1,25 @@
 import {
+	type ActiveRecording,
 	activePageFromTab,
 	authMethodsForProfile,
 	type BackgroundResponse,
 	buildAgentHandoffText,
 	capturedAuthDetailLabel,
+	DEFAULT_SETTINGS,
+	type ExtensionDiagnostic,
 	hostLabel,
+	latestRecordingNeedsRefinement,
 	messageOf,
 	normaliseServerUrl,
 	type PopupState,
+	PROFILES_KEY,
 	type ProfileAccessMethod,
+	type ProfilesStore,
+	SETTINGS_KEY,
 	type SiteProfile,
-	type StopResult,
 } from "@harpist/core/profiles";
 import {
+	ArrowCounterClockwiseIcon,
 	BookOpenTextIcon,
 	BridgeIcon,
 	BroadcastIcon,
@@ -28,11 +35,18 @@ import {
 	VoicemailIcon,
 	WarningCircleIcon,
 } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { browser } from "#imports";
 import { writeErrorDiagnostic } from "../../lib/diagnostics";
 
 const MESSAGE_TIMEOUT_MS = 12_000;
+const DIAGNOSTIC_MAX_AGE_MS = 2 * 60 * 1000;
+const ACTIVE_RECORDING_KEY = "harpist.activeRecording";
+const DEBUG_BUILD_MARKER = "popup-local-debug-v1";
+const DIAGNOSTICS_KEY = "harpist.diagnostics";
+
+const timeoutForMessage = (type?: string) =>
+	type === "STOP_RECORDING" ? null : MESSAGE_TIMEOUT_MS;
 
 const sendMessage = async <T,>(
 	message: Record<string, unknown> & {
@@ -41,6 +55,12 @@ const sendMessage = async <T,>(
 ): Promise<BackgroundResponse<T>> => {
 	let timeout: number | undefined;
 	try {
+		const timeoutMs = timeoutForMessage(message.type);
+		if (timeoutMs === null) {
+			return (await browser.runtime.sendMessage(
+				message,
+			)) as BackgroundResponse<T>;
+		}
 		return (await Promise.race([
 			browser.runtime.sendMessage(message),
 			new Promise<never>((_resolve, reject) => {
@@ -53,7 +73,7 @@ const sendMessage = async <T,>(
 								}.`,
 							),
 						),
-					MESSAGE_TIMEOUT_MS,
+					timeoutMs,
 				);
 			}),
 		])) as BackgroundResponse<T>;
@@ -67,6 +87,8 @@ const sendMessage = async <T,>(
 type WorkflowStatus =
 	| "Bridge active"
 	| "Complete"
+	| "Finishing recording"
+	| "Needs refinement"
 	| "No recording"
 	| "Recording in progress"
 	| "Waiting for handoff";
@@ -98,25 +120,142 @@ const spritePathForFrame = (frame: number) =>
 		Math.min(Math.max(frame, FIRST_SPRITE_FRAME), LAST_SPRITE_FRAME) - 1
 	] ?? SPRITE_PATHS[DEFAULT_SPRITE_FRAME - 1];
 
+const isRecentDiagnostic = (diagnostic: { at: string }) => {
+	const at = Date.parse(diagnostic.at);
+	return Number.isFinite(at) && Date.now() - at <= DIAGNOSTIC_MAX_AGE_MS;
+};
+
+const isMessageChannelClosedText = (message: string) =>
+	message.includes("message channel closed before a response was received") ||
+	message.includes("message port closed before a response was received");
+
+const isAsyncMessageChannelClosedError = (error: unknown) =>
+	isMessageChannelClosedText(messageOf(error));
+
+const isAsyncMessageChannelClosedDiagnostic = (diagnostic: {
+	message: string;
+	operation: string;
+}) =>
+	diagnostic.operation === "popup.recordingAction" &&
+	isMessageChannelClosedText(diagnostic.message);
+
+const isUserFacingDiagnostic = (diagnostic: {
+	level: "error" | "info" | "warn";
+	message: string;
+	operation: string;
+}) => {
+	if (isAsyncMessageChannelClosedDiagnostic(diagnostic)) {
+		return false;
+	}
+	if (
+		diagnostic.level === "warn" &&
+		diagnostic.message.includes("took longer than expected")
+	) {
+		return false;
+	}
+	return diagnostic.level === "error" || diagnostic.level === "warn";
+};
+
+const isBackgroundTimeoutText = (message: string) =>
+	message.includes("Harpist background timed out during");
+
+const readLocalFallbackState = async (): Promise<PopupState> => {
+	const [storage, tabs] = await Promise.all([
+		browser.storage.local.get([
+			ACTIVE_RECORDING_KEY,
+			DIAGNOSTICS_KEY,
+			PROFILES_KEY,
+			SETTINGS_KEY,
+		]),
+		browser.tabs.query({
+			active: true,
+			currentWindow: true,
+		}),
+	]);
+	const activeRecording =
+		(storage[ACTIVE_RECORDING_KEY] as ActiveRecording | undefined) ?? null;
+	const settings = {
+		...DEFAULT_SETTINGS,
+		...((storage[SETTINGS_KEY] as Partial<typeof DEFAULT_SETTINGS>) ?? {}),
+	};
+	return {
+		activeDocumentation: null,
+		activePage: activePageFromTab(tabs[0] ?? {}) ?? activeRecording,
+		activeRecording,
+		bridge: {
+			active: false,
+			message: "Background busy",
+			pendingRecordingCount: 0,
+			syncing: false,
+			url: normaliseServerUrl(settings.serverUrl),
+		},
+		capture: {
+			entryCount: 0,
+			recording: Boolean(activeRecording),
+			stopping: false,
+			tabId: activeRecording?.tabId ?? null,
+		},
+		diagnostics:
+			(storage[DIAGNOSTICS_KEY] as ExtensionDiagnostic[] | undefined) ?? [],
+		profiles: (storage[PROFILES_KEY] as ProfilesStore | undefined) ?? {},
+		settings,
+	};
+};
+
+const copyText = async (text: string) => {
+	const textArea = document.createElement("textarea");
+	textArea.value = text;
+	textArea.setAttribute("readonly", "true");
+	textArea.style.left = "-9999px";
+	textArea.style.position = "fixed";
+	textArea.style.top = "0";
+	document.body.append(textArea);
+	textArea.focus();
+	textArea.select();
+	const copied = document.execCommand("copy");
+	textArea.remove();
+	if (copied) {
+		return;
+	}
+	await navigator.clipboard.writeText(text);
+};
+
 function App() {
 	const [state, setState] = useState<PopupState | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [debugCopied, setDebugCopied] = useState(false);
 	const [handoffCopied, setHandoffCopied] = useState(false);
 	const [spriteState, setSpriteState] = useState({
 		direction: 1,
 		frame: DEFAULT_SPRITE_FRAME,
 	});
+	const stateRef = useRef<PopupState | null>(null);
 
 	const load = useCallback(async () => {
-		const response = await sendMessage<PopupState>({
-			type: "GET_STATE",
-		});
-		if (!(response.ok && response.data)) {
-			throw new Error(response.error ?? "Could not read Harpist state.");
+		try {
+			const response = await sendMessage<PopupState>({
+				type: "GET_STATE",
+			});
+			if (!(response.ok && response.data)) {
+				throw new Error(response.error ?? "Could not read Harpist state.");
+			}
+			stateRef.current = response.data;
+			setState(response.data);
+			setError(null);
+		} catch (loadError) {
+			if (stateRef.current && isBackgroundTimeoutText(messageOf(loadError))) {
+				return;
+			}
+			const fallbackState = await readLocalFallbackState();
+			stateRef.current = fallbackState;
+			setState(fallbackState);
+			if (isBackgroundTimeoutText(messageOf(loadError))) {
+				setError(null);
+				return;
+			}
+			throw loadError;
 		}
-		setState(response.data);
-		setError(null);
 	}, []);
 
 	useEffect(() => {
@@ -129,6 +268,9 @@ function App() {
 		}, 1500);
 		return () => window.clearInterval(timer);
 	}, [load]);
+	useEffect(() => {
+		stateRef.current = state;
+	}, [state]);
 
 	const documentation = state?.activeDocumentation ?? null;
 	const activeHost = state?.activePage?.host ?? null;
@@ -137,8 +279,10 @@ function App() {
 		? state?.profiles[documentation.host]
 		: undefined;
 	const profile = documentationProfile ?? activeProfile;
+	const isStopping = state?.capture.stopping ?? false;
 	const isRecording = state?.capture.recording ?? false;
 	const profileHost = profile?.host ?? null;
+	const needsRefinement = latestRecordingNeedsRefinement(profile);
 	useEffect(() => {
 		for (const path of SPRITE_PATHS) {
 			const image = new Image();
@@ -182,8 +326,26 @@ function App() {
 	useEffect(() => {
 		setHandoffCopied(false);
 	}, [profileHost]);
+
+	const copyDebugInfo = () => {
+		const debugInfo = {
+			build: DEBUG_BUILD_MARKER,
+			error,
+			generatedAt: new Date().toISOString(),
+			location: window.location.href,
+			manifest: browser.runtime.getManifest(),
+			runtimeId: browser.runtime.id,
+			state: stateRef.current,
+		};
+		void copyText(JSON.stringify(debugInfo, null, 2))
+			.then(() => setDebugCopied(true))
+			.catch((copyError: unknown) => {
+				setError(`Could not copy debug info: ${messageOf(copyError)}`);
+			});
+	};
 	const status = workflowStatus(
 		isRecording,
+		isStopping,
 		state?.bridge.active ?? false,
 		profile,
 		handoffCopied,
@@ -210,25 +372,35 @@ function App() {
 			: (profile?.lastBridgeMessage ??
 				state?.bridge.message ??
 				"Bridge not checked");
-	const supportingContentLocked = isRecording || !profile;
+	const supportingContentLocked = isRecording || isStopping || !profile;
 	const spriteUrl = browser.runtime.getURL(
 		spritePathForFrame(spriteState.frame),
 	);
 	const latestDiagnostic = state?.diagnostics.find(
-		(diagnostic) => diagnostic.level === "error" || diagnostic.level === "warn",
+		(diagnostic) =>
+			isRecentDiagnostic(diagnostic) && isUserFacingDiagnostic(diagnostic),
 	);
 
 	const runRecordingAction = async () => {
 		setBusy(true);
 		setError(null);
 		try {
+			if (isStopping) {
+				return;
+			}
 			if (isRecording) {
-				const response = await sendMessage<StopResult>({
+				const response = await sendMessage<PopupState>({
 					type: "STOP_RECORDING",
 				});
 				if (!response.ok) {
 					throw new Error(response.error ?? "Could not stop recording.");
 				}
+				if (response.data) {
+					setState(response.data);
+				} else {
+					await load();
+				}
+				setHandoffCopied(false);
 			} else {
 				const response = await sendMessage<PopupState>({
 					type: "START_RECORDING",
@@ -236,11 +408,23 @@ function App() {
 				if (!response.ok) {
 					throw new Error(response.error ?? "Could not start recording.");
 				}
+				if (response.data) {
+					setState(response.data);
+				} else {
+					await load();
+				}
 				setHandoffCopied(false);
 			}
-			await load();
 		} catch (actionError) {
-			setError(messageOf(actionError));
+			if (isRecording && isAsyncMessageChannelClosedError(actionError)) {
+				await load().catch(() => undefined);
+				return;
+			}
+			setError(
+				isRecording && messageOf(actionError).includes("STOP_RECORDING")
+					? "Still finishing recording. Harpist is saving a large capture."
+					: messageOf(actionError),
+			);
 			void writeErrorDiagnostic("popup.recordingAction", actionError, {
 				context: {
 					action: isRecording ? "stop" : "start",
@@ -305,21 +489,23 @@ function App() {
 			return;
 		}
 		try {
-			const syncResponse = await sendMessage<PopupState>({
-				type: "SYNC_BRIDGE",
-			});
-			const nextState =
-				syncResponse.ok && syncResponse.data ? syncResponse.data : state;
-			if (syncResponse.ok && syncResponse.data) {
-				setState(syncResponse.data);
-			}
 			await navigator.clipboard.writeText(
 				buildAgentHandoffText(
-					nextState.profiles[profile.host] ?? profile,
-					nextState.settings,
+					state.profiles[profile.host] ?? profile,
+					state.settings,
 				),
 			);
 			setHandoffCopied(true);
+			void sendMessage({
+				activeHost: profile.host,
+				type: "SCHEDULE_SYNC_BRIDGE",
+			}).catch((syncError: unknown) =>
+				writeErrorDiagnostic("popup.scheduleHandoffSync", syncError, {
+					context: {
+						host: profile.host,
+					},
+				}),
+			);
 		} catch (copyError) {
 			setError(messageOf(copyError));
 			void writeErrorDiagnostic("popup.copyHandoff", copyError, {
@@ -327,6 +513,34 @@ function App() {
 					host: profile.host,
 				},
 			});
+		}
+	};
+
+	const undoLatestRecording = async () => {
+		if (!profile) {
+			return;
+		}
+		setBusy(true);
+		setError(null);
+		try {
+			const response = await sendMessage<PopupState>({
+				host: profile.host,
+				type: "UNDO_LATEST_RECORDING",
+			});
+			if (!(response.ok && response.data)) {
+				throw new Error(response.error ?? "Could not undo recording.");
+			}
+			setState(response.data);
+			setHandoffCopied(false);
+		} catch (undoError) {
+			setError(messageOf(undoError));
+			void writeErrorDiagnostic("popup.undoLatestRecording", undoError, {
+				context: {
+					host: profile.host,
+				},
+			});
+		} finally {
+			setBusy(false);
 		}
 	};
 
@@ -357,17 +571,37 @@ function App() {
 					{error ? (
 						<div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-rose-900 text-sm">
 							<WarningCircleIcon className="mt-0.5 shrink-0" size={16} />
-							<span>{error}</span>
+							<div className="min-w-0 flex-1 space-y-2">
+								<span className="block min-w-0 break-words">{error}</span>
+								<button
+									className="inline-flex h-7 items-center gap-1.5 rounded-sm border border-rose-900/20 bg-white/70 px-2 font-bold text-rose-900 text-xs transition hover:bg-white"
+									onClick={() => void copyDebugInfo()}
+									type="button"
+								>
+									<CopyIcon size={13} />
+									{debugCopied ? "Debug copied" : "Copy debug"}
+								</button>
+							</div>
 						</div>
 					) : null}
 
 					{!error && latestDiagnostic ? (
 						<div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-100 px-3 py-2 text-amber-950 text-xs">
 							<WarningCircleIcon className="mt-0.5 shrink-0" size={15} />
-							<span className="min-w-0 break-words">
-								Last issue: {latestDiagnostic.operation}:{" "}
-								{latestDiagnostic.message}
-							</span>
+							<div className="min-w-0 flex-1 space-y-2">
+								<span className="block min-w-0 break-words">
+									Last issue: {latestDiagnostic.operation}:{" "}
+									{latestDiagnostic.message}
+								</span>
+								<button
+									className="inline-flex h-7 items-center gap-1.5 rounded-sm border border-amber-900/20 bg-amber-50 px-2 font-bold text-amber-900 transition hover:bg-white"
+									onClick={() => void copyDebugInfo()}
+									type="button"
+								>
+									<CopyIcon size={13} />
+									{debugCopied ? "Debug copied" : "Copy debug"}
+								</button>
+							</div>
 						</div>
 					) : null}
 
@@ -376,11 +610,44 @@ function App() {
 							busy={busy}
 							onGoToSite={() => void openSiteToRecordMore()}
 						/>
+					) : needsRefinement && profile ? (
+						<div className="relative min-h-[190px]">
+							<div
+								aria-hidden
+								className="pointer-events-none select-none space-y-4 blur-[2px] opacity-35"
+							>
+								<MetadataLine
+									authHint={capturedAuthDetail}
+									endpointCount={String(endpointCount)}
+									methods={authMethods}
+								/>
+								<div className="grid grid-cols-2 gap-2">
+									<ActionButton disabled icon="Docs" label="Docs" />
+									<ActionButton disabled icon="Handoff" label="Handoff" />
+								</div>
+								<div className="flex items-center justify-between gap-2 pt-1">
+									<p className="min-w-0 truncate text-xs text-amber-900/70">
+										{bridgeMessage}
+									</p>
+									<StatusBadge status={status} />
+								</div>
+							</div>
+							<NeedsRefinementPane
+								busy={busy}
+								canRecord={Boolean(state?.activePage)}
+								handoffCopied={handoffCopied}
+								onCopy={() => void copyHandoff()}
+								onRecordAgain={() => void runRecordingAction()}
+								onUndo={() => void undoLatestRecording()}
+							/>
+						</div>
 					) : (
 						<>
 							<button
 								className="relative isolate inline-flex h-12 w-full translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
-								disabled={busy || !(state?.activePage || isRecording)}
+								disabled={
+									busy || isStopping || !(state?.activePage || isRecording)
+								}
 								onClick={() => void runRecordingAction()}
 								type="button"
 							>
@@ -392,9 +659,11 @@ function App() {
 									)}
 									{busy
 										? "Working"
-										: isRecording
-											? "Finish recording"
-											: "Add recording"}
+										: isStopping
+											? "Finishing"
+											: isRecording
+												? "Finish recording"
+												: "Add recording"}
 								</span>
 							</button>
 
@@ -484,17 +753,108 @@ function DocumentationPane({
 	);
 }
 
+function NeedsRefinementPane({
+	busy,
+	canRecord,
+	handoffCopied,
+	onCopy,
+	onRecordAgain,
+	onUndo,
+}: {
+	busy: boolean;
+	canRecord: boolean;
+	handoffCopied: boolean;
+	onCopy: () => void;
+	onRecordAgain: () => void;
+	onUndo: () => void;
+}) {
+	return (
+		<section className="absolute inset-0 z-10 flex flex-col justify-center rounded-md border border-amber-900/25 bg-amber-50/95 p-3 text-amber-950 shadow-sm">
+			<div className="flex items-center justify-center gap-2 font-bold text-sm">
+				<PencilSimpleLineIcon size={16} weight="fill" />
+				<span>Needs refinement</span>
+			</div>
+			<div className="mt-3 grid grid-cols-2 gap-2">
+				<button
+					className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
+					disabled={busy}
+					onClick={onCopy}
+					type="button"
+				>
+					<span className="relative z-10 inline-flex items-center gap-2">
+						{handoffCopied ? (
+							<CheckCircleIcon size={16} weight="fill" />
+						) : (
+							<CopyIcon size={16} />
+						)}
+						{handoffCopied ? "Copied" : "Handoff"}
+					</span>
+				</button>
+				<button
+					className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
+					disabled={busy || !canRecord}
+					onClick={onRecordAgain}
+					type="button"
+				>
+					<span className="relative z-10 inline-flex items-center gap-2">
+						<VoicemailIcon size={16} weight="fill" />
+						Record again
+					</span>
+				</button>
+			</div>
+			<button
+				className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-sm border border-amber-900/20 bg-amber-900/5 px-3 font-bold text-amber-900 text-xs transition hover:bg-amber-900/10 disabled:cursor-not-allowed disabled:opacity-45"
+				disabled={busy}
+				onClick={onUndo}
+				type="button"
+			>
+				<ArrowCounterClockwiseIcon size={14} />
+				Undo recording
+			</button>
+		</section>
+	);
+}
+
+function ActionButton({
+	disabled,
+	icon,
+	label,
+}: {
+	disabled?: boolean;
+	icon: "Docs" | "Handoff";
+	label: string;
+}) {
+	const Icon = icon === "Docs" ? BookOpenTextIcon : CopyIcon;
+	return (
+		<button
+			className="relative isolate inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] disabled:cursor-not-allowed disabled:opacity-45"
+			disabled={disabled}
+			type="button"
+		>
+			<Icon size={16} />
+			{label}
+		</button>
+	);
+}
+
 const workflowStatus = (
 	isRecording: boolean,
+	isStopping: boolean,
 	bridgeActive: boolean,
 	profile?: SiteProfile,
 	handoffCopied?: boolean,
 ): WorkflowStatus => {
+	if (isStopping) {
+		return "Finishing recording";
+	}
 	if (isRecording) {
 		return "Recording in progress";
 	}
 	if (!profile) {
 		return "No recording";
+	}
+	if (latestRecordingNeedsRefinement(profile)) {
+		return "Needs refinement";
 	}
 	if (handoffCopied) {
 		return "Complete";
@@ -514,6 +874,14 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
 		Complete: {
 			className: "bg-emerald-900/10 text-emerald-700",
 			Icon: CheckCircleIcon,
+		},
+		"Finishing recording": {
+			className: "bg-rose-900/10 text-rose-700",
+			Icon: StopCircleIcon,
+		},
+		"Needs refinement": {
+			className: "bg-amber-900/10 text-amber-900",
+			Icon: PencilSimpleLineIcon,
 		},
 		"No recording": {
 			className: "bg-amber-900/10 text-amber-900",

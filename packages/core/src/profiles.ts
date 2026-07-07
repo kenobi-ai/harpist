@@ -318,6 +318,7 @@ export type PopupState = {
 	capture: {
 		entryCount: number;
 		recording: boolean;
+		stopping?: boolean;
 		tabId: number | null;
 	};
 	diagnostics: ExtensionDiagnostic[];
@@ -362,6 +363,33 @@ export const normaliseServerUrl = (url: string) => url.replace(/\/+$/, "");
 
 export const messageOf = (error: unknown) =>
 	error instanceof Error ? error.message : String(error);
+
+export const latestRecordingForProfile = (
+	profile?: Pick<SiteProfile, "lastRecordingId" | "recordings"> | null,
+) => {
+	if (!profile) {
+		return undefined;
+	}
+	return (
+		profile.recordings.find(
+			(recording) => recording.id === profile.lastRecordingId,
+		) ?? profile.recordings[0]
+	);
+};
+
+export const recordingNeedsRefinement = (
+	recording?: Pick<RecordingSummary, "processedAt" | "processingStatus">,
+) =>
+	Boolean(
+		recording &&
+			(recording.processingStatus === "new" ||
+				recording.processingStatus === "processing" ||
+				(!recording.processingStatus && !recording.processedAt)),
+	);
+
+export const latestRecordingNeedsRefinement = (
+	profile?: Pick<SiteProfile, "lastRecordingId" | "recordings"> | null,
+) => recordingNeedsRefinement(latestRecordingForProfile(profile));
 
 export const activePageFromTab = (tab: {
 	title?: string;
@@ -1121,7 +1149,14 @@ const responseBodyFromEntry = (
 			};
 };
 
-const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
+type EndpointSummaryOptions = {
+	inferBodies?: boolean;
+};
+
+const endpointFromEntry = (
+	entry: PendingEntry,
+	options: EndpointSummaryOptions = {},
+): EndpointSummary | null => {
 	try {
 		const url = new URL(entry.url);
 		if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -1130,7 +1165,8 @@ const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
 		const method = entry.method.toUpperCase();
 		const path = url.pathname || "/";
 		const template = templatePath(path);
-		const responseBody = responseBodyFromEntry(entry);
+		const inferBodies = options.inferBodies !== false;
+		const responseBody = inferBodies ? responseBodyFromEntry(entry) : undefined;
 		return {
 			exactKey: `${method} ${url.host}${path}`,
 			host: url.host,
@@ -1138,7 +1174,7 @@ const endpointFromEntry = (entry: PendingEntry): EndpointSummary | null => {
 			method,
 			path,
 			queryParams: queryParamsFromUrl(url),
-			requestBody: requestBodyFromEntry(entry),
+			requestBody: inferBodies ? requestBodyFromEntry(entry) : undefined,
 			responseBodies: responseBody ? [responseBody] : undefined,
 			samples: 1,
 			statuses: entry.status === undefined ? [] : [entry.status],
@@ -1670,22 +1706,30 @@ const shouldKeepExistingAuth = (
 	);
 };
 
-export const summariseEndpoints = (entries: PendingEntry[]) =>
+export const summariseEndpoints = (
+	entries: PendingEntry[],
+	options: EndpointSummaryOptions = {},
+) =>
 	mergeEndpoints(
 		entries
-			.map(endpointFromEntry)
+			.map((entry) => endpointFromEntry(entry, options))
 			.filter((endpoint): endpoint is EndpointSummary => endpoint !== null),
 	);
+
+type RecordingSummaryOptions = {
+	endedAt?: string;
+	inferBodies?: boolean;
+	startedAt?: string;
+};
 
 export const summariseRecording = (
 	entries: PendingEntry[],
 	meta: ActiveRecording | ActivePage,
-	options: {
-		endedAt?: string;
-		startedAt?: string;
-	} = {},
+	options: RecordingSummaryOptions = {},
 ) => {
-	const endpoints = summariseEndpoints(entries);
+	const endpoints = summariseEndpoints(entries, {
+		inferBodies: options.inferBodies,
+	});
 	const scannedKeys = new Set(endpoints.map((endpoint) => endpoint.exactKey));
 	const templateKeys = new Set(
 		endpoints.map((endpoint) => endpoint.templateKey),
@@ -1826,6 +1870,7 @@ export const buildAgentHandoffText = (
 		profile.lastRecordingId
 			? `Recording: ${profile.lastRecordingId} (${profile.derivedEndpointCount} endpoints).`
 			: `Latest recording: ${profile.derivedEndpointCount} endpoints.`,
+		latestRecordingNeedsRefinement(profile) ? "Status: Needs refinement." : "",
 		`Auth: ${authMethodsText(profile)}.`,
 		accessDetail && accessLabel !== accessDetail
 			? `Access detail: ${accessDetail}.`
