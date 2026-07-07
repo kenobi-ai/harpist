@@ -24,6 +24,14 @@ const technicalTags = new Set([
 	"write",
 	"writes",
 ]);
+const preferredScopeParameterNames = new Set([
+	"accountId",
+	"organizationId",
+	"orgId",
+	"projectId",
+	"tenantId",
+	"workspaceId",
+]);
 const genericHostLabels = new Set([
 	"app",
 	"co",
@@ -104,6 +112,8 @@ const semanticPathParameterName = (
 	segments: string[],
 	index: number,
 	rawName: string,
+	pathSegments?: string[],
+	parameterNameHints?: ReadonlyMap<string, string>,
 ) => {
 	if (!genericPathParameterPattern.test(rawName)) {
 		return rawName;
@@ -115,6 +125,10 @@ const semanticPathParameterName = (
 		previous.startsWith("{") ||
 		versionSegmentPattern.test(previous)
 	) {
+		const hintedName = parameterNameHints?.get(pathSegments?.[index] ?? "");
+		if (hintedName) {
+			return hintedName;
+		}
 		return fallback;
 	}
 	const words = pathSegmentWords(previous);
@@ -123,14 +137,23 @@ const semanticPathParameterName = (
 	}
 	const last = words.at(-1);
 	const noun = last ? singularizePathWord(last) : undefined;
-	const base = camelIdentifier([...words.slice(0, -1), noun].filter(Boolean));
+	const baseWords = noun ? [...words.slice(0, -1), noun] : words;
+	const base = camelIdentifier(baseWords);
 	return base ? `${base}Id` : fallback;
 };
 
-const uniquePathParameterTemplate = (template: string) => {
+const routeSegments = (path: string) =>
+	(path.startsWith("/") ? path : `/${path}`).split("/");
+
+const uniquePathParameterTemplate = (
+	template: string,
+	path?: string,
+	parameterNameHints?: ReadonlyMap<string, string>,
+) => {
 	const used = new Set<string>();
 	const counts = new Map<string, number>();
-	const segments = template.split("/");
+	const segments = routeSegments(template);
+	const pathSegments = path ? routeSegments(path) : undefined;
 	return segments
 		.map((segment, index) => {
 			const match = /^\{([^}]+)\}$/.exec(segment);
@@ -138,7 +161,13 @@ const uniquePathParameterTemplate = (template: string) => {
 				return segment;
 			}
 			const rawName = match[1] ?? "id";
-			const inferredName = semanticPathParameterName(segments, index, rawName);
+			const inferredName = semanticPathParameterName(
+				segments,
+				index,
+				rawName,
+				pathSegments,
+				parameterNameHints,
+			);
 			const count = (counts.get(inferredName) ?? 0) + 1;
 			counts.set(inferredName, count);
 			let name = count === 1 ? inferredName : `${inferredName}${count}`;
@@ -151,11 +180,66 @@ const uniquePathParameterTemplate = (template: string) => {
 		.join("/");
 };
 
-export const routePathForEndpoint = (endpoint: EndpointSummary) =>
+const pathParameterNameHintsForProfile = (profile: SiteProfile) => {
+	const namesByValue = new Map<string, Set<string>>();
+	for (const endpoint of profile.endpoints) {
+		const templateSegments = routeSegments(endpoint.template);
+		const pathSegments = routeSegments(endpoint.path);
+		for (const [index, segment] of templateSegments.entries()) {
+			const match = /^\{([^}]+)\}$/.exec(segment);
+			if (!match) {
+				continue;
+			}
+			const value = pathSegments[index];
+			if (!value) {
+				continue;
+			}
+			const rawName = match[1] ?? "id";
+			const inferredName = semanticPathParameterName(
+				templateSegments,
+				index,
+				rawName,
+				pathSegments,
+			);
+			if (inferredName === (rawName.replace(/\d+$/, "") || "id")) {
+				continue;
+			}
+			const names = namesByValue.get(value) ?? new Set<string>();
+			names.add(inferredName);
+			namesByValue.set(value, names);
+		}
+	}
+	return new Map(
+		[...namesByValue.entries()]
+			.map(([value, names]) => {
+				const preferred = [...names].find((name) =>
+					preferredScopeParameterNames.has(name),
+				);
+				if (preferred) {
+					return [value, preferred] as const;
+				}
+				return names.size === 1
+					? ([value, [...names][0] ?? "id"] as const)
+					: undefined;
+			})
+			.filter((entry): entry is readonly [string, string] => Boolean(entry)),
+	);
+};
+
+type RoutePathOptions = {
+	parameterNameHints?: ReadonlyMap<string, string>;
+};
+
+export const routePathForEndpoint = (
+	endpoint: EndpointSummary,
+	options: RoutePathOptions = {},
+) =>
 	uniquePathParameterTemplate(
 		endpoint.template.startsWith("/")
 			? endpoint.template
 			: `/${endpoint.template}`,
+		endpoint.path,
+		options.parameterNameHints,
 	);
 
 export const pathParameterNames = (template: string) =>
@@ -268,8 +352,9 @@ const descriptionForEndpoint = (
 
 const inputSchemaForEndpoint = (
 	endpoint: EndpointSummary,
+	options: RoutePathOptions = {},
 ): ContractJsonSchema => {
-	const path = routePathForEndpoint(endpoint);
+	const path = routePathForEndpoint(endpoint, options);
 	const params = Object.fromEntries(
 		pathParameterNames(path).map((name) => [name, stringSchema]),
 	);
@@ -351,6 +436,7 @@ export const createRecordedSiteContractProfile = (
 ) => {
 	const used = new Set<string>();
 	const generatedAt = options.updatedAt ?? new Date().toISOString();
+	const parameterNameHints = pathParameterNameHintsForProfile(profile);
 	return resolveContractProfile({
 		$schema: CONTRACT_PROFILE_SCHEMA_ID,
 		auth: jsonObject({
@@ -370,7 +456,7 @@ export const createRecordedSiteContractProfile = (
 			.filter((endpoint) => endpoint.included !== false)
 			.map((endpoint) => {
 				const operationId = operationNameForEndpoint(endpoint, used);
-				const path = routePathForEndpoint(endpoint);
+				const path = routePathForEndpoint(endpoint, { parameterNameHints });
 				const responses = responseProfiles(endpoint);
 				return {
 					description: descriptionForEndpoint(profile, endpoint, operationId),
@@ -390,7 +476,9 @@ export const createRecordedSiteContractProfile = (
 							sourceTags: endpoint.tags ?? [],
 						}),
 					},
-					inputSchema: inputSchemaForEndpoint(endpoint),
+					inputSchema: inputSchemaForEndpoint(endpoint, {
+						parameterNameHints,
+					}),
 					method: endpoint.method.toUpperCase(),
 					operationId,
 					outputSchema: outputSchemaForEndpoint(endpoint),
