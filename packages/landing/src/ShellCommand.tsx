@@ -7,26 +7,32 @@ const shellCommandTone: Record<
 	ShellCommandTone,
 	{
 		args: string;
-		button: string;
 		command: string;
 		container: string;
+		icon: string;
+		message: string;
+		overlay: string;
 		prompt: string;
 	}
 > = {
 	dark: {
 		args: "text-stone-50/80",
-		button:
-			"border-stone-50/20 text-amber-300 hover:border-amber-300 hover:bg-stone-900",
 		command: "text-amber-300",
-		container: "border-stone-50/20 bg-stone-950 text-stone-50",
+		container:
+			"border-stone-50/20 bg-stone-950/80 text-stone-50 backdrop-blur-md hover:border-amber-300/70 hover:bg-stone-900/80",
+		icon: "border-stone-50/20 text-amber-300 group-hover:border-amber-300/70",
+		message: "text-amber-300/80",
+		overlay: "bg-stone-950/55",
 		prompt: "text-stone-50/35",
 	},
 	light: {
 		args: "text-stone-800",
-		button:
-			"border-red-900/25 text-red-800 hover:border-red-900/50 hover:bg-red-100",
 		command: "text-red-800",
-		container: "border-red-900 bg-red-50 text-stone-900",
+		container:
+			"border-red-900 bg-red-50/75 text-stone-900 backdrop-blur-md hover:border-red-900 hover:bg-red-100/75",
+		icon: "border-red-900/25 text-red-800 group-hover:border-red-900/50",
+		message: "text-red-800/75",
+		overlay: "bg-red-50/65",
 		prompt: "text-red-900/40",
 	},
 };
@@ -92,31 +98,45 @@ export function ShellCommand({
 	};
 
 	return (
-		<div
-			className={`flex w-full items-stretch border ${theme.container} ${className}`}
+		<button
+			aria-label={copied ? "Copied command" : `Copy command: ${command}`}
+			className={`group relative flex w-full cursor-pointer items-stretch overflow-hidden border text-left transition ${theme.container} ${className}`}
+			onClick={handleCopy}
+			title={copied ? "Copied" : "Copy command"}
+			type="button"
 		>
-			<pre className="min-w-0 flex-1 overflow-x-auto px-3 py-2 font-mono text-xs leading-5 sm:text-sm">
-				<code className="whitespace-pre">
-					<span className={`select-none ${theme.prompt}`}>$ </span>
-					<span className={theme.command}>{binary}</span>
-					{args.length > 0 ? (
-						<span className={theme.args}> {args.join(" ")}</span>
-					) : null}
-				</code>
-			</pre>
-			<button
-				aria-label={copied ? "Copied command" : `Copy command: ${command}`}
-				className={`flex w-10 shrink-0 items-center justify-center border-l transition ${theme.button}`}
-				onClick={handleCopy}
-				title={copied ? "Copied" : "Copy command"}
-				type="button"
+			<code className="min-w-0 flex-1 overflow-x-auto whitespace-pre px-3 py-2 font-mono text-xs leading-5 sm:text-sm">
+				<span className={`select-none transition ${theme.prompt}`}>$ </span>
+				<span className={`transition ${theme.command}`}>{binary}</span>
+				{args.length > 0 ? (
+					<span className={`transition ${theme.args}`}> {args.join(" ")}</span>
+				) : null}
+			</code>
+			<span
+				aria-hidden
+				className={`absolute inset-y-0 right-10 left-0 flex items-center justify-center backdrop-blur-sm transition ${
+					copied ? "opacity-100" : "opacity-0"
+				} ${theme.overlay}`}
+			>
+				<span
+					className={`font-bold text-[10px] uppercase leading-none tracking-wider ${theme.message}`}
+				>
+					copied
+				</span>
+			</span>
+			<span
+				aria-hidden
+				className={`relative z-10 flex w-10 shrink-0 items-center justify-center border-l transition ${theme.icon}`}
 			>
 				{copied ? (
 					<CheckIcon size={16} weight="bold" />
 				) : (
-					<CopyIcon size={16} />
+					<CopyIcon
+						className="transition-transform group-hover:scale-110"
+						size={16}
+					/>
 				)}
-			</button>
-		</div>
+			</span>
+		</button>
 	);
 }

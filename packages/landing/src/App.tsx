@@ -4,6 +4,7 @@ import {
 	NumberCircleTwoIcon,
 } from "@phosphor-icons/react";
 import harpistIllustration from "./assets/logo-illustration.webp";
+import SideRays from "./components/backgrounds/side-rays";
 import { ExternalLink } from "./ExternalLink";
 import { LandingFooter } from "./LandingFooter";
 import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
@@ -105,8 +106,23 @@ function LandingPage() {
 				</div>
 			</header>
 
-			<section className={`border-b ${hairline}`}>
-				<div className="mx-auto max-w-6xl px-5">
+			<section className={`border-b ${hairline} relative overflow-hidden`}>
+				<div className="w-full absolute z-0">
+					<SideRays
+						speed={2.5}
+						rayColor1="#EAB308"
+						rayColor2="#96c8ff"
+						intensity={2}
+						spread={2}
+						origin="top-right"
+						tilt={0}
+						saturation={1.5}
+						blend={0.75}
+						falloff={1.6}
+						opacity={1}
+					/>
+				</div>
+				<div className="mx-auto max-w-6xl px-5 relative z-10">
 					<div className="flex items-center justify-between pt-4 text-xs">
 						<p>
 							<span className="font-bold"></span>
