@@ -4,14 +4,14 @@ import {
 	NumberCircleTwoIcon,
 } from "@phosphor-icons/react";
 import harpistIllustration from "./assets/logo-illustration.webp";
+import monkIllustration from "./assets/monk-illustration.webp";
 import parchmentBg from "./assets/parchment-bg.webp";
-import SideRays from "./components/backgrounds/side-rays";
 import {
 	GlyphStrip,
 	MedievalDefs,
 	Ornament,
-	ParchmentScrap,
 	ScrollBand,
+	ScrollPanel,
 	WavyFrame,
 } from "./components/medieval";
 import { ExternalLink } from "./ExternalLink";
@@ -148,7 +148,7 @@ function LandingPage() {
 				<div className="relative z-10 mx-auto max-w-6xl px-5">
 					<div className="flex items-center justify-between pt-6 text-xs">
 						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block"></p>
-						<div className="-rotate-2 mr-4 bg-amber-400 border border-amber-950 parchment-scrap shadow-xs">
+						<div className="bg-amber-400/50 border border-amber-950/50 shadow-xs">
 							<span className="block px-3 py-1 font-display text-lg leading-none">
 								✠ July beta ✠
 							</span>
@@ -159,14 +159,16 @@ function LandingPage() {
 							<p className="relative font-display text-3xl leading-none">
 								<span className="text-red-700">i.</span> exordium
 							</p>
-							<div className="relative">
-								<div className="absolute -left-4 -right-4 size-full parchment-scrap-broad border-2 border-black bg-emerald-950" />
+							<ScrollPanel
+								insetClassName="-inset-x-4 -inset-y-7 sm:-inset-x-8 sm:-inset-y-9"
+								panelClassName="bg-emerald-950"
+							>
 								<div className="px-3 py-2">
-									<h1 className="w-full font-bold font-heading text-6xl leading-tight tracking-tight relative text-white">
+									<h1 className="w-full font-bold font-heading text-6xl text-white leading-tight tracking-tight">
 										Automate any website interaction
 									</h1>
 								</div>
-							</div>
+							</ScrollPanel>
 							<div className="flex flex-col justify-start gap-6 mt-8">
 								<p className="text-xl font-sans">
 									Stop running workflows manually by using these two ingredients
@@ -246,45 +248,66 @@ function LandingPage() {
 				<div className="mx-auto max-w-6xl px-5 pt-2">
 					<Ornament className="text-ink/70" set="planetary" />
 				</div>
-				<div className="mx-auto max-w-6xl px-5 py-16 pt-0 sm:py-24">
-					<p className="relative font-display text-3xl leading-none">
-						<span className="text-red-700">ii.</span> veni, vidi, vici
-					</p>
-					<h1 className="max-w-4xl font-bold font-heading text-2xl leading-snug tracking-tight sm:text-4xl">
-						The three steps to{" "}
-						<span className="text-rubric">automatory enlightenment...</span>
-					</h1>
-					<p className="drop-cap mt-8 max-w-xl leading-6">
-						You any website just like an API. record sessions with the chrome
-						extension, replay them with the CLI — easy for agents and humans to
-						use. now mount your goat and ship.
-					</p>
-					<div className="mt-10 flex flex-wrap gap-3">
-						<a
-							className="group relative inline-flex items-center"
-							href="#install"
-						>
-							<span
-								aria-hidden
-								className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood bg-ink transition group-hover:bg-ink/85"
-							/>
-							<span className="relative z-10 inline-flex items-center gap-2 px-5 py-2.5 text-olive-50 text-xs">
-								<span aria-hidden>☞</span> install cli
-							</span>
-						</a>
-						<a className="group relative inline-flex items-center" href="#how">
-							<span
-								aria-hidden
-								className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood/60 transition group-hover:border-oxblood"
-							/>
-							<span className="relative z-10 px-5 py-2.5 text-xs">
-								how it works
-							</span>
-						</a>
+				<div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-5 py-16 pt-0 sm:py-24 lg:grid-cols-3 lg:items-center lg:gap-16">
+					<img
+						alt="Illuminated-manuscript illustration of a monk writing at a desk"
+						className="w-full max-w-[300px] -scale-x-100 justify-self-center mix-blend-multiply sm:max-w-[340px] lg:justify-self-start"
+						height="1024"
+						src={monkIllustration}
+						width="1024"
+					/>
+					<div className="text-right lg:col-span-2">
+						<p className="relative font-display text-3xl leading-none">
+							<span className="text-red-700">ii.</span> veni, vidi, vici
+						</p>
+						<h1 className="ml-auto max-w-4xl font-bold font-heading text-2xl leading-snug tracking-tight sm:text-4xl">
+							The three steps to{" "}
+							<span className="text-rubric">automatory enlightenment...</span>
+						</h1>
+						<p className="drop-cap mt-8 ml-auto max-w-xl text-right leading-6">
+							You any website just like an API. record sessions with the chrome
+							extension, replay them with the CLI — easy for agents and humans
+							to use. now mount your goat and ship.
+						</p>
+						<div className="mt-10 flex flex-wrap justify-end gap-3">
+							<a
+								className="group relative inline-flex items-center"
+								href="#install"
+							>
+								<span
+									aria-hidden
+									className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood bg-ink transition group-hover:bg-ink/85"
+								/>
+								<span className="relative z-10 inline-flex items-center gap-2 px-5 py-2.5 text-olive-50 text-xs">
+									<span aria-hidden>☞</span> install cli
+								</span>
+							</a>
+							<a
+								className="group relative inline-flex items-center"
+								href="#how"
+							>
+								<span
+									aria-hidden
+									className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood/60 transition group-hover:border-oxblood"
+								/>
+								<span className="relative z-10 px-5 py-2.5 text-xs">
+									how it works
+								</span>
+							</a>
+						</div>
+						<p className="mt-6 font-marginalia italic text-ink/60 text-sm">
+							☞ nota bene: thy recordings never leave thy machine.
+						</p>
 					</div>
-					<p className="mt-6 font-marginalia italic text-ink/60 text-sm">
-						☞ nota bene: thy recordings never leave thy machine.
-					</p>
+					<div className="relative size-[500px]">
+						<div className="absolute size-full inset-0 parchment-scrap-broad rounded-xl bg-stone-900 border-2 border-red-900" />
+						<div className="relative size-full p-8">
+							<img
+								src="https://assets.harpist.kenobi.ai/step_1_test.webp"
+								className="rounded-lg object-contain aspect-square size-full"
+							/>
+						</div>
+					</div>
 				</div>
 			</section>
 

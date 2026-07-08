@@ -241,6 +241,36 @@ export function WavyFrame({
 	);
 }
 
+/**
+ * A stretched-scroll backing panel — wavy band with rolled corner curls,
+ * shaped by the --scroll-panel-mask in styles.css. Style the vellum via
+ * panelClassName (bg-* fill); content sits on top, unwarped. The panel
+ * bleeds past the content so the curls clear it — tune with insetClassName.
+ */
+export function ScrollPanel({
+	children,
+	className = "",
+	insetClassName = "-inset-x-6 -inset-y-7",
+	panelClassName = "bg-olive-200",
+}: {
+	children: ReactNode;
+	className?: string;
+	insetClassName?: string;
+	panelClassName?: string;
+}) {
+	return (
+		<div className={`relative ${className}`}>
+			<div
+				aria-hidden
+				className={`absolute drop-shadow-[2px_4px_4px_rgba(43,33,23,0.3)] ${insetClassName}`}
+			>
+				<div className={`scroll-panel size-full ${panelClassName}`} />
+			</div>
+			<div className="relative z-10">{children}</div>
+		</div>
+	);
+}
+
 /** Full-width rubricated divider band with a running-scroll wave motif. */
 export function ScrollBand({ className = "" }: { className?: string }) {
 	return (
@@ -259,7 +289,7 @@ export function ScrollBand({ className = "" }: { className?: string }) {
 						stroke="var(--color-verdigris-dark)"
 						strokeLinecap="round"
 						strokeLinejoin="round"
-						strokeWidth="4"
+						strokeWidth="2"
 					/>
 					<path
 						d={scrollCurlPath}
