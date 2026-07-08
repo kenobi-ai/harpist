@@ -141,6 +141,35 @@ export function MedievalDefs() {
 					stdDeviation="1.5"
 				/>
 			</filter>
+			<filter
+				id="parchment-tear-broad"
+				x="-14%"
+				y="-18%"
+				width="128%"
+				height="136%"
+			>
+				<feTurbulence
+					baseFrequency="0.012 0.026"
+					numOctaves="3"
+					result="noise"
+					seed="13"
+					type="fractalNoise"
+				/>
+				<feDisplacementMap
+					in="SourceGraphic"
+					in2="noise"
+					scale="22"
+					xChannelSelector="R"
+					yChannelSelector="G"
+				/>
+				<feDropShadow
+					dx="2"
+					dy="4"
+					floodColor="#2b2117"
+					floodOpacity="0.26"
+					stdDeviation="4"
+				/>
+			</filter>
 		</svg>
 	);
 }
@@ -257,12 +286,12 @@ export function ParchmentScrap({
 	soft?: boolean;
 }) {
 	return (
-		<div className={`relative ${className}`}>
+		<div className={`relative`}>
 			<div
 				aria-hidden
 				className={`parchment-scrap absolute -inset-x-3 -inset-y-2 ${
 					soft ? "parchment-scrap-soft" : ""
-				}`}
+				} ${className}`}
 			/>
 			<div className="relative z-10">{children}</div>
 		</div>

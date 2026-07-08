@@ -2,6 +2,7 @@ import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 type ShellCommandTone = "dark" | "light";
+type ShellCommandFontSize = "sm" | "md" | "lg";
 
 const shellCommandTone: Record<
 	ShellCommandTone,
@@ -40,6 +41,12 @@ const shellCommandTone: Record<
 	},
 };
 
+const shellCommandFontSize: Record<ShellCommandFontSize, string> = {
+	lg: "text-base leading-7 sm:text-lg",
+	md: "text-sm leading-6 sm:text-base",
+	sm: "text-xs leading-5 sm:text-sm",
+};
+
 const copyText = async (text: string): Promise<boolean> => {
 	if (navigator.clipboard) {
 		const copied = await navigator.clipboard.writeText(text).then(
@@ -68,16 +75,19 @@ const copyText = async (text: string): Promise<boolean> => {
 export function ShellCommand({
 	className = "",
 	command,
+	fontSize = "md",
 	tone = "light",
 }: {
 	className?: string;
 	command: string;
+	fontSize?: ShellCommandFontSize;
 	tone?: ShellCommandTone;
 }) {
 	const [copied, setCopied] = useState(false);
 	const timeoutRef = useRef<number | null>(null);
 	const [binary, ...args] = command.split(" ");
 	const theme = shellCommandTone[tone];
+	const textSize = shellCommandFontSize[fontSize];
 
 	useEffect(
 		() => () => {
@@ -112,7 +122,9 @@ export function ShellCommand({
 				aria-hidden
 				className={`wavy-frame-soft absolute inset-0 border transition ${theme.frame}`}
 			/>
-			<code className="relative z-10 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3 py-2 font-mono text-xs leading-5 sm:text-sm">
+			<code
+				className={`relative z-10 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3 py-2 font-mono ${textSize}`}
+			>
 				<span className={`select-none transition ${theme.prompt}`}>$ </span>
 				<span className={`transition ${theme.command}`}>{binary}</span>
 				{args.length > 0 ? (
