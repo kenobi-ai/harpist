@@ -50,7 +50,7 @@ const checklist = [
 	"har in, codex out",
 ];
 
-const checklistGlyphs = ["✢", "☞", "❧", "✠"];
+const checklistGlyphs = ["✥", "☞", "☙", "✣"];
 
 const specifications = [
 	["capture", "chrome extension"],
@@ -120,8 +120,8 @@ function LandingPage() {
 			</header>
 
 			<section className="relative overflow-hidden">
-				<div className="absolute inset-0 z-0">
-					<SideRays
+				<div className="absolute inset-0 z-0 bg-linear-to-b from-stone-950 to-stone-800">
+					{/*<SideRays
 						speed={1.8}
 						rayColor1="#9E0812"
 						rayColor2="#ffaaaa"
@@ -133,27 +133,26 @@ function LandingPage() {
 						blend={0.75}
 						falloff={1.6}
 						opacity={1}
-					/>
+					/>*/}
 				</div>
 				<div className="relative z-10 mx-auto max-w-6xl px-5">
 					<div className="flex items-center justify-between pt-6 text-xs">
-						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block">
-							incipit liber harpistae
-						</p>
-						<ParchmentScrap className="-rotate-2" soft>
+						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block"></p>
+						<ParchmentScrap className="-rotate-2 mr-4" soft>
 							<span className="block px-3 py-1 font-display text-lg leading-none">
-								✠ july beta ✠
+								✠ July beta ✠
 							</span>
 						</ParchmentScrap>
 					</div>
-					<div className="mt-8 mb-14 grid grid-cols-1 gap-10 sm:grid-cols-5 sm:gap-28 perspective-normal">
-						<div className="flex flex-col justify-center gap-8 sm:col-span-2">
-							<h1 className="w-full font-bold font-display text-3xl leading-snug tracking-tight">
-								<span>Give your agent the API to</span>
+					<div className="mt-8 mb-14 grid grid-cols-1 gap-10 sm:grid-cols-4 sm:gap-28 perspective-normal">
+						<div className="flex flex-col justify-center gap-6 sm:col-span-2 text-amber-50">
+							<p className="relative font-display text-5xl leading-none">
+								<span className="text-red-400">H</span>arpist
+							</p>
+							<h1 className="w-full font-bold font-heading text-6xl leading-tight tracking-tight">
+								<span className="text-amber-50">Automate</span>
 								<span> </span>
-								<span className="text-rubric">
-									automate anything you do on any website.
-								</span>
+								<span className="text-red-400">any website interaction</span>
 							</h1>
 							<div className="flex flex-col justify-start gap-6">
 								<p>
@@ -162,9 +161,9 @@ function LandingPage() {
 								</p>
 								<div className="flex w-full flex-col items-start gap-4">
 									<div className="flex flex-col items-start gap-2">
-										<h3 className="inline-flex items-center gap-2 font-heading">
+										<h3 className="inline-flex items-center gap-2 font-heading text-xl">
 											<NumberCircleOneIcon
-												className="size-6 text-rubric"
+												className="size-6 text-red-400"
 												weight="duotone"
 											/>{" "}
 											Browser extension
@@ -177,10 +176,10 @@ function LandingPage() {
 												aria-hidden
 												className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood bg-red-800 transition group-hover:bg-red-700"
 											/>
-											<span className="relative z-10 inline-flex items-center gap-2 px-4 py-2 font-bold text-red-50 text-xs uppercase leading-5 sm:text-sm">
+											<span className="relative z-10 inline-flex items-center gap-2 pr-5 py-3 pl-4 font-medium text-red-50 text-lg leading-5 font-heading">
 												<GoogleChromeLogoIcon
 													aria-hidden
-													className="shrink-0"
+													className="shrink-0 text-red-200"
 													size={18}
 													weight="duotone"
 												/>
@@ -189,9 +188,9 @@ function LandingPage() {
 										</ExternalLink>
 									</div>
 									<div className="flex flex-col items-start gap-2">
-										<h3 className="inline-flex items-center gap-2 font-heading">
+										<h3 className="inline-flex items-center gap-2 font-heading text-xl">
 											<NumberCircleTwoIcon
-												className="size-6 text-rubric"
+												className="size-6 text-red-400"
 												weight="duotone"
 											/>{" "}
 											Agent skill
@@ -204,23 +203,10 @@ function LandingPage() {
 								</div>
 							</div>
 						</div>
-						<div className="relative flex transform-3d flex-col items-center pt-4 pb-2 sm:col-span-3">
-							<div aria-hidden className="parchment-scrap absolute inset-0" />
-							<span
+						<div className="relative flex transform-3d flex-col items-center pt-4 pb-2 sm:col-span-2 justify-center">
+							<div
 								aria-hidden
-								className="absolute top-0 left-0 z-20 size-5 border-rubric border-t border-l"
-							/>
-							<span
-								aria-hidden
-								className="absolute top-0 right-0 z-20 size-5 border-rubric border-t border-r"
-							/>
-							<span
-								aria-hidden
-								className="absolute bottom-0 left-0 z-20 size-5 border-rubric border-b border-l"
-							/>
-							<span
-								aria-hidden
-								className="absolute right-0 bottom-0 z-20 size-5 border-rubric border-r border-b"
+								className="parchment-scrap absolute inset-0 border border-red-800"
 							/>
 							<img
 								alt="Illuminated-manuscript illustration of a harpist at her instrument"
@@ -229,9 +215,7 @@ function LandingPage() {
 								src={harpistIllustration}
 								width="1024"
 							/>
-							<p className="relative z-10 mt-8 font-display text-6xl leading-none sm:text-7xl">
-								harpist
-							</p>
+
 							<p className="relative z-10 mt-4 pb-6 font-marginalia italic text-ink/60 text-sm">
 								fig. i — a harpist, playing a HAR file
 							</p>

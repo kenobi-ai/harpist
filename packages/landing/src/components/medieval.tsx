@@ -1,12 +1,38 @@
 import type { ReactNode } from "react";
 
 const glyphSets = {
-	ornament: ["❦", "✠", "❧", "⁋", "✢"],
-	planetary: ["☉", "☿", "♀", "♂", "♃", "♄", "☽"],
-	stars: ["✶", "☾", "✧", "✦", "✴"],
+	ornament: ["❦", "✣", "☙", "⁋", "✥"],
+	planetary: ["☉", "☾", "☿", "♁", "♀", "♃", "♄"],
+	stars: ["✦", "✧", "✷", "✹", "✺"],
 } as const;
 
 type GlyphSet = keyof typeof glyphSets;
+
+const scrollWaveSegmentWidth = 128;
+const scrollWaveSegmentCount = 48;
+const scrollWaveWidth = scrollWaveSegmentWidth * scrollWaveSegmentCount;
+const scrollWavePath = `M 0 28 ${Array.from(
+	{ length: scrollWaveSegmentCount },
+	(_, index) => {
+		const x = index * scrollWaveSegmentWidth;
+		return [
+			`C ${x + 18} 18 ${x + 43} 18 ${x + 64} 28`,
+			`C ${x + 85} 38 ${x + 110} 38 ${x + 128} 28`,
+		].join(" ");
+	},
+).join(" ")}`;
+const scrollCurlPath = Array.from(
+	{ length: scrollWaveSegmentCount },
+	(_, index) => {
+		const x = index * scrollWaveSegmentWidth + 58;
+		return [
+			`M ${x} 28`,
+			`C ${x + 18} 39 ${x + 44} 34 ${x + 42} 20`,
+			`C ${x + 40} 8 ${x + 19} 9 ${x + 19} 23`,
+			`C ${x + 19} 34 ${x + 36} 33 ${x + 33} 23`,
+		].join(" ");
+	},
+).join(" ");
 
 /**
  * Mounts the SVG displacement filters that give .parchment-scrap its torn,
@@ -189,8 +215,33 @@ export function WavyFrame({
 /** Full-width rubricated divider band with a running-scroll wave motif. */
 export function ScrollBand({ className = "" }: { className?: string }) {
 	return (
-		<div aria-hidden className={`overflow-hidden ${className}`}>
-			<div className="scroll-band -mx-6" />
+		<div aria-hidden className={`overflow-hidden py-2 -mb-4 ${className}`}>
+			<div className="scroll-band -mx-6">
+				<svg
+					aria-hidden
+					className="pointer-events-none absolute top-1/2 left-1/2 h-12 -translate-x-1/2 -translate-y-1/2 overflow-visible"
+					style={{ width: scrollWaveWidth }}
+					viewBox={`0 0 ${scrollWaveWidth} 48`}
+				>
+					<title>Running scroll wave</title>
+					<path
+						d={scrollWavePath}
+						fill="none"
+						stroke="var(--color-verdigris-dark)"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth="4"
+					/>
+					<path
+						d={scrollCurlPath}
+						fill="none"
+						stroke="var(--color-verdigris-dark)"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+						strokeWidth="4"
+					/>
+				</svg>
+			</div>
 		</div>
 	);
 }

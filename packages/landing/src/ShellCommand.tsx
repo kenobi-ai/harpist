@@ -9,6 +9,7 @@ const shellCommandTone: Record<
 		args: string;
 		command: string;
 		container: string;
+		frame: string;
 		icon: string;
 		message: string;
 		overlay: string;
@@ -18,8 +19,9 @@ const shellCommandTone: Record<
 	dark: {
 		args: "text-stone-50/80",
 		command: "text-amber-300",
-		container:
-			"border-stone-50/20 bg-stone-950/80 text-stone-50 backdrop-blur-md hover:border-amber-300/70 hover:bg-stone-900/80",
+		container: "text-stone-50",
+		frame:
+			"border-stone-50/20 bg-stone-950/80 backdrop-blur-md group-hover:border-amber-300/70 group-hover:bg-stone-900/80",
 		icon: "border-stone-50/20 text-amber-300 group-hover:border-amber-300/70",
 		message: "text-amber-300/80",
 		overlay: "bg-stone-950/55",
@@ -28,8 +30,9 @@ const shellCommandTone: Record<
 	light: {
 		args: "text-stone-800",
 		command: "text-red-800",
-		container:
-			"border-red-900 bg-red-50/75 text-stone-900 backdrop-blur-md hover:border-red-900 hover:bg-red-100/75",
+		container: "text-stone-900",
+		frame:
+			"border-red-900 bg-red-50/75 backdrop-blur-md group-hover:border-red-900 group-hover:bg-red-100/75",
 		icon: "border-red-900/25 text-red-800 group-hover:border-red-900/50",
 		message: "text-red-800/75",
 		overlay: "bg-red-50/65",
@@ -100,12 +103,16 @@ export function ShellCommand({
 	return (
 		<button
 			aria-label={copied ? "Copied command" : `Copy command: ${command}`}
-			className={`group relative flex w-full cursor-pointer items-stretch overflow-hidden border text-left transition ${theme.container} ${className}`}
+			className={`group relative isolate flex w-full cursor-pointer items-stretch text-left transition ${theme.container} ${className}`}
 			onClick={handleCopy}
 			title={copied ? "Copied" : "Copy command"}
 			type="button"
 		>
-			<code className="min-w-0 flex-1 overflow-x-auto whitespace-pre px-3 py-2 font-mono text-xs leading-5 sm:text-sm">
+			<span
+				aria-hidden
+				className={`wavy-frame-soft absolute inset-0 border transition ${theme.frame}`}
+			/>
+			<code className="relative z-10 min-w-0 flex-1 overflow-x-auto whitespace-pre px-3 py-2 font-mono text-xs leading-5 sm:text-sm">
 				<span className={`select-none transition ${theme.prompt}`}>$ </span>
 				<span className={`transition ${theme.command}`}>{binary}</span>
 				{args.length > 0 ? (
@@ -114,7 +121,7 @@ export function ShellCommand({
 			</code>
 			<span
 				aria-hidden
-				className={`absolute inset-y-0 right-10 left-0 flex items-center justify-center backdrop-blur-sm transition ${
+				className={`absolute inset-y-px right-10 left-px z-20 flex items-center justify-center backdrop-blur-sm transition ${
 					copied ? "opacity-100" : "opacity-0"
 				} ${theme.overlay}`}
 			>
