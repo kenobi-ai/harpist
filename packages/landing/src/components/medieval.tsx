@@ -274,26 +274,3 @@ export function ScrollBand({ className = "" }: { className?: string }) {
 		</div>
 	);
 }
-
-/** A torn scrap of parchment behind whatever you place inside it. */
-export function ParchmentScrap({
-	children,
-	className = "",
-	soft = false,
-}: {
-	children: ReactNode;
-	className?: string;
-	soft?: boolean;
-}) {
-	return (
-		<div className={`relative`}>
-			<div
-				aria-hidden
-				className={`parchment-scrap absolute -inset-x-3 -inset-y-2 ${
-					soft ? "parchment-scrap-soft" : ""
-				} ${className}`}
-			/>
-			<div className="relative z-10">{children}</div>
-		</div>
-	);
-}

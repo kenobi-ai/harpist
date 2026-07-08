@@ -148,14 +148,11 @@ function LandingPage() {
 				<div className="relative z-10 mx-auto max-w-6xl px-5">
 					<div className="flex items-center justify-between pt-6 text-xs">
 						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block"></p>
-						<ParchmentScrap
-							className="-rotate-2 mr-4 bg-amber-400 border border-amber-950"
-							soft
-						>
+						<div className="-rotate-2 mr-4 bg-amber-400 border border-amber-950 parchment-scrap shadow-xs">
 							<span className="block px-3 py-1 font-display text-lg leading-none">
 								✠ July beta ✠
 							</span>
-						</ParchmentScrap>
+						</div>
 					</div>
 					<div className="mt-8 mb-14 grid grid-cols-1 gap-10 sm:grid-cols-4 sm:gap-28 perspective-normal">
 						<div className="flex flex-col justify-center gap-6 sm:col-span-2 text-amber-950">
@@ -163,21 +160,17 @@ function LandingPage() {
 								<span className="text-red-700">i.</span> exordium
 							</p>
 							<div className="relative">
-								<div className="absolute -left-4 -right-4 size-full parchment-scrap-broad border-2 border-emerald-950 bg-emerald-900" />
+								<div className="absolute -left-4 -right-4 size-full parchment-scrap-broad border-2 border-black bg-emerald-950" />
 								<div className="px-3 py-2">
-									<h1 className="w-full font-bold font-heading text-6xl leading-tight tracking-tight relative">
-										<span className="text-white">
-											<span className="text-red-300">A</span>utomate
-										</span>
-										<span> </span>
-										<span className="text-white">any website interaction</span>
+									<h1 className="w-full font-bold font-heading text-6xl leading-tight tracking-tight relative text-white">
+										Automate any website interaction
 									</h1>
 								</div>
 							</div>
-							<div className="flex flex-col justify-start gap-6">
-								<p className="text-xl">
-									The two ingredients you need to never run manual workflows
-									ever again:
+							<div className="flex flex-col justify-start gap-6 mt-8">
+								<p className="text-xl font-sans">
+									Stop running workflows manually by using these two ingredients
+									to never run manual workflows again:
 								</p>
 								<div className="flex w-full flex-col items-start gap-4">
 									<div className="flex flex-col items-start gap-2">
@@ -249,21 +242,20 @@ function LandingPage() {
 			<div className="relative w-full h-30">
 				<ScrollBand className="absolute inset-0 -top-8" />
 			</div>
-
 			<section>
 				<div className="mx-auto max-w-6xl px-5 pt-2">
 					<Ornament className="text-ink/70" set="planetary" />
 				</div>
-				<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
-					<h1 className="max-w-4xl font-bold text-2xl uppercase leading-snug tracking-tight sm:text-4xl">
-						Undocumented endpoints, session tokens, gregorian JSON chants and
-						punishing payload schemas. Harpist is the first of its kind:{" "}
-						<span className="text-rubric">
-							the ultimate, and only, medieval API scribe.
-						</span>
+				<div className="mx-auto max-w-6xl px-5 py-16 pt-0 sm:py-24">
+					<p className="relative font-display text-3xl leading-none">
+						<span className="text-red-700">ii.</span> veni, vidi, vici
+					</p>
+					<h1 className="max-w-4xl font-bold font-heading text-2xl leading-snug tracking-tight sm:text-4xl">
+						The three steps to{" "}
+						<span className="text-rubric">automatory enlightenment...</span>
 					</h1>
-					<p className="drop-cap mt-8 max-w-xl text-sm leading-6">
-						Use any website just like an API. record sessions with the chrome
+					<p className="drop-cap mt-8 max-w-xl leading-6">
+						You any website just like an API. record sessions with the chrome
 						extension, replay them with the CLI — easy for agents and humans to
 						use. now mount your goat and ship.
 					</p>
