@@ -5,6 +5,14 @@ import {
 } from "@phosphor-icons/react";
 import harpistIllustration from "./assets/logo-illustration.webp";
 import SideRays from "./components/backgrounds/side-rays";
+import {
+	GlyphStrip,
+	MedievalDefs,
+	Ornament,
+	ParchmentScrap,
+	ScrollBand,
+	WavyFrame,
+} from "./components/medieval";
 import { ExternalLink } from "./ExternalLink";
 import { LandingFooter } from "./LandingFooter";
 import { PrivacyPolicyPage } from "./PrivacyPolicyPage";
@@ -42,6 +50,8 @@ const checklist = [
 	"har in, codex out",
 ];
 
+const checklistGlyphs = ["✢", "☞", "❧", "✠"];
+
 const specifications = [
 	["capture", "chrome extension"],
 	["bridge", "local worker"],
@@ -57,7 +67,7 @@ const commands = [
 	"bunx harpist docs example.com",
 ];
 
-const hairline = "border-stone-900/25";
+const hairline = "border-ink/25";
 
 const currentPath = () => {
 	if (typeof window === "undefined") {
@@ -75,29 +85,32 @@ export function App() {
 
 function LandingPage() {
 	return (
-		<main className="min-h-screen bg-olive-100 font-sans text-stone-900 antialiased">
-			<div aria-hidden className="h-1.5 bg-red-800" />
+		<main className="parchment min-h-screen bg-olive-100 font-sans text-ink antialiased">
+			<MedievalDefs />
+			<div aria-hidden className="h-1.5 bg-rubric" />
 
-			<header className={`sticky top-0 z-20 border-b ${hairline} bg-olive-300`}>
+			<header
+				className={`parchment sticky top-0 z-20 border-b ${hairline} bg-olive-300`}
+			>
 				<div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2 text-xs">
 					<a className="font-display text-2xl leading-none" href="/">
 						harpist
 					</a>
 					<nav aria-label="Primary" className="flex items-center gap-4">
-						<a className="hidden hover:text-red-800 sm:inline" href="#how">
+						<a className="hidden hover:text-rubric sm:inline" href="#how">
 							how it works
 						</a>
-						<a className="hidden hover:text-red-800 sm:inline" href="#specs">
+						<a className="hidden hover:text-rubric sm:inline" href="#specs">
 							specs
 						</a>
-						<a className="hover:text-red-800" href="#install">
-							install
+						<a className="hover:text-rubric" href="#install">
+							☞ install
 						</a>
-						<a className="hidden hover:text-red-800 md:inline" href="/privacy">
+						<a className="hidden hover:text-rubric md:inline" href="/privacy">
 							privacy
 						</a>
 						<ExternalLink
-							className="hover:text-red-800"
+							className="hover:text-rubric"
 							href="https://github.com/kenobi-ai/harpist"
 						>
 							github ↗
@@ -106,7 +119,7 @@ function LandingPage() {
 				</div>
 			</header>
 
-			<section className={`border-b ${hairline} relative overflow-hidden`}>
+			<section className="relative overflow-hidden">
 				<div className="absolute inset-0 z-0">
 					<SideRays
 						speed={1.8}
@@ -122,23 +135,23 @@ function LandingPage() {
 						opacity={1}
 					/>
 				</div>
-				<div className="mx-auto max-w-6xl px-5 relative z-10">
-					<div className="flex items-center justify-between pt-4 text-xs">
-						<p>
-							<span className="font-bold"></span>
+				<div className="relative z-10 mx-auto max-w-6xl px-5">
+					<div className="flex items-center justify-between pt-6 text-xs">
+						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block">
+							incipit liber harpistae
 						</p>
-						<p className="flex items-center gap-2">
-							<span className="border border-stone-900 bg-amber-400 px-1.5 py-0.5 font-bold text-[10px] uppercase tracking-wider">
-								july beta
+						<ParchmentScrap className="-rotate-2" soft>
+							<span className="block px-3 py-1 font-display text-lg leading-none">
+								✠ july beta ✠
 							</span>
-						</p>
+						</ParchmentScrap>
 					</div>
-					<div className="grid grid-cols-5 mt-6 mb-14 gap-28 perspective-normal">
-						<div className="col-span-2 flex flex-col justify-center gap-8">
-							<h1 className="w-full font-bold text-3xl leading-snug tracking-tight font-display">
+					<div className="mt-8 mb-14 grid grid-cols-1 gap-10 sm:grid-cols-5 sm:gap-28 perspective-normal">
+						<div className="flex flex-col justify-center gap-8 sm:col-span-2">
+							<h1 className="w-full font-bold font-display text-3xl leading-snug tracking-tight">
 								<span>Give your agent the API to</span>
 								<span> </span>
-								<span className="text-red-800">
+								<span className="text-rubric">
 									automate anything you do on any website.
 								</span>
 							</h1>
@@ -147,17 +160,24 @@ function LandingPage() {
 									The two ingredients required to never manually run workflows
 									again:
 								</p>
-								<div className="flex flex-col items-start w-full gap-4">
-									<div className="flex flex-col gap-2 items-start">
-										<h3 className="font-heading inline-flex items-center gap-2">
+								<div className="flex w-full flex-col items-start gap-4">
+									<div className="flex flex-col items-start gap-2">
+										<h3 className="inline-flex items-center gap-2 font-heading">
 											<NumberCircleOneIcon
-												className="size-6 text-red-800"
+												className="size-6 text-rubric"
 												weight="duotone"
 											/>{" "}
 											Browser extension
 										</h3>
-										<ExternalLink href="https://google.com" className="ml-8">
-											<div className="inline-flex items-center gap-2 border border-red-900 bg-red-800 px-3 py-2 font-bold text-red-50 text-xs uppercase leading-5 transition hover:bg-red-700 cursor-pointer sm:text-sm">
+										<ExternalLink
+											href="https://google.com"
+											className="group relative ml-8 inline-flex cursor-pointer items-center"
+										>
+											<span
+												aria-hidden
+												className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood bg-red-800 transition group-hover:bg-red-700"
+											/>
+											<span className="relative z-10 inline-flex items-center gap-2 px-4 py-2 font-bold text-red-50 text-xs uppercase leading-5 sm:text-sm">
 												<GoogleChromeLogoIcon
 													aria-hidden
 													className="shrink-0"
@@ -165,46 +185,46 @@ function LandingPage() {
 													weight="duotone"
 												/>
 												<span>Install</span>
-											</div>
+											</span>
 										</ExternalLink>
 									</div>
-									<div className="flex flex-col gap-2 items-start">
-										<h3 className="font-heading inline-flex items-center gap-2">
+									<div className="flex flex-col items-start gap-2">
+										<h3 className="inline-flex items-center gap-2 font-heading">
 											<NumberCircleTwoIcon
-												className="size-6 text-red-800"
+												className="size-6 text-rubric"
 												weight="duotone"
 											/>{" "}
 											Agent skill
 										</h3>
 										<ShellCommand
 											command="npx skills add kenobi-ai/harpist"
-											className="w-full ml-8"
+											className="ml-8 w-full"
 										/>
 									</div>
 								</div>
 							</div>
 						</div>
-						<div className="hero-figure-panel relative flex flex-col items-center overflow-hidden pt-4 pb-2 col-span-3 transform-3d bg-olive-300/20">
-							<div aria-hidden className="hero-figure-composite" />
+						<div className="relative flex transform-3d flex-col items-center pt-4 pb-2 sm:col-span-3">
+							<div aria-hidden className="parchment-scrap absolute inset-0" />
 							<span
 								aria-hidden
-								className="absolute top-0 left-0 z-20 size-5 border-red-800 border-t border-l"
+								className="absolute top-0 left-0 z-20 size-5 border-rubric border-t border-l"
 							/>
 							<span
 								aria-hidden
-								className="absolute top-0 right-0 z-20 size-5 border-red-800 border-t border-r"
+								className="absolute top-0 right-0 z-20 size-5 border-rubric border-t border-r"
 							/>
 							<span
 								aria-hidden
-								className="absolute bottom-0 left-0 z-20 size-5 border-red-800 border-b border-l"
+								className="absolute bottom-0 left-0 z-20 size-5 border-rubric border-b border-l"
 							/>
 							<span
 								aria-hidden
-								className="absolute right-0 bottom-0 z-20 size-5 border-red-800 border-r border-b"
+								className="absolute right-0 bottom-0 z-20 size-5 border-rubric border-r border-b"
 							/>
 							<img
 								alt="Illuminated-manuscript illustration of a harpist at her instrument"
-								className="relative z-10 w-full max-w-[340px] sm:max-w-[400px]"
+								className="relative z-10 w-full max-w-[340px] mix-blend-multiply sm:max-w-[400px]"
 								height="1024"
 								src={harpistIllustration}
 								width="1024"
@@ -212,7 +232,7 @@ function LandingPage() {
 							<p className="relative z-10 mt-8 font-display text-6xl leading-none sm:text-7xl">
 								harpist
 							</p>
-							<p className="relative z-10 mt-4 pb-6 text-stone-900/60 text-xs italic">
+							<p className="relative z-10 mt-4 pb-6 font-marginalia italic text-ink/60 text-sm">
 								fig. i — a harpist, playing a HAR file
 							</p>
 						</div>
@@ -221,113 +241,158 @@ function LandingPage() {
 			</section>
 
 			<section>
+				<div className="mx-auto max-w-6xl px-5 pt-2">
+					<Ornament className="text-ink/70" set="planetary" />
+				</div>
 				<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
 					<h1 className="max-w-4xl font-bold text-2xl uppercase leading-snug tracking-tight sm:text-4xl">
 						Undocumented endpoints, session tokens, gregorian JSON chants and
 						punishing payload schemas. Harpist is the first of its kind:{" "}
-						<span className="text-red-800">
+						<span className="text-rubric">
 							the ultimate, and only, medieval API scribe.
 						</span>
 					</h1>
-					<p className="mt-8 max-w-xl text-sm leading-6">
-						use any website just like an API. record sessions with the chrome
+					<p className="drop-cap mt-8 max-w-xl text-sm leading-6">
+						Use any website just like an API. record sessions with the chrome
 						extension, replay them with the CLI — easy for agents and humans to
 						use. now mount your goat and ship.
 					</p>
 					<div className="mt-10 flex flex-wrap gap-3">
 						<a
-							className="inline-flex items-center border border-stone-900 bg-stone-900 px-4 py-2 text-stone-50 text-xs transition hover:bg-stone-900/85"
+							className="group relative inline-flex items-center"
 							href="#install"
 						>
-							install cli
+							<span
+								aria-hidden
+								className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood bg-ink transition group-hover:bg-ink/85"
+							/>
+							<span className="relative z-10 inline-flex items-center gap-2 px-5 py-2.5 text-olive-50 text-xs">
+								<span aria-hidden>☞</span> install cli
+							</span>
 						</a>
-						<a
-							className={`inline-flex items-center border ${hairline} px-4 py-2 text-xs transition hover:border-stone-900`}
-							href="#how"
-						>
-							how it works
+						<a className="group relative inline-flex items-center" href="#how">
+							<span
+								aria-hidden
+								className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-oxblood/60 transition group-hover:border-oxblood"
+							/>
+							<span className="relative z-10 px-5 py-2.5 text-xs">
+								how it works
+							</span>
 						</a>
 					</div>
+					<p className="mt-6 font-marginalia italic text-ink/60 text-sm">
+						☞ nota bene: thy recordings never leave thy machine.
+					</p>
 				</div>
 			</section>
 
-			<section className="bg-sky-900 text-stone-50" id="how">
-				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-16">
-					<p className="text-xs">
-						<span aria-hidden className="text-amber-400">
+			<ScrollBand />
+
+			<section id="how">
+				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-20">
+					<p className="font-marginalia italic text-sm">
+						<span aria-hidden className="text-rubric">
 							¶{" "}
 						</span>
-						how it works
+						modus operandi
 					</p>
-					<div className="mt-10 grid gap-10 sm:grid-cols-3 sm:gap-6">
+					<h2 className="mt-4 font-display text-4xl text-rubric sm:text-5xl">
+						how it works
+					</h2>
+					<div className="mt-10 grid gap-8 sm:grid-cols-3">
 						{steps.map((step) => (
-							<div
-								className="border-stone-50/30 border-t pt-5"
-								key={step.title}
-							>
-								<p className="font-display text-5xl text-amber-300 leading-none">
-									{step.numeral}
-								</p>
-								<h2 className="mt-4 font-bold text-sm">{step.title}</h2>
-								<p className="mt-2 max-w-xs text-sm text-stone-50/80 leading-6">
-									{step.description}
-								</p>
-							</div>
+							<WavyFrame key={step.title}>
+								<div className="p-7">
+									<p className="font-display text-6xl text-rubric leading-none">
+										{step.numeral}
+									</p>
+									<h3 className="mt-4 font-bold text-sm uppercase tracking-wide">
+										{step.title}
+									</h3>
+									<p className="mt-2 text-ink/80 text-sm leading-6">
+										{step.description}
+									</p>
+								</div>
+							</WavyFrame>
 						))}
 					</div>
+					<GlyphStrip className="mt-14 text-rubric/70" set="stars" />
 				</div>
 			</section>
 
 			<section id="specs">
-				<div className="mx-auto grid max-w-6xl gap-12 px-5 py-14 sm:grid-cols-2 sm:py-16">
-					<div>
-						<p className="text-xs">
-							<span aria-hidden className="text-red-800">
-								¶{" "}
-							</span>
-							feature checklist
-						</p>
-						<ul className="mt-6 max-w-sm text-sm leading-7">
-							{checklist.map((item) => (
-								<li className="flex gap-2" key={item}>
-									<span aria-hidden className="text-red-800">
-										–
+				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-16">
+					<WavyFrame frameClassName="rounded-[3rem] border-[2.5px] border-oxblood bg-olive-50/70">
+						<div className="grid gap-12 p-8 sm:grid-cols-2 sm:p-12">
+							<div>
+								<p className="font-marginalia italic text-sm">
+									<span aria-hidden className="text-rubric">
+										¶{" "}
 									</span>
-									<span>{item}</span>
-								</li>
-							))}
-						</ul>
-					</div>
-					<div>
-						<p className="font-display text-3xl text-red-800 leading-none">
-							charakteristica technicum
-						</p>
-						<dl className={`mt-6 border-t ${hairline}`}>
-							{specifications.map(([label, value]) => (
-								<div
-									className={`grid grid-cols-[110px_1fr] gap-4 border-b ${hairline} py-2.5 text-sm`}
-									key={label}
-								>
-									<dt className="text-stone-900/60">{label}</dt>
-									<dd>{value}</dd>
-								</div>
-							))}
-						</dl>
-					</div>
+									feature checklist
+								</p>
+								<p className="mt-2 font-display text-3xl text-rubric leading-none">
+									medieval illuminations
+								</p>
+								<ul className="mt-6 max-w-sm text-sm leading-7">
+									{checklist.map((item, index) => (
+										<li className="flex gap-2" key={item}>
+											<span aria-hidden className="w-4 shrink-0 text-rubric">
+												{checklistGlyphs[index % checklistGlyphs.length]}
+											</span>
+											<span>{item}</span>
+										</li>
+									))}
+								</ul>
+							</div>
+							<div>
+								<p className="font-marginalia italic text-sm">
+									<span aria-hidden className="text-rubric">
+										¶{" "}
+									</span>
+									specifications
+								</p>
+								<p className="mt-2 font-display text-3xl text-rubric leading-none">
+									charakteristica technicum{" "}
+									<span aria-hidden className="text-ink/40">
+										❦
+									</span>
+								</p>
+								<dl className={`mt-6 border-t ${hairline} border-dotted`}>
+									{specifications.map(([label, value]) => (
+										<div
+											className={`grid grid-cols-[110px_1fr] gap-4 border-b ${hairline} border-dotted py-2.5 text-sm`}
+											key={label}
+										>
+											<dt className="font-marginalia italic text-ink/60">
+												{label}
+											</dt>
+											<dd>{value}</dd>
+										</div>
+									))}
+								</dl>
+							</div>
+						</div>
+					</WavyFrame>
 				</div>
 			</section>
 
+			<ScrollBand />
+
 			<section className="bg-stone-900 text-stone-50" id="install">
 				<div className="mx-auto max-w-6xl px-5 py-14 sm:py-16">
-					<p className="text-xs">
+					<p className="font-marginalia italic text-sm">
 						<span aria-hidden className="text-amber-400">
 							¶{" "}
 						</span>
 						install
 					</p>
-					<h2 className="mt-6 max-w-2xl font-bold text-xl uppercase leading-snug tracking-tight sm:text-2xl">
-						Three commands and you&rsquo;re away.
+					<h2 className="mt-4 font-display text-4xl text-amber-300">
+						installatio
 					</h2>
+					<p className="mt-4 max-w-2xl font-bold text-xl uppercase leading-snug tracking-tight sm:text-2xl">
+						Three commands and you&rsquo;re away.
+					</p>
 					<p className="mt-3 max-w-lg text-sm text-stone-50/75 leading-6">
 						start the bridge, refine your latest recording, open the docs.
 						everything runs on your machine.
@@ -339,18 +404,31 @@ function LandingPage() {
 					</div>
 					<div className="mt-8 flex flex-wrap gap-3">
 						<ExternalLink
-							className="inline-flex items-center border border-amber-400 bg-amber-400 px-4 py-2 font-bold text-stone-900 text-xs transition hover:bg-amber-300"
+							className="group relative inline-flex items-center"
 							href="https://github.com/kenobi-ai/harpist"
 						>
-							github ↗
+							<span
+								aria-hidden
+								className="wavy-frame-soft absolute inset-0 rounded-xl bg-amber-400 transition group-hover:bg-amber-300"
+							/>
+							<span className="relative z-10 px-5 py-2.5 font-bold text-stone-900 text-xs">
+								github ↗
+							</span>
 						</ExternalLink>
 						<ExternalLink
-							className="inline-flex items-center border border-stone-50/60 px-4 py-2 text-stone-50 text-xs transition hover:border-stone-50"
+							className="group relative inline-flex items-center"
 							href="https://www.npmjs.com/package/harpist"
 						>
-							npm ↗
+							<span
+								aria-hidden
+								className="wavy-frame-soft absolute inset-0 rounded-xl border-2 border-stone-50/60 transition group-hover:border-stone-50"
+							/>
+							<span className="relative z-10 px-5 py-2.5 text-stone-50 text-xs">
+								npm ↗
+							</span>
 						</ExternalLink>
 					</div>
+					<GlyphStrip className="mt-14 text-amber-300/50" set="ornament" />
 				</div>
 			</section>
 

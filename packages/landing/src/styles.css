@@ -1,19 +1,94 @@
-@import url("https://fonts.googleapis.com/css2?family=Jacquard+24&family=Unbounded:wght@200..900&display=swap&family=Geist:ital,wght@0,100..900;1,100..900");
+@import url("https://fonts.googleapis.com/css2?family=Jacquard+24&family=Unbounded:wght@200..900&family=Geist:ital,wght@0,100..900;1,100..900&family=IM+Fell+English:ital@0;1&display=swap");
 @import "tailwindcss";
 
 @theme {
 	--font-display: "Jacquard 24", serif;
 	--font-heading:
 		"Unbounded", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
+	--font-marginalia: "IM Fell English", "Iowan Old Style", Georgia, serif;
 	--font-sans: "Geist", Helvetica, Arial, ui-sans-serif, system-ui, sans-serif;
 	--font-mono:
 		"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
+
+	--color-olive-50: #f7f2e0;
+	--color-olive-100: #f0e9d2;
+	--color-olive-200: #e5dab6;
+	--color-olive-300: #d6c79a;
+	--color-olive-400: #bfa976;
+	--color-ink: #2b2117;
+	--color-rubric: #9e0812;
+	--color-oxblood: #431c14;
 }
 
-.hero-figure-composite {
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	pointer-events: none;
-	mix-blend-mode: color-burn;
+:root {
+	/* fine speckle grain, like fibres in handmade paper */
+	--parchment-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.33 0 0 0 0 0.26 0 0 0 0 0.14 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23s)'/%3E%3C/svg%3E");
+	/* broad blotches, like uneven ageing */
+	--parchment-mottle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008 0.011' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.18 0 0 0 0.1 0'/%3E%3C/filter%3E%3Crect width='600' height='600' filter='url(%23m)'/%3E%3C/svg%3E");
+	--wavy-rule-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='144' height='12' viewBox='0 0 144 12'%3E%3Cpath d='M0 6 Q4.5 1.5 9 5.8 Q13.5 10 18 6.2 Q22.5 2 27 5.9 Q31.5 9.8 36 6 Q40.5 1.8 45 5.7 Q49.5 9.9 54 6.1 Q58.5 2.2 63 5.8 Q67.5 9.7 72 6 Q76.5 1.6 81 5.9 Q85.5 10 90 6.2 Q94.5 2 99 5.8 Q103.5 9.9 108 6 Q112.5 1.9 117 6 Q121.5 9.8 126 5.9 Q130.5 1.7 135 6.1 Q139.5 10 144 6' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+	/* one curl of a vitruvian running-scroll wave */
+	--scroll-wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='48' viewBox='0 0 72 48'%3E%3Cpath d='M-4 41 C 12 45, 24 41, 31 29 C 37 18, 46 12, 55 16 C 63 20, 64 30, 56 34 C 49 37, 43 32, 45 25 C 46.5 20.5, 52 19.5, 55 23' fill='none' stroke='%23431c14' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+@layer components {
+	/* texture only — pair with a bg-olive-* utility for the base tone */
+	.parchment {
+		background-image: var(--parchment-speckle), var(--parchment-mottle);
+	}
+
+	/* a torn scrap of vellum; edges are roughened by the #parchment-tear
+	   SVG filters mounted by <MedievalDefs /> */
+	.parchment-scrap {
+		background-color: var(--color-olive-50);
+		background-image: var(--parchment-speckle), var(--parchment-mottle);
+		box-shadow:
+			inset 0 0 40px rgb(122 96 55 / 0.22),
+			inset 0 0 6px rgb(122 96 55 / 0.18);
+		filter: url("#parchment-tear");
+	}
+
+	.parchment-scrap-soft {
+		filter: url("#parchment-tear-soft");
+	}
+
+	/* hand-drawn squiggle rule; tints via currentColor */
+	.wavy-rule {
+		height: 12px;
+		background-color: currentColor;
+		mask-image: var(--wavy-rule-mask);
+		mask-repeat: repeat-x;
+		mask-size: 144px 12px;
+		mask-position: center;
+	}
+
+	/* wobbly hand-drawn outline — apply to a frame/button background layer
+	   carrying its own border + fill; edges warp via <MedievalDefs /> */
+	.wavy-frame {
+		filter: url("#wavy-frame");
+	}
+
+	.wavy-frame-soft {
+		filter: url("#wavy-frame-soft");
+	}
+
+	/* full-width rubricated band with a repeating running-scroll wave and
+	   gently waving, oxblood-edged top and bottom */
+	.scroll-band {
+		height: 96px;
+		border-block: 3px solid var(--color-oxblood);
+		background-color: #a93226;
+		background-image: var(--scroll-wave);
+		background-repeat: repeat-x;
+		background-position: center;
+		filter: url("#wavy-band");
+	}
+
+	.drop-cap::first-letter {
+		float: left;
+		margin-right: 0.35rem;
+		font-family: var(--font-display);
+		font-size: 3.6em;
+		line-height: 0.75;
+		color: var(--color-rubric);
+	}
 }
