@@ -78,7 +78,7 @@ function LandingPage() {
 		<main className="min-h-screen bg-olive-100 font-sans text-stone-900 antialiased">
 			<div aria-hidden className="h-1.5 bg-red-800" />
 
-			<header className={`sticky top-0 z-10 border-b ${hairline} bg-olive-300`}>
+			<header className={`sticky top-0 z-20 border-b ${hairline} bg-olive-300`}>
 				<div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-2 text-xs">
 					<a className="font-display text-2xl leading-none" href="/">
 						harpist
@@ -107,11 +107,11 @@ function LandingPage() {
 			</header>
 
 			<section className={`border-b ${hairline} relative overflow-hidden`}>
-				<div className="w-full absolute z-0">
+				<div className="absolute inset-0 z-0">
 					<SideRays
-						speed={2.5}
-						rayColor1="#EAB308"
-						rayColor2="#96c8ff"
+						speed={1.8}
+						rayColor1="#9E0812"
+						rayColor2="#ffaaaa"
 						intensity={2}
 						spread={2}
 						origin="top-right"
@@ -135,7 +135,7 @@ function LandingPage() {
 					</div>
 					<div className="grid grid-cols-5 mt-6 mb-14 gap-28 perspective-normal">
 						<div className="col-span-2 flex flex-col justify-center gap-8">
-							<h1 className="w-full font-bold text-3xl leading-snug tracking-tight font-heading">
+							<h1 className="w-full font-bold text-3xl leading-snug tracking-tight font-display">
 								<span>Give your agent the API to</span>
 								<span> </span>
 								<span className="text-red-800">
@@ -184,34 +184,35 @@ function LandingPage() {
 								</div>
 							</div>
 						</div>
-						<div className="relative flex flex-col items-center pt-4 pb-2 col-span-3 transform-3d rotate-x-8 bg-olive-300/20">
+						<div className="hero-figure-panel relative flex flex-col items-center overflow-hidden pt-4 pb-2 col-span-3 transform-3d bg-olive-300/20">
+							<div aria-hidden className="hero-figure-composite" />
 							<span
 								aria-hidden
-								className="absolute top-0 left-0 size-5 border-red-800 border-t border-l"
+								className="absolute top-0 left-0 z-20 size-5 border-red-800 border-t border-l"
 							/>
 							<span
 								aria-hidden
-								className="absolute top-0 right-0 size-5 border-red-800 border-t border-r"
+								className="absolute top-0 right-0 z-20 size-5 border-red-800 border-t border-r"
 							/>
 							<span
 								aria-hidden
-								className="absolute bottom-0 left-0 size-5 border-red-800 border-b border-l"
+								className="absolute bottom-0 left-0 z-20 size-5 border-red-800 border-b border-l"
 							/>
 							<span
 								aria-hidden
-								className="absolute right-0 bottom-0 size-5 border-red-800 border-r border-b"
+								className="absolute right-0 bottom-0 z-20 size-5 border-red-800 border-r border-b"
 							/>
 							<img
 								alt="Illuminated-manuscript illustration of a harpist at her instrument"
-								className="w-full max-w-[340px] sm:max-w-[400px]"
+								className="relative z-10 w-full max-w-[340px] sm:max-w-[400px]"
 								height="1024"
 								src={harpistIllustration}
 								width="1024"
 							/>
-							<p className="mt-8 font-display text-6xl leading-none sm:text-7xl">
+							<p className="relative z-10 mt-8 font-display text-6xl leading-none sm:text-7xl">
 								harpist
 							</p>
-							<p className="mt-4 pb-6 text-stone-900/60 text-xs italic">
+							<p className="relative z-10 mt-4 pb-6 text-stone-900/60 text-xs italic">
 								fig. i — a harpist, playing a HAR file
 							</p>
 						</div>

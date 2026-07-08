@@ -9,3 +9,11 @@
 	--font-mono:
 		"SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
 }
+
+.hero-figure-composite {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	mix-blend-mode: color-burn;
+}

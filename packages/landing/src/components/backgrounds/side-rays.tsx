@@ -1,5 +1,5 @@
 import { Mesh, Program, Renderer, Triangle } from "ogl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 type Origin = "top-right" | "top-left" | "bottom-right" | "bottom-left";
 
@@ -65,32 +65,9 @@ const SideRays = ({
 	const animationIdRef = useRef<number | null>(null);
 	const meshRef = useRef<Mesh | null>(null);
 	const cleanupFunctionRef = useRef<(() => void) | null>(null);
-	const [isVisible, setIsVisible] = useState(false);
-	const observerRef = useRef<IntersectionObserver | null>(null);
 
 	useEffect(() => {
 		if (!containerRef.current) return;
-
-		observerRef.current = new IntersectionObserver(
-			(entries) => {
-				const entry = entries[0];
-				setIsVisible(entry.isIntersecting);
-			},
-			{ threshold: 0.1 },
-		);
-
-		observerRef.current.observe(containerRef.current);
-
-		return () => {
-			if (observerRef.current) {
-				observerRef.current.disconnect();
-				observerRef.current = null;
-			}
-		};
-	}, []);
-
-	useEffect(() => {
-		if (!isVisible || !containerRef.current) return;
 
 		if (cleanupFunctionRef.current) {
 			cleanupFunctionRef.current();
@@ -267,7 +244,6 @@ void main() {
 			}
 		};
 	}, [
-		isVisible,
 		speed,
 		rayColor1,
 		rayColor2,
