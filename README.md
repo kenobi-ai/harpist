@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/landing/src/assets/logo_illustration.webp" alt="Harpist" width="256" />
+  <img src="packages/landing/src/assets/logo-illustration.webp" alt="Harpist" width="256" />
 </p>
 
 # Harpist
