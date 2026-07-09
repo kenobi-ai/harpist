@@ -12,7 +12,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 - Use the published npm package by default: `bunx harpist <command>`.
 - npm package page: https://www.npmjs.com/package/harpist
 <!-- harpist:cli-version:start -->
-- Current published Harpist CLI version: `0.1.0`.
+- Current published Harpist CLI version: `0.1.2`.
 <!-- harpist:cli-version:end -->
 - Before substantive Harpist work, compare `bunx harpist version` with the current published version above.
 - If those versions match, keep using `bunx harpist <command>` for the session.
