@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="packages/extension/assets/logo_illustration.png" alt="Harpist" width="256" />
+  <img src="packages/landing/src/assets/logo_illustration.webp" alt="Harpist" width="256" />
 </p>
 
 # Harpist
@@ -66,6 +66,7 @@ Harpist writes a versioned `contract-profile.json` first. It is the portable sou
 ## Useful CLI
 
 <!-- harpist:cli-commands:start -->
+
 ```sh
 bun run harpist bridge [--agent] [--idle-timeout <duration>]
 bun run harpist version
@@ -91,6 +92,7 @@ bun run harpist docs apply <host> <docs.json|->
 bun run harpist docs review <host>
 bun run harpist handoff [host]
 ```
+
 <!-- harpist:cli-commands:end -->
 
 `auth replay` executes the captured request with replay credentials applied and prints the response body by default. In a terminal it prompts for a site, operation, and missing input when omitted; use `--param`, `--query`, `--body`, or `--json` for scriptable input. Add `--verbose` to include request and response metadata, or `--curl` to print the runnable curl command instead.
