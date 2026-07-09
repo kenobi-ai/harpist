@@ -3,6 +3,7 @@ import {
 	NumberCircleOneIcon,
 	NumberCircleTwoIcon,
 } from "@phosphor-icons/react";
+import { useState } from "react";
 import harpistIllustration from "./assets/logo-illustration.webp";
 import monkIllustration from "./assets/monk-illustration.webp";
 import parchmentBg from "./assets/parchment-bg.webp";
@@ -39,6 +40,49 @@ const steps = [
 		title: "scribe",
 	},
 ];
+
+const clipFallbackSrc =
+	"https://assets.harpist.kenobi.ai/harpist--screen-2-001-a.mp4";
+
+const workflowClips = [
+	{
+		alt: "Harpist browser extension recording a website workflow",
+		caption: "fig. ii — the site, caught in the act",
+		description:
+			"use the website normally while the extension captures the network trail behind each click, form submit, and authenticated request.",
+		detail: "raw interaction becomes a replayable HAR",
+		label: "record",
+		numeral: "I.",
+		src: clipFallbackSrc,
+		title: "Record the real workflow",
+	},
+	{
+		alt: "Harpist CLI refining a recording into endpoint details",
+		caption: "fig. iii — the noise is sifted out",
+		description:
+			"the cli pulls signal out of the recording: endpoints, methods, headers, payload shapes, and the auth path an agent needs.",
+		detail: "requests settle into a contract",
+		fallbackSrc: "https://assets.harpist.kenobi.ai/step_2_test.webp",
+		label: "refine",
+		numeral: "II.",
+		src: "https://assets.harpist.kenobi.ai/harpist--screen-2-002-a.mp4",
+		title: "Refine the useful calls",
+	},
+	{
+		alt: "Generated API contract and agent documentation from Harpist",
+		caption: "fig. iv — contracts fit for a scribe",
+		description:
+			"generate orpc, openapi, and plain-text docs so codex can call the site without guessing at hidden browser behavior.",
+		detail: "docs and contracts land as commit-ready files",
+		fallbackSrc: clipFallbackSrc,
+		label: "scribe",
+		numeral: "III.",
+		src: "https://assets.harpist.kenobi.ai/step_3_test.webp",
+		title: "Hand it to an agent",
+	},
+];
+
+const videoSrcPattern = /\.(?:mp4|ogg|webm)(?:$|[?#])/i;
 
 const checklist = [
 	"orpc + openapi contracts",
@@ -260,12 +304,12 @@ function LandingPage() {
 						<p className="relative font-display text-3xl leading-none">
 							<span className="text-red-700">ii.</span> veni, vidi, vici
 						</p>
-						<h1 className="ml-auto max-w-4xl font-bold font-heading text-2xl leading-snug tracking-tight sm:text-4xl">
+						<h2 className="ml-auto max-w-4xl font-bold font-heading text-3xl leading-snug tracking-tight sm:text-4xl">
 							The three steps to{" "}
 							<span className="text-rubric">automatory enlightenment...</span>
-						</h1>
+						</h2>
 						<p className="drop-cap mt-8 ml-auto max-w-xl text-right leading-6">
-							You any website just like an API. record sessions with the chrome
+							Use any website just like an API. record sessions with the chrome
 							extension, replay them with the CLI — easy for agents and humans
 							to use. now mount your goat and ship.
 						</p>
@@ -299,19 +343,17 @@ function LandingPage() {
 							☞ nota bene: thy recordings never leave thy machine.
 						</p>
 					</div>
-					<WavyFrame className="size-[500px]" frameClassName="bg-stone-800">
-						{/*<div className="absolute size-full inset-0 bg-stone-900" />*/}
-						{/*<div className="relative size-[500px]">*/}
-						{/*<div className="absolute size-full inset-0 parchment-scrap-broad rounded-xl bg-stone-900 border-2 border-red-900" />*/}
-						<div className="relative size-full p-4">
-							<img
-								alt="Step 1"
-								src="https://assets.harpist.kenobi.ai/step_1_test.webp"
-								className="rounded-3xl border-2 border-black object-contain aspect-square size-full"
+				</div>
+				<div className="mx-auto max-w-6xl px-5 pb-16 sm:pb-24">
+					<div className={`border-t ${hairline} border-dotted`}>
+						{workflowClips.map((clip, index) => (
+							<WorkflowClipSection
+								clip={clip}
+								key={clip.title}
+								reverse={index % 2 === 1}
 							/>
-						</div>
-						{/*</div>*/}
-					</WavyFrame>
+						))}
+					</div>
 				</div>
 			</section>
 
@@ -463,5 +505,93 @@ function LandingPage() {
 
 			<LandingFooter />
 		</main>
+	);
+}
+
+function WorkflowClipSection({
+	clip,
+	reverse,
+}: {
+	clip: (typeof workflowClips)[number];
+	reverse: boolean;
+}) {
+	const [mediaSrc, setMediaSrc] = useState(clip.src);
+	const fallbackSrc = "fallbackSrc" in clip ? clip.fallbackSrc : undefined;
+	const isVideo = videoSrcPattern.test(mediaSrc);
+	const handleMediaError = () => {
+		if (fallbackSrc && fallbackSrc !== mediaSrc) {
+			setMediaSrc(fallbackSrc);
+		}
+	};
+
+	return (
+		<article
+			className={`grid gap-8 border-b ${hairline} border-dotted py-12 lg:grid-cols-2 lg:items-center lg:gap-14`}
+		>
+			<div className={reverse ? "lg:order-2 lg:text-right" : ""}>
+				<p className="font-display text-3xl leading-none">
+					<span className="text-rubric">{clip.numeral}</span>{" "}
+					<span>{clip.label}</span>
+				</p>
+				<h3 className="mt-4 max-w-xl font-bold font-heading text-3xl leading-tight tracking-tight sm:text-4xl">
+					{clip.title}
+				</h3>
+				<p
+					className={`mt-5 max-w-lg text-ink/80 leading-7 ${
+						reverse ? "lg:ml-auto" : ""
+					}`}
+				>
+					{clip.description}
+				</p>
+				<p
+					className={`mt-6 inline-flex max-w-sm items-center gap-2 border-oxblood border-l-2 bg-olive-50/60 px-4 py-3 font-marginalia italic text-ink/70 text-sm ${
+						reverse ? "lg:border-r-2 lg:border-l-0" : ""
+					}`}
+				>
+					<span aria-hidden className="text-rubric">
+						☞
+					</span>
+					{clip.detail}
+				</p>
+			</div>
+
+			<WavyFrame
+				className={reverse ? "lg:order-1" : ""}
+				frameClassName="rounded-[2rem] border-oxblood bg-stone-900"
+			>
+				<div className="p-3 sm:p-4">
+					<div className="relative overflow-hidden rounded-[1.5rem] border-2 border-ink bg-stone-950">
+						{isVideo ? (
+							<video
+								aria-label={clip.alt}
+								autoPlay
+								className="aspect-4/3 w-full bg-white object-contain"
+								loop
+								muted
+								onError={handleMediaError}
+								playsInline
+								preload="metadata"
+								src={mediaSrc}
+							/>
+						) : (
+							<img
+								alt={clip.alt}
+								className="aspect-video w-full bg-stone-950 object-contain"
+								loading="lazy"
+								onError={handleMediaError}
+								src={mediaSrc}
+							/>
+						)}
+						<div
+							aria-hidden
+							className="pointer-events-none absolute inset-0 ring-1 ring-white/10 ring-inset"
+						/>
+					</div>
+					<p className="mt-3 text-center font-marginalia italic text-olive-50/70 text-sm">
+						{clip.caption}
+					</p>
+				</div>
+			</WavyFrame>
+		</article>
 	);
 }
