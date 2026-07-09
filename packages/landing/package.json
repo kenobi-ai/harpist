@@ -13,7 +13,6 @@
 	},
 	"dependencies": {
 		"@phosphor-icons/react": "catalog:",
-		"ogl": "catalog:",
 		"react": "catalog:",
 		"react-dom": "catalog:"
 	},

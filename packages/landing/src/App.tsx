@@ -305,6 +305,7 @@ function LandingPage() {
 						{/*<div className="absolute size-full inset-0 parchment-scrap-broad rounded-xl bg-stone-900 border-2 border-red-900" />*/}
 						<div className="relative size-full p-4">
 							<img
+								alt="Step 1"
 								src="https://assets.harpist.kenobi.ai/step_1_test.webp"
 								className="rounded-3xl border-2 border-black object-contain aspect-square size-full"
 							/>
