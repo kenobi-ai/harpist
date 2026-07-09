@@ -52,7 +52,7 @@ jobs:
           "${HOME}/.bun/bin/bun" --version
 
       - name: Upgrade npm
-        run: npm install --global npm@latest && npm --version
+        run: npm install --global npm@11.17.0 && npm --version
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
