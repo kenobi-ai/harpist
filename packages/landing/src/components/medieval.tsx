@@ -224,7 +224,7 @@ export function Ornament({
 export function WavyFrame({
 	children,
 	className = "",
-	frameClassName = "rounded-[2.5rem] border-[2.5px] border-oxblood bg-olive-200",
+	frameClassName = "",
 }: {
 	children: ReactNode;
 	className?: string;
@@ -234,7 +234,7 @@ export function WavyFrame({
 		<div className={`relative ${className}`}>
 			<div
 				aria-hidden
-				className={`wavy-frame absolute inset-0 ${frameClassName}`}
+				className={`wavy-frame absolute inset-0 rounded-[2.5rem] border-[2.5px] border-oxblood bg-olive-200 ${frameClassName}`}
 			/>
 			<div className="relative z-10">{children}</div>
 		</div>

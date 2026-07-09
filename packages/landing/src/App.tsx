@@ -150,7 +150,7 @@ function LandingPage() {
 						<p className="hidden font-marginalia italic text-ink/60 text-sm sm:block"></p>
 						<div className="bg-amber-400/50 border border-amber-950/50 shadow-xs">
 							<span className="block px-3 py-1 font-display text-lg leading-none">
-								✠ July beta ✠
+								✠ summer beta ✠
 							</span>
 						</div>
 					</div>
@@ -299,15 +299,18 @@ function LandingPage() {
 							☞ nota bene: thy recordings never leave thy machine.
 						</p>
 					</div>
-					<div className="relative size-[500px]">
-						<div className="absolute size-full inset-0 parchment-scrap-broad rounded-xl bg-stone-900 border-2 border-red-900" />
-						<div className="relative size-full p-8">
+					<WavyFrame className="size-[500px]" frameClassName="bg-stone-800">
+						{/*<div className="absolute size-full inset-0 bg-stone-900" />*/}
+						{/*<div className="relative size-[500px]">*/}
+						{/*<div className="absolute size-full inset-0 parchment-scrap-broad rounded-xl bg-stone-900 border-2 border-red-900" />*/}
+						<div className="relative size-full p-4">
 							<img
 								src="https://assets.harpist.kenobi.ai/step_1_test.webp"
-								className="rounded-lg object-contain aspect-square size-full"
+								className="rounded-3xl border-2 border-black object-contain aspect-square size-full"
 							/>
 						</div>
-					</div>
+						{/*</div>*/}
+					</WavyFrame>
 				</div>
 			</section>
 
