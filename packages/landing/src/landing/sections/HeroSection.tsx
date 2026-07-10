@@ -42,12 +42,12 @@ export function HeroSection() {
 							<span className="text-red-700">i.</span> exordium
 						</p>
 						<ScrollPanel
-							insetClassName="-inset-x-4 -inset-y-7 sm:-inset-x-8 sm:-inset-y-9"
-							panelClassName="bg-emerald-950"
+							insetClassName="-mx-6 -my-3 sm:-inset-x-8 sm:-inset-y-9"
+							panelClassName="bg-stone-300"
 						>
-							<div className="px-3 py-2">
+							<div className="px-3 py-6">
 								<h1
-									className="w-full font-bold font-heading text-5xl text-white leading-tight tracking-tight sm:text-6xl"
+									className="w-full font-bold font-heading text-5xl text-amber-950 leading-tight tracking-tight sm:text-6xl"
 									id="hero-title"
 								>
 									Automate any website interaction
@@ -55,7 +55,7 @@ export function HeroSection() {
 							</div>
 						</ScrollPanel>
 
-						<div className="mt-7 flex flex-col gap-7">
+						<div className="mt-2 flex flex-col gap-7">
 							<p className="max-w-xl text-lg leading-7 sm:text-xl">
 								Stop running workflows manually by using these two ingredients
 								to never run manual workflows again:
