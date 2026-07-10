@@ -22,23 +22,53 @@
 	--color-verdigris-dark: #1e3a36;
 }
 
+@layer base {
+	html {
+		scroll-behavior: smooth;
+	}
+
+	body {
+		min-width: 20rem;
+	}
+
+	h1,
+	h2,
+	h3 {
+		text-wrap: balance;
+	}
+
+	p {
+		text-wrap: pretty;
+	}
+
+	::selection {
+		background: var(--color-rubric);
+		color: var(--color-olive-50);
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		html {
+			scroll-behavior: auto;
+		}
+	}
+}
+
 :root {
 	/* fine speckle grain, like fibres in handmade paper */
 	--parchment-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.33 0 0 0 0 0.26 0 0 0 0 0.14 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23s)'/%3E%3C/svg%3E");
 	/* broad blotches, like uneven ageing */
 	--parchment-mottle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.008 0.011' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.18 0 0 0 0.1 0'/%3E%3C/filter%3E%3Crect width='600' height='600' filter='url(%23m)'/%3E%3C/svg%3E");
 	--wavy-rule-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='144' height='12' viewBox='0 0 144 12'%3E%3Cpath d='M0 6 Q4.5 1.5 9 5.8 Q13.5 10 18 6.2 Q22.5 2 27 5.9 Q31.5 9.8 36 6 Q40.5 1.8 45 5.7 Q49.5 9.9 54 6.1 Q58.5 2.2 63 5.8 Q67.5 9.7 72 6 Q76.5 1.6 81 5.9 Q85.5 10 90 6.2 Q94.5 2 99 5.8 Q103.5 9.9 108 6 Q112.5 1.9 117 6 Q121.5 9.8 126 5.9 Q130.5 1.7 135 6.1 Q139.5 10 144 6' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
-	/* stretched scroll silhouette: wavy band + irregular corner tabs (top-left,
-	   bottom-right); .scroll-panel pairs this with --scroll-panel-detail */
-	--scroll-panel-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 240' preserveAspectRatio='none'%3E%3Cpath d='M 61 46 Q 89 49 107 47 Q 125 43 153 45 Q 171 49 199 46 Q 217 43 245 47 Q 269 49 291 44 Q 311 41 337 46 Q 361 50 384 47 Q 402 41 430 44 Q 455 50 476 46 Q 499 41 522 48 Q 543 49 568 47 Q 586 42 614 45 Q 636 49 660 46 Q 675 46 676 61 Q 673 83 675 100 Q 680 122 677 140 Q 673 157 676 179 Q 677 194 660 194 Q 632 197 614 195 Q 586 189 568 194 Q 547 198 522 196 Q 497 189 476 194 Q 453 197 430 195 Q 405 189 384 193 Q 359 197 337 194 Q 315 191 291 195 Q 267 197 245 193 Q 224 192 199 193 Q 174 197 153 194 Q 128 191 107 196 Q 86 198 61 195 Q 45 194 45 179 Q 48 158 45 140 Q 41 117 44 100 Q 48 82 45 61 Q 45 46 61 46 Z' fill='white'/%3E%3Cpath d='M 43 48 C 54 42 72 35 86 37 C 96 39 103 44 108 49 C 84 50 62 50 43 48 Z' fill='white'/%3E%3Cpath d='M 628 193 C 646 190 665 190 682 193 C 685 198 679 202 667 202 C 652 201 640 197 628 193 Z' fill='white'/%3E%3C/svg%3E");
+	/* quietly irregular scroll body; the corner caps are separate SVG layers */
+	--scroll-panel-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 240' preserveAspectRatio='none'%3E%3Cpath d='M 57 47 C 75 48 91 46 108 47 C 125 49 142 45 160 47 C 178 48 194 46 212 47 C 229 49 246 45 264 47 C 282 48 299 46 316 47 C 334 49 351 45 368 47 C 386 48 403 46 420 47 C 438 49 455 45 472 47 C 490 48 507 46 524 47 C 542 49 559 45 576 47 C 594 48 611 46 628 47 C 642 48 653 47 662 47 C 671 47 675 52 675 61 C 674 82 676 101 675 120 C 674 140 676 159 675 179 C 675 188 671 193 662 193 C 644 193 628 195 610 193 C 592 191 576 195 558 193 C 540 191 524 195 506 193 C 488 191 472 195 454 193 C 436 191 420 195 402 193 C 384 191 368 195 350 193 C 332 191 316 195 298 193 C 280 191 264 195 246 193 C 228 191 212 195 194 193 C 176 191 160 195 142 193 C 124 191 108 195 90 193 C 78 192 68 195 57 193 C 49 193 46 188 46 179 C 47 159 45 140 46 120 C 47 100 45 81 46 61 C 46 53 49 48 57 47 Z' fill='white'/%3E%3C/svg%3E");
 	/* ink outline + shaded curl backsides, drawn over whatever bg-* fill the
 	   element carries; geometry matches --scroll-panel-mask exactly */
-	--scroll-panel-detail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 240' preserveAspectRatio='none'%3E%3Cpath d='M 61 46 Q 89 49 107 47 Q 125 43 153 45 Q 171 49 199 46 Q 217 43 245 47 Q 269 49 291 44 Q 311 41 337 46 Q 361 50 384 47 Q 402 41 430 44 Q 455 50 476 46 Q 499 41 522 48 Q 543 49 568 47 Q 586 42 614 45 Q 636 49 660 46 Q 675 46 676 61 Q 673 83 675 100 Q 680 122 677 140 Q 673 157 676 179 Q 677 194 660 194 Q 632 197 614 195 Q 586 189 568 194 Q 547 198 522 196 Q 497 189 476 194 Q 453 197 430 195 Q 405 189 384 193 Q 359 197 337 194 Q 315 191 291 195 Q 267 197 245 193 Q 224 192 199 193 Q 174 197 153 194 Q 128 191 107 196 Q 86 198 61 195 Q 45 194 45 179 Q 48 158 45 140 Q 41 117 44 100 Q 48 82 45 61 Q 45 46 61 46 Z' fill='none' stroke='%232f2015' stroke-width='6' stroke-linejoin='round'/%3E%3Cpath d='M 43 48 C 54 42 72 35 86 37 C 96 39 103 44 108 49 C 84 50 62 50 43 48 Z' fill='%2326160c' stroke='%232f2015' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M 628 193 C 646 190 665 190 682 193 C 685 198 679 202 667 202 C 652 201 640 197 628 193 Z' fill='%2326160c' stroke='%232f2015' stroke-width='5' stroke-linejoin='round'/%3E%3C/svg%3E");
+	--scroll-panel-detail: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 240' preserveAspectRatio='none'%3E%3Cpath d='M 57 47 C 75 48 91 46 108 47 C 125 49 142 45 160 47 C 178 48 194 46 212 47 C 229 49 246 45 264 47 C 282 48 299 46 316 47 C 334 49 351 45 368 47 C 386 48 403 46 420 47 C 438 49 455 45 472 47 C 490 48 507 46 524 47 C 542 49 559 45 576 47 C 594 48 611 46 628 47 C 642 48 653 47 662 47 C 671 47 675 52 675 61 C 674 82 676 101 675 120 C 674 140 676 159 675 179 C 675 188 671 193 662 193 C 644 193 628 195 610 193 C 592 191 576 195 558 193 C 540 191 524 195 506 193 C 488 191 472 195 454 193 C 436 191 420 195 402 193 C 384 191 368 195 350 193 C 332 191 316 195 298 193 C 280 191 264 195 246 193 C 228 191 212 195 194 193 C 176 191 160 195 142 193 C 124 191 108 195 90 193 C 78 192 68 195 57 193 C 49 193 46 188 46 179 C 47 159 45 140 46 120 C 47 100 45 81 46 61 C 46 53 49 48 57 47 Z' fill='none' stroke='%232f2015' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 	/* squarer variants of the same scroll for tall/narrow panels (stacked
 	   mobile heroes) — a 4:1 mask stretched to ~1:1 blows the waves and
 	   curls out of proportion, so .scroll-panel swaps to these under sm */
-	--scroll-panel-mask-tall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 720' preserveAspectRatio='none'%3E%3Cpath d='M 61 46 Q 88 51 107 46 Q 134 43 153 46 Q 178 49 199 45 Q 223 41 245 46 Q 267 50 291 47 Q 316 40 337 44 Q 365 51 384 45 Q 408 42 430 45 Q 447 49 476 46 Q 499 40 522 45 Q 548 49 568 46 Q 586 42 614 44 Q 631 50 660 48 Q 675 46 676 61 Q 672 82 675 104 Q 679 126 675 146 Q 673 166 675 189 Q 678 208 677 232 Q 673 250 675 275 Q 679 298 675 317 Q 673 338 677 360 Q 680 384 675 403 Q 673 423 675 445 Q 678 472 677 488 Q 672 508 675 531 Q 679 553 676 574 Q 672 594 676 616 Q 678 641 677 659 Q 677 674 660 674 Q 640 671 614 674 Q 593 678 568 672 Q 539 671 522 673 Q 502 678 476 676 Q 453 671 430 676 Q 402 678 384 674 Q 355 671 337 675 Q 309 677 291 672 Q 266 671 245 672 Q 218 678 199 675 Q 176 669 153 676 Q 130 677 107 672 Q 85 670 61 673 Q 45 674 45 659 Q 43 643 46 616 Q 49 599 46 574 Q 42 556 46 531 Q 49 513 46 488 Q 41 468 45 445 Q 48 425 46 403 Q 41 385 46 360 Q 49 339 44 317 Q 43 298 45 275 Q 49 251 45 232 Q 41 215 44 189 Q 47 170 46 146 Q 43 127 44 104 Q 48 84 46 61 Q 45 46 61 46 Z' fill='white'/%3E%3Cpath d='M 43 48 C 54 42 72 35 86 37 C 96 39 103 44 108 49 C 84 50 62 50 43 48 Z' fill='white'/%3E%3Cpath d='M 628 673 C 646 670 665 670 682 673 C 685 678 679 682 667 682 C 652 681 640 677 628 673 Z' fill='white'/%3E%3C/svg%3E");
-	--scroll-panel-detail-tall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 720' preserveAspectRatio='none'%3E%3Cpath d='M 61 46 Q 88 51 107 46 Q 134 43 153 46 Q 178 49 199 45 Q 223 41 245 46 Q 267 50 291 47 Q 316 40 337 44 Q 365 51 384 45 Q 408 42 430 45 Q 447 49 476 46 Q 499 40 522 45 Q 548 49 568 46 Q 586 42 614 44 Q 631 50 660 48 Q 675 46 676 61 Q 672 82 675 104 Q 679 126 675 146 Q 673 166 675 189 Q 678 208 677 232 Q 673 250 675 275 Q 679 298 675 317 Q 673 338 677 360 Q 680 384 675 403 Q 673 423 675 445 Q 678 472 677 488 Q 672 508 675 531 Q 679 553 676 574 Q 672 594 676 616 Q 678 641 677 659 Q 677 674 660 674 Q 640 671 614 674 Q 593 678 568 672 Q 539 671 522 673 Q 502 678 476 676 Q 453 671 430 676 Q 402 678 384 674 Q 355 671 337 675 Q 309 677 291 672 Q 266 671 245 672 Q 218 678 199 675 Q 176 669 153 676 Q 130 677 107 672 Q 85 670 61 673 Q 45 674 45 659 Q 43 643 46 616 Q 49 599 46 574 Q 42 556 46 531 Q 49 513 46 488 Q 41 468 45 445 Q 48 425 46 403 Q 41 385 46 360 Q 49 339 44 317 Q 43 298 45 275 Q 49 251 45 232 Q 41 215 44 189 Q 47 170 46 146 Q 43 127 44 104 Q 48 84 46 61 Q 45 46 61 46 Z' fill='none' stroke='%232f2015' stroke-width='8' stroke-linejoin='round'/%3E%3Cpath d='M 43 48 C 54 42 72 35 86 37 C 96 39 103 44 108 49 C 84 50 62 50 43 48 Z' fill='%2326160c' stroke='%232f2015' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M 628 673 C 646 670 665 670 682 673 C 685 678 679 682 667 682 C 652 681 640 677 628 673 Z' fill='%2326160c' stroke='%232f2015' stroke-width='7' stroke-linejoin='round'/%3E%3C/svg%3E");
+	--scroll-panel-mask-tall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 720' preserveAspectRatio='none'%3E%3Cpath d='M 57 47 C 75 48 91 46 108 47 C 125 49 142 45 160 47 C 178 48 194 46 212 47 C 229 49 246 45 264 47 C 282 48 299 46 316 47 C 334 49 351 45 368 47 C 386 48 403 46 420 47 C 438 49 455 45 472 47 C 490 48 507 46 524 47 C 542 49 559 45 576 47 C 594 48 611 46 628 47 C 642 48 653 47 662 47 C 671 47 675 52 675 61 C 674 135 676 211 675 287 C 674 363 676 439 675 515 C 674 565 676 614 675 659 C 675 668 671 673 662 673 C 644 673 628 675 610 673 C 592 671 576 675 558 673 C 540 671 524 675 506 673 C 488 671 472 675 454 673 C 436 671 420 675 402 673 C 384 671 368 675 350 673 C 332 671 316 675 298 673 C 280 671 264 675 246 673 C 228 671 212 675 194 673 C 176 671 160 675 142 673 C 124 671 108 675 90 673 C 78 672 68 675 57 673 C 49 673 46 668 46 659 C 47 608 45 557 46 506 C 47 455 45 404 46 353 C 47 302 45 251 46 200 C 47 149 45 101 46 61 C 46 53 49 48 57 47 Z' fill='white'/%3E%3C/svg%3E");
+	--scroll-panel-detail-tall: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 720 720' preserveAspectRatio='none'%3E%3Cpath d='M 57 47 C 75 48 91 46 108 47 C 125 49 142 45 160 47 C 178 48 194 46 212 47 C 229 49 246 45 264 47 C 282 48 299 46 316 47 C 334 49 351 45 368 47 C 386 48 403 46 420 47 C 438 49 455 45 472 47 C 490 48 507 46 524 47 C 542 49 559 45 576 47 C 594 48 611 46 628 47 C 642 48 653 47 662 47 C 671 47 675 52 675 61 C 674 135 676 211 675 287 C 674 363 676 439 675 515 C 674 565 676 614 675 659 C 675 668 671 673 662 673 C 644 673 628 675 610 673 C 592 671 576 675 558 673 C 540 671 524 675 506 673 C 488 671 472 675 454 673 C 436 671 420 675 402 673 C 384 671 368 675 350 673 C 332 671 316 675 298 673 C 280 671 264 675 246 673 C 228 671 212 675 194 673 C 176 671 160 675 142 673 C 124 671 108 675 90 673 C 78 672 68 675 57 673 C 49 673 46 668 46 659 C 47 608 45 557 46 506 C 47 455 45 404 46 353 C 47 302 45 251 46 200 C 47 149 45 101 46 61 C 46 53 49 48 57 47 Z' fill='none' stroke='%232f2015' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 @layer components {
@@ -69,11 +99,34 @@
 		filter: url("#parchment-tear-broad");
 	}
 
-	/* a stretched scroll with irregular corner tabs; pair with a bg-* utility
-	   for the vellum tone — the ink outline and curl shading ride along in
-	   the detail layer. Drop shadows must live on a wrapper: filters apply
-	   before masks, so a shadow on this element would be clipped away. */
+	/* small mirrored caps sit behind the masked sheet and overlap it slightly,
+	   so the body cleanly hides their joins at every aspect ratio */
+	.scroll-panel-cap {
+		position: absolute;
+		z-index: 0;
+		display: block;
+		width: 5.5556%;
+		height: 6.6667%;
+		overflow: visible;
+		pointer-events: none;
+	}
+
+	.scroll-panel-cap-top {
+		top: 15%;
+		left: 7.9167%;
+	}
+
+	.scroll-panel-cap-bottom {
+		top: 78.3333%;
+		left: 88.1944%;
+		transform: scaleY(-1);
+	}
+
+	/* pair with a bg-* utility for the sheet tone. Drop shadows must live on
+	   the wrapper: filters apply before masks and would otherwise be clipped. */
 	.scroll-panel {
+		position: relative;
+		z-index: 1;
 		mask-image: var(--scroll-panel-mask);
 		mask-repeat: no-repeat;
 		mask-size: 100% 100%;
@@ -83,6 +136,18 @@
 	}
 
 	@media (width < 40rem) {
+		.scroll-panel-cap {
+			height: 2.2222%;
+		}
+
+		.scroll-panel-cap-top {
+			top: 5%;
+		}
+
+		.scroll-panel-cap-bottom {
+			top: 92.7778%;
+		}
+
 		.scroll-panel {
 			mask-image: var(--scroll-panel-mask-tall);
 			background-image: var(--scroll-panel-detail-tall);

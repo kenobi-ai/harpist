@@ -11,6 +11,9 @@ type GlyphSet = keyof typeof glyphSets;
 const scrollWaveSegmentWidth = 128;
 const scrollWaveSegmentCount = 48;
 const scrollWaveWidth = scrollWaveSegmentWidth * scrollWaveSegmentCount;
+const scrollPanelCapFillPath =
+	"M 0 11 C 4 7 11 5 18 3 C 27 0 35 5 40 11 L 40 16 L 0 16 Z";
+const scrollPanelCapEdgePath = "M 0 11 C 4 7 11 5 18 3 C 27 0 35 5 40 11";
 const scrollWavePath = `M 0 28 ${Array.from(
 	{ length: scrollWaveSegmentCount },
 	(_, index) => {
@@ -242,10 +245,9 @@ export function WavyFrame({
 }
 
 /**
- * A stretched-scroll backing panel — wavy band with rolled corner curls,
- * shaped by the --scroll-panel-mask in styles.css. Style the vellum via
- * panelClassName (bg-* fill); content sits on top, unwarped. The panel
- * bleeds past the content so the curls clear it — tune with insetClassName.
+ * A stretched-scroll backing panel. The masked sheet sits above two mirrored
+ * cap SVGs, so their joins stay hidden as the panel stretches. Style the sheet
+ * via panelClassName (bg-* fill); tune its bleed with insetClassName.
  */
 export function ScrollPanel({
 	children,
@@ -264,6 +266,25 @@ export function ScrollPanel({
 				aria-hidden
 				className={`absolute drop-shadow-[2px_4px_4px_rgba(43,33,23,0.3)] ${insetClassName}`}
 			>
+				{["top", "bottom"].map((position) => (
+					<svg
+						key={position}
+						className={`scroll-panel-cap scroll-panel-cap-${position}`}
+						focusable="false"
+						preserveAspectRatio="none"
+						viewBox="0 0 40 16"
+					>
+						<title>Decorative scroll cap</title>
+						<path d={scrollPanelCapFillPath} fill="#26160c" />
+						<path
+							d={scrollPanelCapEdgePath}
+							fill="none"
+							stroke="#2f2015"
+							strokeLinecap="round"
+							strokeWidth="3"
+						/>
+					</svg>
+				))}
 				<div className={`scroll-panel size-full ${panelClassName}`} />
 			</div>
 			<div className="relative z-10">{children}</div>

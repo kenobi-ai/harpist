@@ -19,6 +19,7 @@
 		"url": "git+https://github.com/kenobi-ai/harpist.git",
 		"directory": "packages/cli"
 	},
+	"license": "MIT",
 	"type": "module",
 	"bin": {
 		"harpist": "dist/cli.js"
