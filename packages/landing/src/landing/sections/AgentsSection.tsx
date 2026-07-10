@@ -14,7 +14,7 @@ export function AgentsSection() {
 	return (
 		<section
 			aria-labelledby="agents-title"
-			className="scroll-mt-12 bg-stone-900 text-stone-50"
+			className="scroll-mt-12 bg-stone-900 text-stone-50 py-12 -mb-8"
 			id="agents"
 		>
 			<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">

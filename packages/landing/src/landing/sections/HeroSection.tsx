@@ -43,7 +43,7 @@ export function HeroSection() {
 						</p>
 						<ScrollPanel
 							insetClassName="-mx-6 -my-3 sm:-inset-x-8 sm:-inset-y-9"
-							panelClassName="bg-stone-300"
+							panelClassName="bg-amber-50"
 						>
 							<div className="px-3 py-6">
 								<h1

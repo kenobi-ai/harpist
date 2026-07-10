@@ -13,23 +13,23 @@ export function OpenSourceSection() {
 			<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
 				<div className="grid gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:gap-20">
 					<div>
-						<p className="font-display text-3xl leading-none">
+						<p className="font-display text-3xl leading-none mb-8">
 							<span className="text-red-700">v.</span> codex publicus
 						</p>
 						<ScrollPanel
-							className="mt-7"
-							insetClassName="-inset-x-4 -inset-y-7 sm:-inset-x-8 sm:-inset-y-9"
-							panelClassName="bg-emerald-950"
+							insetClassName="-mx-6 -my-3 sm:-inset-x-8 sm:-inset-y-9"
+							panelClassName="bg-stone-100"
 						>
-							<div className="px-3 py-3">
-								<h2
-									className="font-bold font-heading text-5xl text-white leading-tight tracking-tight sm:text-6xl"
-									id="open-source-title"
+							<div className="px-3 py-6">
+								<h1
+									className="w-full font-bold font-heading text-5xl text-amber-950 leading-tight tracking-tight sm:text-6xl"
+									id="hero-title"
 								>
 									Harpist is open source.
-								</h2>
+								</h1>
 							</div>
 						</ScrollPanel>
+
 						<p className="drop-cap mt-14 max-w-xl text-lg leading-8">
 							Every moving part lives in public: the Chrome recorder, local
 							bridge, CLI, contract pipeline, and the agent skill. Read the

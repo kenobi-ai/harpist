@@ -44,7 +44,7 @@ export function WorkflowClipSection({
 				</p>
 				<p
 					className={[
-						"mt-6 inline-flex max-w-sm items-center gap-2 border-oxblood border-l-2 bg-olive-50/60 px-4 py-3 font-marginalia italic text-ink/70 text-sm",
+						"mt-6 inline-flex max-w-sm items-center gap-2 border-oxblood border-l-2 bg-olive-50/60 px-4 py-3 font-marginalia italic text-ink/70 text-lg",
 						reverse ? "lg:border-r-2 lg:border-l-0" : "",
 					].join(" ")}
 				>
