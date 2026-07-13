@@ -4,66 +4,186 @@
 
 # Harpist
 
-Harpist records website traffic in Chrome and turns it into agent-usable API docs, replayable authenticated requests, and oRPC/OpenAPI artifacts.
+<p align="center">
+  <a href="https://www.skills.sh/kenobi-ai/harpist/harpist"><img alt="Harpist agent skill" src="https://img.shields.io/badge/agent%20skill-skills.sh-111827" /></a>
+  <a href="https://www.npmjs.com/package/harpist"><img alt="harpist on npm" src="https://img.shields.io/npm/v/harpist?logo=npm&amp;label=npm" /></a>
+  <a href="https://chromewebstore.google.com/detail/harpist/gfdmoknmgjkkhkeoocffiogceamcegmb"><img alt="Harpist on the Chrome Web Store" src="https://img.shields.io/chrome-web-store/v/gfdmoknmgjkkhkeoocffiogceamcegmb?logo=googlechrome&amp;label=Chrome%20Web%20Store" /></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue" /></a>
+</p>
 
-## Run
+Harpist records website traffic in Chrome and turns it into agent-usable API documentation, replayable authenticated requests, and oRPC/OpenAPI artifacts. The recorder, bridge, generated contracts, and credentials stay on your machine.
+
+- [Install the Chrome extension](https://chromewebstore.google.com/detail/harpist/gfdmoknmgjkkhkeoocffiogceamcegmb)
+- [Install or read the agent skill](https://www.skills.sh/kenobi-ai/harpist/harpist)
+- [Run the CLI from npm](https://www.npmjs.com/package/harpist)
+- [Visit the project site](https://harpist.site)
+
+## Quick start
+
+Harpist requires Chrome and [Bun](https://bun.sh) 1.3 or newer. Install the extension, then add the skill to your agent:
 
 ```sh
-bun install
-bun dev
-bun run bridge
+npx skills add kenobi-ai/harpist
 ```
 
-The bridge runs at `http://127.0.0.1:4277` by default and stores local user data in `~/.harpist-data`. Set `HARPIST_DATA_DIR` to use a different cache.
+Start the local bridge in a terminal:
 
-Agents that need to start their own bridge should use an expiring bridge:
+```sh
+bunx harpist bridge
+```
+
+The bridge listens on `http://127.0.0.1:4277`. Leave it running while you record and refine a workflow.
+
+1. Open the site you want to document.
+2. Click **Add recording** in the Harpist extension.
+3. Use the site normally, then stop the recording.
+4. Ask an agent with the Harpist skill to refine the recording, verify replay, and generate the contract.
+
+For example:
+
+> Use Harpist to refine my latest recording for example.com, verify the authenticated requests, and generate agent-ready docs.
+
+You can also run the first pass yourself:
+
+```sh
+bunx harpist refine latest example.com
+bunx harpist docs example.com
+```
+
+The second command prints the local documentation URL. To install the CLI globally instead, run `npm install -g harpist`; the installed executable still requires Bun.
+
+Agents that start their own bridge should use an expiring process:
 
 ```sh
 bunx harpist bridge --agent --idle-timeout 15m
 ```
 
-Agent bridges report `startedBy: "agent"` from `/health` and exit after the idle timeout passes with no bridge HTTP traffic.
+## How it works
 
-## Install CLI
-
-```sh
-bunx harpist help
+```text
+Chrome extension -> local bridge and cache -> contract profile -> oRPC, OpenAPI, docs, and replay
+                         ^                                         |
+                         +------------- CLI + agent skill ---------+
 ```
 
-Or install the package globally:
+The extension captures the network trail behind a browser workflow and syncs it to the loopback bridge. Harpist writes a versioned `contract-profile.json` as the portable source of truth for each host. `contract.ts`, `openapi.json`, and the local documentation site are derived from that profile.
+
+Recordings are additive: later recordings refresh credentials and extend the known API without discarding useful endpoints from earlier sessions.
+
+## Develop from source
+
+### Set up the workspace
+
+You need Git, Chrome or Chromium, and Bun 1.3 or newer.
 
 ```sh
-npm install -g harpist
-harpist help
+git clone https://github.com/kenobi-ai/harpist.git
+cd harpist
+bun install
 ```
 
-## Workspace
+The repository is a Bun workspace:
 
-- `packages/extension`: WXT browser extension
-- `packages/cli`: Harpist CLI and local bridge service
-- `packages/core`: shared contracts, profiles, and HAR utilities
+- `packages/extension` — WXT browser extension
+- `packages/cli` — CLI and local bridge
+- `packages/core` — shared contracts, profiles, and HAR utilities
+- `packages/landing` — public project site
+- `skills/harpist` — published agent skill and development reference
 
-## Publishing
+### Browser extension
 
-Maintainer release flow lives in [PUBLISHING.md](PUBLISHING.md). The npm package is `harpist`, and the installed bin is also `harpist`.
-
-## Workflow
-
-1. Open the website in the Harpist dev browser.
-2. Click **Add recording** in the extension.
-3. Use the website normally, then stop recording.
-4. Ask an agent with the Harpist skill to refine that host.
-5. Open the generated docs:
+Run the extension in WXT's Chrome development profile with live rebuilds:
 
 ```sh
-bun run harpist docs <host>
+bun run dev
 ```
 
-## Contract Profiles
+Build a production extension:
 
-Harpist writes a versioned `contract-profile.json` first. It is the portable source of truth for a host: service metadata, auth runtime notes, operations, JSON Schema request/response shapes, replay selectors, and Harpist provenance. The generated `contract.ts`, `openapi.json`, and docs bundle are derived artifacts.
+```sh
+bun run build
+```
 
-## Useful CLI
+The unpacked build is written to `packages/extension/dist/chrome-mv3`. To use it in your regular Chrome profile:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. Click **Load unpacked** and select `packages/extension/dist/chrome-mv3`.
+
+Create a Chrome Web Store archive with:
+
+```sh
+bun run zip
+```
+
+The versioned archive is written to `packages/extension/dist`. Firefox development, build, and archive variants are available as `bun run dev:firefox`, `bun run build:firefox`, and `bun run zip:firefox`.
+
+### CLI and bridge
+
+Build the distributable CLI and run the source checkout:
+
+```sh
+bun run build:cli
+bun run harpist help
+bun run bridge
+```
+
+The build is written to `packages/cli/dist/cli.js`. Do not run a second bridge on another port when one is already active; the extension and CLI should share the same bridge and data directory.
+
+For an isolated development cache:
+
+```sh
+HARPIST_DATA_DIR="$PWD/.harpist-data" bun run bridge
+```
+
+### Agent skill
+
+The skill is plain Markdown plus references and has no build step. Install the checked-out version into a supported agent from the repository root:
+
+```sh
+npx skills add . --skill harpist
+```
+
+Add `--global` for a user-level installation. The source entry point is [`skills/harpist/SKILL.md`](skills/harpist/SKILL.md).
+
+### Landing site
+
+Run, build, or preview the public site independently:
+
+```sh
+bun run --filter @harpist/landing dev
+bun run --filter @harpist/landing build
+bun run --filter @harpist/landing preview
+```
+
+Deployment uses the Cloudflare configuration in `packages/landing/wrangler.jsonc` and requires access to the configured account:
+
+```sh
+bun run --filter @harpist/landing deploy
+```
+
+### Validate changes
+
+```sh
+bun run fix
+bun run check
+```
+
+`check` runs Biome, TypeScript, the Bun test suites, Knip, and the repository policy checks.
+
+## Local data and configuration
+
+Harpist stores recordings, request and response bodies, and captured authentication material locally. The default cache is `~/.harpist-data`; treat it as sensitive and do not commit it.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HARPIST_HOST` | `127.0.0.1` | Bridge bind address |
+| `HARPIST_PORT` | `4277` | Bridge port |
+| `HARPIST_DATA_DIR` | `~/.harpist-data` | Profiles, recordings, credentials, and generated artifacts |
+
+## Useful CLI commands
+
+The commands below run the source checkout. Replace `bun run harpist` with `bunx harpist` when using the published package.
 
 <!-- harpist:cli-commands:start -->
 ```sh
@@ -93,4 +213,12 @@ bun run harpist handoff [host]
 ```
 <!-- harpist:cli-commands:end -->
 
-`auth replay` executes the captured request with replay credentials applied and prints the response body by default. In a terminal it prompts for a site, operation, and missing input when omitted; use `--param`, `--query`, `--body`, or `--json` for scriptable input. Add `--verbose` to include request and response metadata, or `--curl` to print the runnable curl command instead.
+`auth replay` executes a recorded operation with captured browser credentials. In a terminal it prompts for the site, operation, and missing input; use `--param`, `--query`, `--body`, or `--json` for scripted input. Add `--verbose` for request and response metadata, or `--curl` to print a runnable command.
+
+## Publishing
+
+Maintainer release instructions live in [PUBLISHING.md](PUBLISHING.md). The npm package and installed executable are both named `harpist`.
+
+## License
+
+[MIT](LICENSE)
