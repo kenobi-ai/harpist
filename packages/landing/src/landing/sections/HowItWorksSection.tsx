@@ -30,10 +30,10 @@ export function HowItWorksSection() {
 						The three steps to{" "}
 						<span className="text-rubric">automatory enlightenment...</span>
 					</h2>
-					<p className="drop-cap ml-auto mt-8 max-w-xl text-left leading-7">
-						Use any website just like an API. record sessions with the chrome
-						extension, replay them with the CLI — easy for agents and humans to
-						use. now mount your goat and ship.
+					<p className="ml-auto mt-8 max-w-xl text-left leading-7">
+						<span className="drop-cap">U</span>se any website just like an API.
+						record sessions with the chrome extension, replay them with the CLI
+						— easy for agents and humans to use. now mount your goat and ship.
 					</p>
 					<div className="mt-9 flex flex-wrap justify-end gap-3">
 						<ManuscriptLink href="#agents" tone="ink">

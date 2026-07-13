@@ -1,13 +1,13 @@
-import { WavyRule } from "./components/medieval";
+import { GlyphStrip } from "./components/medieval";
 import { ExternalLink } from "./ExternalLink";
 
 export function LandingFooter() {
 	return (
-		<footer>
-			<div className="mx-auto max-w-6xl px-5 pt-6">
-				<WavyRule className="text-ink/40" />
+		<footer className="bg-olive-200/80 py-8 sm:py-10">
+			<div className="mx-auto max-w-6xl px-5">
+				<GlyphStrip className="text-rubric/60" set="ornament" />
 			</div>
-			<div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-xs">
+			<div className="mx-auto mt-7 flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 text-xs">
 				<p>
 					built by{" "}
 					<ExternalLink

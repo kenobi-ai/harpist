@@ -1,11 +1,10 @@
-import { RobotIcon, TerminalWindowIcon } from "@phosphor-icons/react";
+import { RobotIcon } from "@phosphor-icons/react";
 import angelIllustration from "../../assets/angel-illustration.webp";
 import { GlyphStrip, WavyFrame } from "../../components/medieval";
 import { ShellCommand } from "../../ShellCommand";
 import {
 	agentOutputs,
 	agentPrompt,
-	agentSteps,
 	installSkillCommand,
 	siteLinks,
 } from "../content";
@@ -34,10 +33,11 @@ export function AgentsSection() {
 							Use seamlessly with any AI agent
 						</h2>
 					</div>
-					<p className="max-w-xl drop-cap text-stone-50/75 leading-7 lg:justify-self-end">
-						Install the skill, make a recording with the browser extension, and
-						describe the workflow you want to run. The skill gives your agent
-						data for refinement, authenticated replay, and documentation review.
+					<p className="max-w-xl text-stone-50/75 leading-7 lg:justify-self-end">
+						<span className="drop-cap">I</span>nstall the skill, make a
+						recording with the browser extension, and describe the workflow you
+						want to run. The skill gives your agent data for refinement,
+						authenticated replay, and documentation review.
 					</p>
 				</div>
 

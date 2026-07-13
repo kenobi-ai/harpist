@@ -1,6 +1,6 @@
 import { GitForkIcon, GithubLogoIcon } from "@phosphor-icons/react";
 import tavernIllustration from "../../assets/tavern-illustration.webp";
-import { GlyphStrip, ScrollPanel, WavyFrame } from "../../components/medieval";
+import { ScrollPanel, WavyFrame } from "../../components/medieval";
 import { openSourceLedger, siteLinks } from "../content";
 import { ManuscriptLink } from "../ManuscriptLink";
 
@@ -8,10 +8,10 @@ export function OpenSourceSection() {
 	return (
 		<section
 			aria-labelledby="open-source-title"
-			className="scroll-mt-12 pt-0"
+			className="relative z-10 scroll-mt-12 pt-0 shadow-[0_12px_24px_-14px_rgba(43,33,23,0.45)]"
 			id="open-source"
 		>
-			<div className="mx-auto max-w-6xl px-5 pb-16 lg:pt-0 sm:py-24">
+			<div className="mx-auto max-w-6xl px-5 pb-16 lg:pb-0 lg:pt-0 sm:py-24">
 				<div className="grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
 					<div className="lg:pt-16">
 						<p className="font-display text-3xl leading-none mb-8">
@@ -71,14 +71,16 @@ export function OpenSourceSection() {
 							</WavyFrame>
 						</div>
 					</div>
-					<div className="h-full">
-						<div className="flex items-start justify-end h-full">
-							<img src={tavernIllustration} alt="Tavern illustration" />
+					<div className="min-w-0">
+						<div className="flex items-start justify-end lg:w-[calc(100%+max(0rem,(100vw-72rem)/2)+1.25rem)]">
+							<img
+								alt="Tavern illustration"
+								className="h-auto w-full object-contain"
+								src={tavernIllustration}
+							/>
 						</div>
 					</div>
 				</div>
-
-				<GlyphStrip className="mt-16 text-rubric/60" set="ornament" />
 			</div>
 		</section>
 	);

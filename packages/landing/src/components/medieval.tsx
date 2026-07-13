@@ -178,7 +178,7 @@ export function MedievalDefs() {
 }
 
 /** Hand-drawn squiggle rule. Tint it with a text-* utility. */
-export function WavyRule({ className = "" }: { className?: string }) {
+function WavyRule({ className = "" }: { className?: string }) {
 	return <div aria-hidden className={`wavy-rule ${className}`} />;
 }
 

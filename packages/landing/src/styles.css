@@ -185,15 +185,24 @@
 		filter: url("#wavy-band");
 	}
 
-	.drop-cap::first-letter {
-		background-color: var(--color-verdigris);
-		border: solid 2px var(--color-verdigris-dark);
-		padding: 1rem;
+	.drop-cap {
+		display: grid;
 		float: left;
+		width: 6.25rem;
+		height: 6.25rem;
 		margin-right: 0.6rem;
+		place-items: center;
+		background-color: var(--color-verdigris);
+		background-image: url("./assets/drop-cap-back.webp");
+		background-position: center;
+		background-size: cover;
+		border: solid 4px var(--color-verdigris-dark);
+		box-sizing: border-box;
 		font-family: var(--font-heading);
-		font-size: 3lh;
+		font-size: 5.25rem;
+		font-weight: 700;
 		line-height: 0.75;
 		color: white;
+		-webkit-text-stroke: 4px var(--color-verdigris-dark);
 	}
 }
