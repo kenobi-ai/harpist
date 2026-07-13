@@ -14,7 +14,7 @@ export function HeroSection() {
 	return (
 		<section
 			aria-labelledby="hero-title"
-			className="relative overflow-hidden pb-14 pt-6 sm:pb-16"
+			className="relative overflow-hidden pb-14 pt-4 sm:pb-16 sm:pt-6"
 		>
 			<div aria-hidden className="absolute inset-0 z-0 mix-blend-luminosity">
 				<div
@@ -36,8 +36,8 @@ export function HeroSection() {
 					</div>
 				</div>
 
-				<div className="mb-10 mt-8 grid grid-cols-1 gap-12 sm:grid-cols-2 lg:gap-20">
-					<div className="flex flex-col justify-center gap-6 text-amber-950">
+				<div className="mb-8 mt-6 grid grid-cols-1 gap-10 sm:mb-10 sm:mt-8 sm:grid-cols-2 sm:gap-12 lg:gap-20">
+					<div className="flex flex-col justify-center gap-3 text-amber-950 sm:gap-6">
 						<p className="font-display text-3xl leading-none">
 							<span className="text-red-700">i.</span> exordium
 						</p>
@@ -45,9 +45,9 @@ export function HeroSection() {
 							insetClassName="-mx-6 -my-3 sm:-inset-x-8 sm:-inset-y-9"
 							panelClassName="bg-amber-50"
 						>
-							<div className="px-3 py-6">
+							<div className="px-3 py-3 sm:py-6">
 								<h1
-									className="w-full font-bold font-heading text-5xl text-amber-950 leading-tight tracking-tight sm:text-6xl"
+									className="w-full font-bold font-heading text-4xl text-amber-950 leading-tight tracking-tight sm:text-6xl"
 									id="hero-title"
 								>
 									Automate any website interaction
@@ -55,7 +55,7 @@ export function HeroSection() {
 							</div>
 						</ScrollPanel>
 
-						<div className="mt-2 flex flex-col gap-7">
+						<div className="flex flex-col gap-5 sm:mt-2 sm:gap-7">
 							<p className="max-w-xl text-lg leading-7 sm:text-xl">
 								Get the underlying APIs to any website so that you never have to
 								run manual workflows again.

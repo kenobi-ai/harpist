@@ -82,7 +82,7 @@ export function DocumentationSection() {
 							<p className="font-display text-3xl text-rubric leading-none">
 								{feature.numeral}
 							</p>
-							<h3 className="mt-3 font-heading text-2xl leading-none">
+							<h3 className="mt-3 font-heading text-2xl leading-tight sm:leading-none">
 								{feature.title}
 							</h3>
 							<p className="mt-3 text-ink/70 text-sm leading-6">

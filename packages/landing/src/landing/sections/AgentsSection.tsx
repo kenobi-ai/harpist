@@ -14,10 +14,10 @@ export function AgentsSection() {
 	return (
 		<section
 			aria-labelledby="agents-title"
-			className="scroll-mt-12 bg-stone-900 text-stone-50 py-12 -mb-8"
+			className="-mb-8 scroll-mt-12 bg-stone-900 py-6 text-stone-50 sm:py-12"
 			id="agents"
 		>
-			<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
+			<div className="mx-auto max-w-6xl px-5 py-12 sm:py-24">
 				<div className="grid gap-8 lg:grid-cols-2 lg:items-end">
 					<div>
 						<p className="font-marginalia italic text-sm">
@@ -27,7 +27,7 @@ export function AgentsSection() {
 							iv. ars agentium
 						</p>
 						<h2
-							className="mt-4 max-w-3xl font-heading text-5xl text-amber-300 leading-[0.95] sm:text-6xl"
+							className="mt-4 max-w-3xl font-heading text-4xl text-amber-300 leading-[0.95] sm:text-6xl"
 							id="agents-title"
 						>
 							Use seamlessly with any AI agent
@@ -46,9 +46,14 @@ export function AgentsSection() {
 						className="min-w-0"
 						frameClassName="rounded-[2.5rem] border-amber-300/60 bg-stone-950/70"
 					>
-						<div className="p-7 sm:p-9">
-							<div className="flex items-center gap-3 text-amber-300">
-								<RobotIcon aria-hidden size={30} weight="duotone" />
+						<div className="p-6 sm:p-9">
+							<div className="flex items-start gap-3 text-amber-300 sm:items-center">
+								<RobotIcon
+									aria-hidden
+									className="shrink-0 sm:shrink"
+									size={30}
+									weight="duotone"
+								/>
 								<p className="font-display text-3xl leading-none">
 									Your agent does the legwork for you
 								</p>
@@ -74,17 +79,17 @@ export function AgentsSection() {
 					</WavyFrame>
 
 					<div className="min-w-0">
-						<div className="w-full flex items-center justify-center mb-12">
+						<div className="flex w-full items-center justify-center lg:mb-12">
 							<img
-								src={angelIllustration}
 								alt="Angel illustration"
-								className="w-[220px]"
+								className="w-[180px] sm:w-[220px]"
+								src={angelIllustration}
 							/>
 						</div>
 					</div>
 				</div>
 
-				<div className="mt-12 border-amber-300/40 border-y border-dotted py-6">
+				<div className="mt-10 border-amber-300/40 border-y border-dotted py-6 sm:mt-12">
 					<div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<p className="font-marginalia italic text-amber-300 text-sm">

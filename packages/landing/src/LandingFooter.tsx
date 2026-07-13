@@ -7,7 +7,7 @@ export function LandingFooter() {
 			<div className="mx-auto max-w-6xl px-5">
 				<GlyphStrip className="text-rubric/60" set="ornament" />
 			</div>
-			<div className="mx-auto mt-7 flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 text-xs">
+			<div className="mx-auto mt-7 flex max-w-6xl flex-col items-center justify-center gap-5 px-5 text-center text-xs sm:flex-row sm:flex-wrap sm:justify-between sm:gap-3 sm:text-left">
 				<p>
 					built by{" "}
 					<ExternalLink
@@ -17,7 +17,7 @@ export function LandingFooter() {
 						kenobi.ai
 					</ExternalLink>
 				</p>
-				<p className="font-display text-lg bg-red-900/20 text-red-900 leading-none px-3 py-0.5 border-y border-red-800">
+				<p className="max-w-full border-red-800 border-y bg-red-900/20 px-3 py-0.5 text-center font-display text-base text-red-900 leading-tight sm:text-lg sm:leading-none">
 					❦ made in londres · anno domini MMXXVI ❦
 				</p>
 				<div className="flex gap-4">

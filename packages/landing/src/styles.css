@@ -27,10 +27,6 @@
 		scroll-behavior: smooth;
 	}
 
-	body {
-		min-width: 20rem;
-	}
-
 	h1,
 	h2,
 	h3 {
@@ -49,6 +45,24 @@
 	@media (prefers-reduced-motion: reduce) {
 		html {
 			scroll-behavior: auto;
+		}
+	}
+
+	@media (width < 40rem) {
+		html,
+		body,
+		#root {
+			width: 100%;
+			max-width: 100%;
+			overflow-x: hidden;
+		}
+
+		@supports (overflow-x: clip) {
+			html,
+			body,
+			#root {
+				overflow-x: clip;
+			}
 		}
 	}
 }
@@ -137,15 +151,7 @@
 
 	@media (width < 40rem) {
 		.scroll-panel-cap {
-			height: 2.2222%;
-		}
-
-		.scroll-panel-cap-top {
-			top: 5%;
-		}
-
-		.scroll-panel-cap-bottom {
-			top: 92.7778%;
+			display: none;
 		}
 
 		.scroll-panel {
@@ -204,5 +210,16 @@
 		line-height: 0.75;
 		color: white;
 		-webkit-text-stroke: 4px var(--color-verdigris-dark);
+	}
+
+	@media (width < 40rem) {
+		.drop-cap {
+			width: 5rem;
+			height: 5rem;
+			margin-right: 0.75rem;
+			border-width: 3px;
+			font-size: 4.25rem;
+			-webkit-text-stroke-width: 3px;
+		}
 	}
 }

@@ -18,7 +18,7 @@ export function PrivacyPolicyPage() {
 						<p className="max-w-max border border-stone-900 px-2 py-1 font-bold text-xs uppercase tracking-widest">
 							Privacy Policy
 						</p>
-						<h1 className="mt-6 font-display text-7xl leading-none text-red-800 sm:text-8xl">
+						<h1 className="mt-6 font-display text-5xl leading-none text-red-800 sm:text-8xl">
 							Harpist Privacy Policy
 						</h1>
 						<p className="mt-4 text-stone-900/70 text-sm uppercase tracking-widest">
@@ -104,7 +104,7 @@ export function PrivacyPolicyPage() {
 								<p className="mt-3">
 									Questions can be opened at{" "}
 									<ExternalLink
-										className="font-bold text-red-800 underline underline-offset-4"
+										className="break-words font-bold text-red-800 underline underline-offset-4"
 										href="https://github.com/kenobi-ai/harpist/issues"
 									>
 										github.com/kenobi-ai/harpist/issues
