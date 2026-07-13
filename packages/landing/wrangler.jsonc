@@ -10,6 +10,10 @@
 		{
 			"pattern": "harpist.kenobi.ai",
 			"custom_domain": true
+		},
+		{
+			"pattern": "harpist.site",
+			"custom_domain": true
 		}
 	],
 	"assets": {
