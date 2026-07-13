@@ -1,4 +1,5 @@
 import { GitForkIcon, GithubLogoIcon } from "@phosphor-icons/react";
+import { PackageIcon } from "@phosphor-icons/react/dist/ssr";
 import tavernIllustration from "../../assets/tavern-illustration.webp";
 import { ScrollPanel, WavyFrame } from "../../components/medieval";
 import { openSourceLedger, siteLinks } from "../content";
@@ -15,7 +16,7 @@ export function OpenSourceSection() {
 				<div className="grid gap-12 lg:grid-cols-2 lg:items-center lg:gap-20">
 					<div className="lg:pt-16">
 						<p className="mb-3 font-display text-3xl leading-none sm:mb-8">
-							<span className="text-red-700">v.</span> codex publicus
+							<span className="text-red-700">vi.</span> codex publicus
 						</p>
 						<ScrollPanel
 							insetClassName="-mx-6 -my-3 sm:-inset-x-8 sm:-inset-y-9"
@@ -64,6 +65,7 @@ export function OpenSourceSection() {
 											href={siteLinks.npm}
 											tone="crimson"
 										>
+											<PackageIcon aria-hidden size={18} weight="duotone" />
 											view the package ↗
 										</ManuscriptLink>
 									</div>

@@ -20,17 +20,15 @@ export function AgentsSection() {
 			<div className="mx-auto max-w-6xl px-5 py-12 sm:py-24">
 				<div className="grid gap-8 lg:grid-cols-2 lg:items-end">
 					<div>
-						<p className="font-marginalia italic text-sm">
-							<span aria-hidden className="text-amber-400">
-								¶{" "}
-							</span>
-							iv. ars agentium
+						<p className="mb-3 font-display text-3xl leading-none sm:mb-8">
+							<span className="text-amber-300">iv.</span> intelligentia
+							artificialis
 						</p>
 						<h2
 							className="mt-4 max-w-3xl font-heading text-4xl text-amber-300 leading-[0.95] sm:text-6xl"
 							id="agents-title"
 						>
-							Use seamlessly with any AI agent
+							Seamless integration with any AI agent
 						</h2>
 					</div>
 					<p className="max-w-xl text-stone-50/75 leading-7 lg:justify-self-end">

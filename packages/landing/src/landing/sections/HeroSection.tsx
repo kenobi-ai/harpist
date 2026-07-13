@@ -28,13 +28,7 @@ export function HeroSection() {
 			</div>
 
 			<div className="relative z-10 mx-auto max-w-6xl px-5">
-				<div className="flex items-center justify-end pt-5 text-xs">
-					<div className="border border-amber-950/50 bg-amber-400/50 shadow-xs">
-						<span className="block px-3 py-1 font-display text-lg leading-none">
-							✠ summer beta ✠
-						</span>
-					</div>
-				</div>
+				<div className="flex items-center justify-end pt-5 text-xs"></div>
 
 				<div className="mb-8 mt-6 grid grid-cols-1 gap-10 sm:mb-10 sm:mt-8 sm:grid-cols-2 sm:gap-12 lg:gap-20">
 					<div className="flex flex-col justify-center gap-3 text-amber-950 sm:gap-6">

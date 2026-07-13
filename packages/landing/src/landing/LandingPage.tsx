@@ -6,6 +6,7 @@ import { DocumentationSection } from "./sections/DocumentationSection";
 import { HeroSection } from "./sections/HeroSection";
 import { HowItWorksSection } from "./sections/HowItWorksSection";
 import { OpenSourceSection } from "./sections/OpenSourceSection";
+import { UseCasesSection } from "./sections/UseCasesSection";
 
 export function LandingPage() {
 	return (
@@ -23,6 +24,8 @@ export function LandingPage() {
 			<DocumentationSection />
 			<ScrollBand />
 			<AgentsSection />
+			<ScrollBand />
+			<UseCasesSection />
 			<ScrollBand />
 			<OpenSourceSection />
 			<LandingFooter />
