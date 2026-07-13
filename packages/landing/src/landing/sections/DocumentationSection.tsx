@@ -6,19 +6,19 @@ const documentationFeatures = [
 		description:
 			"Operations are grouped by feature, with summaries that explain what each captured call does.",
 		numeral: "I.",
-		title: "Browse by feature",
+		title: "Browse by group",
 	},
 	{
 		description:
 			"Path and query parameters sit beside request and response schemas inferred from the recording.",
 		numeral: "II.",
-		title: "See the real shapes",
+		title: "Full, annotated request shapes",
 	},
 	{
 		description:
 			"Each operation includes a Harpist replay command that applies the latest captured browser auth locally.",
 		numeral: "III.",
-		title: "Replay from the page",
+		title: "Direct replay",
 	},
 ] as const;
 

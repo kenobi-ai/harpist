@@ -27,19 +27,19 @@ export const workflowClips: WorkflowClip[] = [
 		alt: "Harpist browser extension recording a website workflow",
 		caption: "fig. ii — the site, caught in the act",
 		description:
-			"use the website normally while the extension captures the network trail behind each click, form submit, and authenticated request.",
-		detail: "raw interaction becomes a replayable HAR",
+			"Use a website as normal while the extension captures the network trail behind each click, building up a HAR file for refinement later.",
+		detail: "The extension captures interactions via dev tools",
 		label: "record",
 		numeral: "I.",
 		src: clipFallbackSrc,
-		title: "Record the real workflow",
+		title: "Record yourself using a website",
 	},
 	{
 		alt: "Harpist CLI refining a recording into endpoint details",
 		caption: "fig. iii — the noise is sifted out",
 		description:
-			"the cli pulls signal out of the recording: endpoints, methods, headers, payload shapes, and the auth path an agent needs.",
-		detail: "requests settle into a contract",
+			"HAR captures are noisy, which is a perfect fuzzy refinement task for an agent. Endpoints, methods, headers, payload shapes, and the auth are filtered-out via an agent SKILL.",
+		detail: "Raw requests get turned into a contract",
 		fallbackSrc: "https://assets.harpist.kenobi.ai/step_2_test.webp",
 		label: "refine",
 		numeral: "II.",
@@ -50,23 +50,23 @@ export const workflowClips: WorkflowClip[] = [
 		alt: "Harpist generated documentation open in the browser",
 		caption: "fig. iv — the generated reference, ready to browse",
 		description:
-			"open the generated docs to browse every useful operation, observed parameter, response schema, and replay command in one place.",
-		detail: "real traffic becomes a navigable API reference",
+			"As part of the refinement task, an agent can use the Harpist SKILL and CLI to generate a full set of documented endpoints.",
+		detail: "Recorded traffic becomes an API reference",
 		label: "document",
 		numeral: "III.",
 		src: "https://assets.harpist.kenobi.ai/harpist--screen-2-003-a.mp4",
-		title: "View the docs",
+		title: "Real, useful documentation",
 	},
 	{
 		alt: "Harpist CLI replaying a captured website operation",
 		caption: "fig. v — the same score, played from the terminal",
 		description:
-			"agents and humans use the same cli to inspect profiles, replay authenticated calls, and bring generated contracts into a project.",
+			"Once an agent has refined and documented the various endpoints it found, the API contract is saved locally so that it can be accessed -- either interactively or agentically -- through the CLI.",
 		detail: "one local interface for people and agents",
 		label: "replay",
 		numeral: "IV.",
 		src: "https://assets.harpist.kenobi.ai/harpist--screen-2-004-a.mp4",
-		title: "Use the CLI",
+		title: "A CLI to reuse captured endpoints",
 	},
 ];
 

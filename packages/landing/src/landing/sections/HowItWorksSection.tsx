@@ -32,8 +32,9 @@ export function HowItWorksSection() {
 					</h2>
 					<p className="ml-auto mt-8 max-w-xl text-left leading-7">
 						<span className="drop-cap">U</span>se any website just like an API.
-						record sessions with the chrome extension, replay them with the CLI
-						— easy for agents and humans to use. now mount your goat and ship.
+						Record sessions with the chrome extension, extrapolate and replay
+						them with the CLI. Easy for agents to manage, and even easier for
+						humans to set up automated workflows with.
 					</p>
 					<div className="mt-9 flex flex-wrap justify-end gap-3">
 						<ManuscriptLink href="#agents" tone="ink">

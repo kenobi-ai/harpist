@@ -54,7 +54,7 @@ export function AgentsSection() {
 								</p>
 							</div>
 							<p className="mt-5 text-stone-50/70 text-sm leading-6">
-								Add the portable skill to an agent that supports agent skills:
+								Add the SKILL to your agent:
 							</p>
 							<ShellCommand
 								className="mt-4"

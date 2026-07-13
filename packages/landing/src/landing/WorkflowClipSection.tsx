@@ -22,13 +22,12 @@ export function WorkflowClipSection({
 	return (
 		<article className="grid gap-8 border-ink/25 border-b border-dotted py-12 lg:grid-cols-2 lg:items-center lg:gap-14">
 			<div className={reverse ? "lg:order-2 lg:text-right" : ""}>
-				<p className="font-display text-3xl leading-none">
-					<span className="text-rubric">{clip.numeral}</span>{" "}
+				<p className="font-display text-3xl leading-none text-verdigris-dark">
 					<span>{clip.label}</span>
 				</p>
 				<h3
 					className={[
-						"mt-4 max-w-xl font-bold font-heading text-3xl leading-tight tracking-tight sm:text-4xl",
+						"mt-2 max-w-xl font-bold font-heading text-3xl leading-tight tracking-tight sm:text-4xl",
 						reverse ? "lg:ml-auto" : "",
 					].join(" ")}
 				>
