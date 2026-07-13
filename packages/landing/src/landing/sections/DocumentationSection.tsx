@@ -41,7 +41,7 @@ export function DocumentationSection() {
 							<span className="text-rubric">ready to use.</span>
 						</h2>
 					</div>
-					<p className="max-w-xl text-ink/75 leading-7 lg:justify-self-end">
+					<p className="drop-cap max-w-xl text-ink/75 leading-7 lg:justify-self-end">
 						Harpist turns the captured traffic into a browsable API reference:
 						grouped operations, observed inputs, response schemas, and the local
 						replay command beside every call.

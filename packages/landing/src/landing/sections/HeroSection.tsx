@@ -57,8 +57,8 @@ export function HeroSection() {
 
 						<div className="mt-2 flex flex-col gap-7">
 							<p className="max-w-xl text-lg leading-7 sm:text-xl">
-								Stop running workflows manually by using these two ingredients
-								to never run manual workflows again:
+								Get the underlying APIs to any website so that you never have to
+								run manual workflows again.
 							</p>
 
 							<div className="flex flex-col items-start gap-6">

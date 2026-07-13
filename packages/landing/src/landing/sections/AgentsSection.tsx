@@ -1,4 +1,5 @@
 import { RobotIcon, TerminalWindowIcon } from "@phosphor-icons/react";
+import angelIllustration from "../../assets/angel-illustration.webp";
 import { GlyphStrip, WavyFrame } from "../../components/medieval";
 import { ShellCommand } from "../../ShellCommand";
 import {
@@ -18,7 +19,7 @@ export function AgentsSection() {
 			id="agents"
 		>
 			<div className="mx-auto max-w-6xl px-5 py-16 sm:py-24">
-				<div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+				<div className="grid gap-8 lg:grid-cols-2 lg:items-end">
 					<div>
 						<p className="font-marginalia italic text-sm">
 							<span aria-hidden className="text-amber-400">
@@ -27,16 +28,16 @@ export function AgentsSection() {
 							iv. ars agentium
 						</p>
 						<h2
-							className="mt-4 max-w-3xl font-display text-5xl text-amber-300 leading-[0.95] sm:text-6xl"
+							className="mt-4 max-w-3xl font-heading text-5xl text-amber-300 leading-[0.95] sm:text-6xl"
 							id="agents-title"
 						>
-							How to use Harpist with agents
+							Use seamlessly with any AI agent
 						</h2>
 					</div>
-					<p className="max-w-xl text-stone-50/75 leading-7 lg:justify-self-end">
-						Install the skill once, make a recording, and describe the outcome
-						you want. The skill gives the agent the full local workflow for
-						refinement, authenticated replay, and documentation review.
+					<p className="max-w-xl drop-cap text-stone-50/75 leading-7 lg:justify-self-end">
+						Install the skill, make a recording with the browser extension, and
+						describe the workflow you want to run. The skill gives your agent
+						data for refinement, authenticated replay, and documentation review.
 					</p>
 				</div>
 
@@ -49,7 +50,7 @@ export function AgentsSection() {
 							<div className="flex items-center gap-3 text-amber-300">
 								<RobotIcon aria-hidden size={30} weight="duotone" />
 								<p className="font-display text-3xl leading-none">
-									give your agent the score
+									Your agent does the legwork for you
 								</p>
 							</div>
 							<p className="mt-5 text-stone-50/70 text-sm leading-6">
@@ -73,32 +74,13 @@ export function AgentsSection() {
 					</WavyFrame>
 
 					<div className="min-w-0">
-						<div className="flex items-center gap-3 text-amber-300">
-							<TerminalWindowIcon aria-hidden size={28} weight="duotone" />
-							<p className="font-display text-3xl leading-none">
-								three movements
-							</p>
+						<div className="w-full flex items-center justify-center mb-12">
+							<img
+								src={angelIllustration}
+								alt="Angel illustration"
+								className="w-[220px]"
+							/>
 						</div>
-						<ol className="mt-5 border-stone-50/20 border-t border-dotted">
-							{agentSteps.map((step) => (
-								<li
-									className="grid grid-cols-[3.5rem_1fr] gap-4 border-stone-50/20 border-b border-dotted py-5"
-									key={step.title}
-								>
-									<span className="font-display text-4xl text-amber-300 leading-none">
-										{step.numeral}
-									</span>
-									<div>
-										<h3 className="font-heading text-2xl leading-none">
-											{step.title}
-										</h3>
-										<p className="mt-2 text-stone-50/65 text-sm leading-6">
-											{step.description}
-										</p>
-									</div>
-								</li>
-							))}
-						</ol>
 					</div>
 				</div>
 
