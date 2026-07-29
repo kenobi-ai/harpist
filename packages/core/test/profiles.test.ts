@@ -65,7 +65,7 @@ describe("agent handoff text", () => {
 		expect(handoff).not.toContain("Recapture auth");
 	});
 
-	test("marks unprocessed latest recordings as needing refinement", () => {
+	test("marks unprocessed latest recordings as ready for the agent", () => {
 		const handoff = buildAgentHandoffText(
 			profile({
 				recordings: [
@@ -92,7 +92,9 @@ describe("agent handoff text", () => {
 			DEFAULT_SETTINGS,
 		);
 
-		expect(handoff).toContain("Status: Needs refinement.");
+		expect(handoff).toContain(
+			"Status: Ready for agent refinement and documentation.",
+		);
 	});
 });
 

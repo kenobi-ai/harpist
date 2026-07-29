@@ -1,6 +1,10 @@
 import { credentialValidationFromResponse } from "../../core/src/credential-validation";
 import { shouldColorOutput } from "./auth-commands";
 import {
+	parseReplayJson,
+	replayRequestInputFromJson,
+} from "./auth-replay-json";
+import {
 	confirmReplayExecution,
 	isInteractiveTerminal,
 	promptReplayOperation,
@@ -13,92 +17,17 @@ import {
 	buildReplayBundle,
 	executeReplayBundle,
 	formatExecutedReplayResponse,
-	type ReplayQueryValue,
 	type ReplayRequestInput,
 } from "./replay";
+import { replayRequiresConfirmation } from "./replay-safety";
 import type { BridgeStore } from "./store";
 
 type AuthReplayOutput = "curl" | "redacted-curl" | "response";
 
 const usage =
-	"Usage: harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]";
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value);
+	"Usage: harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose] [--yes]";
 
 const hasOwn = (value: object, key: string) => Object.hasOwn(value, key);
-
-const parseJson = (value: string, label: string) => {
-	try {
-		return JSON.parse(value) as unknown;
-	} catch (error) {
-		throw new Error(
-			`${label} must be valid JSON: ${
-				error instanceof Error ? error.message : String(error)
-			}`,
-		);
-	}
-};
-
-const stringRecordFrom = (value: unknown, label: string) => {
-	if (!isRecord(value)) {
-		throw new Error(`${label} must be a JSON object.`);
-	}
-	return Object.fromEntries(
-		Object.entries(value).map(([key, item]) => [key, String(item)]),
-	);
-};
-
-const queryRecordFrom = (value: unknown, label: string) => {
-	if (!isRecord(value)) {
-		throw new Error(`${label} must be a JSON object.`);
-	}
-	return Object.fromEntries(
-		Object.entries(value).map(([key, item]) => {
-			if (
-				item === null ||
-				typeof item === "string" ||
-				typeof item === "number" ||
-				typeof item === "boolean"
-			) {
-				return [key, item];
-			}
-			if (
-				Array.isArray(item) &&
-				item.every(
-					(value) =>
-						typeof value === "string" ||
-						typeof value === "number" ||
-						typeof value === "boolean",
-				)
-			) {
-				return [key, item];
-			}
-			throw new Error(
-				`${label}.${key} must be a string, number, boolean, null, or an array of scalar values.`,
-			);
-		}),
-	) as Record<string, ReplayQueryValue>;
-};
-
-const requestInputFromJson = (value: string): ReplayRequestInput => {
-	const parsed = parseJson(value, "--json");
-	if (!isRecord(parsed)) {
-		throw new Error("--json must be a JSON object.");
-	}
-	return {
-		...(hasOwn(parsed, "body") ? { body: parsed.body } : {}),
-		...(parsed.params !== undefined
-			? { params: stringRecordFrom(parsed.params, "--json.params") }
-			: {}),
-		...(parsed.pathParams !== undefined
-			? { params: stringRecordFrom(parsed.pathParams, "--json.pathParams") }
-			: {}),
-		...(parsed.query !== undefined
-			? { query: queryRecordFrom(parsed.query, "--json.query") }
-			: {}),
-	};
-};
 
 const requestInputMerge = (
 	target: ReplayRequestInput,
@@ -139,8 +68,14 @@ const parseAuthReplayArgs = (args: string[]) => {
 	let credentialId: string | undefined;
 	let hasRequestInput = false;
 	let interactive: boolean | undefined;
+	let interactiveOptionSeen = false;
+	let jsonOptionSeen = false;
 	let output: AuthReplayOutput = "response";
+	let outputOptionSeen = false;
+	let requestFlagSeen = false;
 	let verbose = false;
+	let yes = false;
+	let credentialOptionSeen = false;
 	const nextValue = (index: number, name: string) => {
 		const value = args[index + 1];
 		if (value === undefined || value.startsWith("--")) {
@@ -152,43 +87,110 @@ const parseAuthReplayArgs = (args: string[]) => {
 	for (let index = 1; index < args.length; index += 1) {
 		const arg = args[index] ?? "";
 		if (arg === "--curl") {
+			if (outputOptionSeen) {
+				throw new Error("Pass only one of --curl or --redacted-curl.");
+			}
+			outputOptionSeen = true;
 			output = "curl";
 		} else if (arg === "--redacted-curl") {
+			if (outputOptionSeen) {
+				throw new Error("Pass only one of --curl or --redacted-curl.");
+			}
+			outputOptionSeen = true;
 			output = "redacted-curl";
 		} else if (arg === "--interactive") {
+			if (interactiveOptionSeen) {
+				throw new Error("Pass only one of --interactive or --no-interactive.");
+			}
+			interactiveOptionSeen = true;
 			interactive = true;
 		} else if (arg === "--no-interactive") {
+			if (interactiveOptionSeen) {
+				throw new Error("Pass only one of --interactive or --no-interactive.");
+			}
+			interactiveOptionSeen = true;
 			interactive = false;
 		} else if (arg === "--verbose") {
+			if (verbose) {
+				throw new Error("--verbose may only be passed once.");
+			}
 			verbose = true;
+		} else if (arg === "--yes") {
+			if (yes) {
+				throw new Error("--yes may only be passed once.");
+			}
+			yes = true;
 		} else if (arg === "--auth" || arg.startsWith("--auth=")) {
+			if (credentialOptionSeen) {
+				throw new Error("--auth may only be passed once.");
+			}
+			credentialOptionSeen = true;
 			credentialId =
 				arg === "--auth" ? nextValue(index, "--auth") : arg.slice(7);
+			if (!credentialId) {
+				throw new Error("Missing value for --auth.");
+			}
 			index += arg === "--auth" ? 1 : 0;
 		} else if (arg === "--json" || arg.startsWith("--json=")) {
+			if (jsonOptionSeen) {
+				throw new Error("--json may only be passed once.");
+			}
+			if (requestFlagSeen) {
+				throw new Error(
+					"--json cannot be combined with --param, --query, or --body.",
+				);
+			}
+			jsonOptionSeen = true;
 			const value =
 				arg === "--json" ? nextValue(index, "--json") : arg.slice(7);
-			requestInputMerge(requestInput, requestInputFromJson(value));
+			requestInputMerge(requestInput, replayRequestInputFromJson(value));
 			hasRequestInput = true;
 			index += arg === "--json" ? 1 : 0;
 		} else if (arg === "--param" || arg.startsWith("--param=")) {
+			if (jsonOptionSeen) {
+				throw new Error(
+					"--json cannot be combined with --param, --query, or --body.",
+				);
+			}
+			requestFlagSeen = true;
 			const value =
 				arg === "--param" ? nextValue(index, "--param") : arg.slice(8);
 			const [name, paramValue] = parseKeyValue(value, "--param");
+			if (requestInput.params && hasOwn(requestInput.params, name)) {
+				throw new Error(`Duplicate --param '${name}'.`);
+			}
 			requestInput.params = { ...requestInput.params, [name]: paramValue };
 			hasRequestInput = true;
 			index += arg === "--param" ? 1 : 0;
 		} else if (arg === "--query" || arg.startsWith("--query=")) {
+			if (jsonOptionSeen) {
+				throw new Error(
+					"--json cannot be combined with --param, --query, or --body.",
+				);
+			}
+			requestFlagSeen = true;
 			const value =
 				arg === "--query" ? nextValue(index, "--query") : arg.slice(8);
 			const [name, queryValue] = parseKeyValue(value, "--query");
+			if (requestInput.query && hasOwn(requestInput.query, name)) {
+				throw new Error(`Duplicate --query '${name}'.`);
+			}
 			requestInput.query = { ...requestInput.query, [name]: queryValue };
 			hasRequestInput = true;
 			index += arg === "--query" ? 1 : 0;
 		} else if (arg === "--body" || arg.startsWith("--body=")) {
+			if (jsonOptionSeen) {
+				throw new Error(
+					"--json cannot be combined with --param, --query, or --body.",
+				);
+			}
+			if (hasOwn(requestInput, "body")) {
+				throw new Error("--body may only be passed once.");
+			}
+			requestFlagSeen = true;
 			const value =
 				arg === "--body" ? nextValue(index, "--body") : arg.slice(7);
-			requestInput.body = parseJson(value, "--body");
+			requestInput.body = parseReplayJson(value, "--body");
 			hasRequestInput = true;
 			index += arg === "--body" ? 1 : 0;
 		} else if (arg.startsWith("--")) {
@@ -201,6 +203,9 @@ const parseAuthReplayArgs = (args: string[]) => {
 	if (positional.length > 2) {
 		throw new Error(usage);
 	}
+	if (yes && output !== "response") {
+		throw new Error("--yes is only valid when executing a replay.");
+	}
 	return {
 		credentialId,
 		hasRequestInput,
@@ -210,6 +215,7 @@ const parseAuthReplayArgs = (args: string[]) => {
 		requestInput,
 		selector: positional[1],
 		verbose,
+		yes,
 	};
 };
 
@@ -285,11 +291,15 @@ export const runAuthReplayCommand = async (
 	} else if (parsed.output === "redacted-curl") {
 		console.log(bundle.redactedCurl);
 	} else {
-		if (
-			(shouldPromptOperation || shouldPromptInput) &&
-			!(await confirmReplayExecution(bundle))
-		) {
-			throw new Error("Replay cancelled.");
+		if (replayRequiresConfirmation(bundle) && !parsed.yes) {
+			if (!(isInteractiveTerminal() && parsed.interactive !== false)) {
+				throw new Error(
+					`Refusing to send ${bundle.method} ${bundle.url} without confirmation. Review it with --redacted-curl, then pass --yes only after the user approves the live mutation.`,
+				);
+			}
+			if (!(await confirmReplayExecution(bundle))) {
+				throw new Error("Replay cancelled.");
+			}
 		}
 		const executed = await executeReplayBundle(bundle);
 		if (bundle.credentialSetId) {

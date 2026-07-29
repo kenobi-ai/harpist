@@ -13,17 +13,18 @@ Read this only when the user is working from the Harpist source checkout, editin
 
 ```sh
 bun run bridge -- --agent --idle-timeout 15m
-bun run harpist profiles list
-bun run harpist profiles latest [host]
-bun run harpist profiles get <host>
-bun run harpist recordings latest [host]
-bun run harpist recordings latest [host] --full
-bun run harpist recordings get <host> <id> [--full]
+bun run harpist profiles list [--output <path>] [--force]
+bun run harpist profiles latest [host] [--output <path>] [--force]
+bun run harpist profiles get <host> [--output <path>] [--force]
+bun run harpist recordings latest [host] [--full] [--output <path>] [--force]
+bun run harpist recordings get <host> <id> [--full] [--output <path>] [--force]
 bun run harpist refine latest [host]
-bun run harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
-bun run harpist contract-profile get <host>
-bun run harpist contract get <host>
-bun run harpist openapi get <host>
+bun run harpist auth replay [host] [templateKey|operationName] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose] [--yes]
+bun run harpist endpoints upsert <host> <endpoint.json|->
+bun run harpist endpoints remove <host> <templateKey>
+bun run harpist contract-profile get <host> [--output <path>] [--force]
+bun run harpist contract get <host> [--output <path>] [--force]
+bun run harpist openapi get <host> [--output <path>] [--force]
 bun run harpist docs <host>
 bun run harpist docs apply <host> <docs.json|->
 bun run harpist docs review <host>

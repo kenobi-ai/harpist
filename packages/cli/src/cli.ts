@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { readFile, rm } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, parse, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import process from "node:process";
 import {
 	buildAgentHandoffText,
@@ -15,28 +15,16 @@ import {
 	isMaintenanceRequestPath,
 	parseBridgeServeOptions,
 } from "./bridge-runtime";
+import { bunRuntime as Bun } from "./bun-runtime";
+import { recordingSummary, refineSummary } from "./cli-format";
+import { purgeDataDir, readCliVersion } from "./cli-maintenance";
 import { applyProfileDocs, reviewProfileDocs } from "./docs";
+import { runEndpointCommand } from "./endpoint-command";
+import { parseOutputOptions, writeCliOutput, writeJsonOutput } from "./output";
 import { refineLatestProfile } from "./refine";
 import { createHarpistBridgeServer } from "./server";
 import { createBridgeStore } from "./store";
 import { renderHarpistCliUsage } from "./surface";
-
-type CliPackageJson = {
-	version?: unknown;
-};
-
-declare const Bun: {
-	stdin: {
-		text: () => Promise<string>;
-	};
-	serve: (options: {
-		fetch: (request: Request) => Response | Promise<Response>;
-		hostname?: string;
-		port: number;
-	}) => {
-		stop: (closeActiveConnections?: boolean) => void;
-	};
-};
 
 const port = Number(process.env.HARPIST_PORT ?? 4277);
 const hostname = process.env.HARPIST_HOST ?? "127.0.0.1";
@@ -59,6 +47,24 @@ const hostArg = (value?: string) => value ?? fail("Missing host.");
 
 const fileArg = (value?: string) => value ?? fail("Missing file path.");
 
+const rejectUnknownOptions = (values: string[]) => {
+	const option = values.find((value) => value.startsWith("--"));
+	if (option) {
+		fail(`Unknown option '${option}'.`);
+	}
+};
+
+const requireArgumentCount = (
+	values: string[],
+	minimum: number,
+	maximum = minimum,
+) => {
+	if (values.length < minimum || values.length > maximum) {
+		usage();
+		process.exit(1);
+	}
+};
+
 const profileForHost = async (host: string) => {
 	const profile = await store.getProfile(host);
 	if (!profile) {
@@ -67,70 +73,8 @@ const profileForHost = async (host: string) => {
 	return profile;
 };
 
-const recordingSummary = (recording: unknown) => {
-	if (
-		typeof recording !== "object" ||
-		recording === null ||
-		!("har" in recording)
-	) {
-		return recording;
-	}
-	const { har: _har, ...summary } = recording as Record<string, unknown>;
-	return summary;
-};
-
-const refineSummary = (
-	result: Awaited<ReturnType<typeof refineLatestProfile>>,
-) => ({
-	artifacts: result.profile.artifacts
-		? {
-				contract: result.profile.artifacts.contractPath,
-				contractProfile: result.profile.artifacts.contractProfilePath,
-				openapi: result.profile.artifacts.openapiPath,
-				status: result.profile.artifacts.status,
-				updatedAt: result.profile.artifacts.updatedAt,
-			}
-		: undefined,
-	docs: result.profile.remoteDocsUrl,
-	excludedEndpointCount: result.excludedEndpointCount,
-	host: result.host,
-	includedEndpointCount: result.includedEndpointCount,
-	openapiPathCount: result.openapiPathCount,
-	recordingId: result.recordingId,
-});
-
 const readInputFile = async (path: string) =>
 	path === "-" ? Bun.stdin.text() : readFile(path, "utf8");
-
-const readCliVersion = async () => {
-	const packageJson = JSON.parse(
-		await readFile(new URL("../package.json", import.meta.url), "utf8"),
-	) as CliPackageJson;
-	if (typeof packageJson.version !== "string") {
-		fail("packages/cli/package.json has no string version.");
-	}
-	return packageJson.version;
-};
-
-const isUnsafePurgeTarget = (path: string) => {
-	const resolved = resolve(path);
-	return (
-		resolved === parse(resolved).root ||
-		resolved === resolve(homedir()) ||
-		resolved === resolve(process.env.INIT_CWD ?? process.cwd())
-	);
-};
-
-const purgeDataDir = async () => {
-	if (isUnsafePurgeTarget(dataDir)) {
-		fail(`Refusing to purge unsafe data dir: ${dataDir}`);
-	}
-	await rm(dataDir, {
-		force: true,
-		recursive: true,
-	});
-	console.log(`Purged Harpist data dir: ${dataDir}`);
-};
 
 const usage = () => {
 	console.log(renderHarpistCliUsage());
@@ -202,39 +146,71 @@ if (command === "bridge") {
 	command === "--version" ||
 	command === "-v"
 ) {
-	console.log(await readCliVersion());
+	requireArgumentCount(args, 0);
+	console.log(await readCliVersion(fail));
 } else if (command === "purge") {
-	await purgeDataDir();
+	requireArgumentCount(args, 0);
+	await purgeDataDir(dataDir, fail);
 } else if (command === "profiles") {
-	const subcommand = args[0] ?? "list";
+	const parsed = parseOutputOptions(args, fail);
+	rejectUnknownOptions(parsed.args);
+	const subcommand = parsed.args[0] ?? "list";
 	if (subcommand === "list") {
-		printJson(await store.listProfiles());
+		requireArgumentCount(parsed.args, 0, 1);
+		await writeJsonOutput(await store.listProfiles(), parsed.output, fail);
 	} else if (subcommand === "latest") {
-		printJson(await store.latestProfile(args[1]));
+		requireArgumentCount(parsed.args, 1, 2);
+		await writeJsonOutput(
+			await store.latestProfile(parsed.args[1]),
+			parsed.output,
+			fail,
+		);
 	} else if (subcommand === "get") {
-		printJson(await profileForHost(hostArg(args[1])));
+		requireArgumentCount(parsed.args, 2);
+		await writeJsonOutput(
+			await profileForHost(hostArg(parsed.args[1])),
+			parsed.output,
+			fail,
+		);
 	} else {
 		usage();
 		process.exit(1);
 	}
 } else if (command === "recordings") {
-	const subcommand = args[0] ?? "latest";
-	const full = args.includes("--full");
+	const parsed = parseOutputOptions(args, fail);
+	const fullCount = parsed.args.filter((arg) => arg === "--full").length;
+	if (fullCount > 1) {
+		fail("--full may only be passed once.");
+	}
+	const positional = parsed.args.filter((arg) => arg !== "--full");
+	rejectUnknownOptions(positional);
+	const subcommand = positional[0] ?? "latest";
+	const full = fullCount === 1;
 	if (subcommand === "latest") {
-		const recording = await store.latestRecording(
-			args.find((arg) => arg !== "--full" && arg !== "latest"),
+		requireArgumentCount(positional, 0, 2);
+		const recording = await store.latestRecording(positional[1]);
+		await writeJsonOutput(
+			full ? recording : recordingSummary(recording),
+			parsed.output,
+			fail,
 		);
-		printJson(full ? recording : recordingSummary(recording));
 	} else if (subcommand === "get") {
-		const host = hostArg(args[1]);
-		const id = args[2] ?? fail("Missing recording id.");
+		requireArgumentCount(positional, 3);
+		const host = hostArg(positional[1]);
+		const id = positional[2] ?? fail("Missing recording id.");
 		const recording = await store.getRecording(host, id);
-		printJson(full ? recording : recordingSummary(recording));
+		await writeJsonOutput(
+			full ? recording : recordingSummary(recording),
+			parsed.output,
+			fail,
+		);
 	} else {
 		usage();
 		process.exit(1);
 	}
 } else if (command === "refine") {
+	rejectUnknownOptions(args);
+	requireArgumentCount(args, 0, 2);
 	const subcommand = args[0] ?? "latest";
 	if (subcommand !== "latest") {
 		usage();
@@ -257,42 +233,69 @@ if (command === "bridge") {
 	} catch (error) {
 		fail(error instanceof Error ? error.message : String(error));
 	}
+} else if (command === "endpoints") {
+	try {
+		const result = await runEndpointCommand(store, args);
+		if (!result) {
+			usage();
+			process.exit(1);
+		}
+		printJson(result);
+	} catch (error) {
+		fail(error instanceof Error ? error.message : String(error));
+	}
 } else if (command === "contract") {
-	if (args[0] !== "get") {
+	const parsed = parseOutputOptions(args, fail);
+	rejectUnknownOptions(parsed.args);
+	if (parsed.args[0] !== "get") {
 		usage();
 		process.exit(1);
 	}
-	const profile = await profileForHost(hostArg(args[1]));
+	requireArgumentCount(parsed.args, 2);
+	const profile = await profileForHost(hostArg(parsed.args[1]));
 	const contract = await store.readProfileContract(profile.host);
 	if (!contract) {
 		fail(`No contract artifact for '${profile.host}'.`);
 	}
-	console.log(contract);
+	await writeCliOutput(
+		contract ?? fail(`No contract artifact for '${profile.host}'.`),
+		parsed.output,
+		"text",
+		fail,
+	);
 } else if (command === "contract-profile") {
-	if (args[0] !== "get") {
+	const parsed = parseOutputOptions(args, fail);
+	rejectUnknownOptions(parsed.args);
+	if (parsed.args[0] !== "get") {
 		usage();
 		process.exit(1);
 	}
-	const profile = await profileForHost(hostArg(args[1]));
+	requireArgumentCount(parsed.args, 2);
+	const profile = await profileForHost(hostArg(parsed.args[1]));
 	const contractProfile = await store.readProfileContractProfile(profile.host);
 	if (!contractProfile) {
 		fail(`No contract profile artifact for '${profile.host}'.`);
 	}
-	printJson(contractProfile);
+	await writeJsonOutput(contractProfile, parsed.output, fail);
 } else if (command === "openapi") {
-	if (args[0] !== "get") {
+	const parsed = parseOutputOptions(args, fail);
+	rejectUnknownOptions(parsed.args);
+	if (parsed.args[0] !== "get") {
 		usage();
 		process.exit(1);
 	}
-	const profile = await profileForHost(hostArg(args[1]));
+	requireArgumentCount(parsed.args, 2);
+	const profile = await profileForHost(hostArg(parsed.args[1]));
 	const openapi = await store.readProfileOpenApi(profile.host);
 	if (!openapi) {
 		fail(`No OpenAPI artifact for '${profile.host}'.`);
 	}
-	printJson(openapi);
+	await writeJsonOutput(openapi, parsed.output, fail);
 } else if (command === "docs") {
+	rejectUnknownOptions(args);
 	const subcommand = args[0];
 	if (subcommand === "apply") {
+		requireArgumentCount(args, 3);
 		const host = hostArg(args[1]);
 		const raw = await readInputFile(fileArg(args[2]));
 		let input: unknown;
@@ -311,14 +314,18 @@ if (command === "bridge") {
 			}),
 		);
 	} else if (subcommand === "review") {
+		requireArgumentCount(args, 2);
 		printJson(await reviewProfileDocs(store, { host: hostArg(args[1]) }));
 	} else {
+		requireArgumentCount(args, 1);
 		const host = hostArg(args[0]);
 		console.log(
 			`${normaliseServerUrl(bridgeUrl)}/profiles/${encodeURIComponent(host)}/docs`,
 		);
 	}
 } else if (command === "handoff") {
+	rejectUnknownOptions(args);
+	requireArgumentCount(args, 0, 1);
 	const profile = await store.latestProfile(args[0]);
 	if (!profile) {
 		fail("No Harpist profile exists yet. Record a site first.");
@@ -329,7 +336,10 @@ if (command === "bridge") {
 			serverUrl: bridgeUrl,
 		}),
 	);
+} else if (command === "help" || command === "--help") {
+	requireArgumentCount(args, 0);
+	usage();
 } else {
 	usage();
-	process.exit(command === "help" || command === "--help" ? 0 : 1);
+	process.exit(1);
 }

@@ -26,6 +26,8 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { browser } from "#imports";
+import { AGENT_BRIDGE_START_COMMAND } from "../../lib/bridge";
+import { copyText } from "../../lib/clipboard";
 import { writeErrorDiagnostic } from "../../lib/diagnostics";
 
 const sendMessage = async <T,>(
@@ -76,6 +78,7 @@ function Dashboard() {
 	const [selectedHost, setSelectedHost] = useState<string>("");
 	const [settings, setSettings] = useState<HarpistSettings>(DEFAULT_SETTINGS);
 	const [error, setError] = useState<string | null>(null);
+	const [bridgeCommandCopied, setBridgeCommandCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 	const [copied, setCopied] = useState(false);
 
@@ -119,6 +122,7 @@ function Dashboard() {
 		[state],
 	);
 	const selected = selectedHost ? state?.profiles[selectedHost] : undefined;
+	const bridgeOnline = state?.bridge.availability === "online";
 	const latestDiagnostic = state?.diagnostics.find(
 		(diagnostic) => diagnostic.level === "error" || diagnostic.level === "warn",
 	);
@@ -143,16 +147,28 @@ function Dashboard() {
 	};
 
 	const openRemoteDocs = async (profile: SiteProfile) => {
+		if (!bridgeOnline) {
+			return;
+		}
 		await browser.tabs.create({
 			url: docsUrlForProfile(profile, settings),
 		});
 	};
 
+	const copyBridgeCommand = async () => {
+		try {
+			await copyText(AGENT_BRIDGE_START_COMMAND);
+			setBridgeCommandCopied(true);
+			window.setTimeout(() => setBridgeCommandCopied(false), 1400);
+		} catch (copyError) {
+			setError(messageOf(copyError));
+			void writeErrorDiagnostic("dashboard.copyBridgeCommand", copyError);
+		}
+	};
+
 	const copyHandoff = async (profile: SiteProfile) => {
 		try {
-			await navigator.clipboard.writeText(
-				buildAgentHandoffText(profile, settings),
-			);
+			await copyText(buildAgentHandoffText(profile, settings));
 			setCopied(true);
 			window.setTimeout(() => setCopied(false), 1400);
 		} catch (copyError) {
@@ -179,9 +195,17 @@ function Dashboard() {
 					</div>
 					<div className="relative z-10 flex items-center gap-2">
 						<a
-							className="inline-flex h-10 items-center gap-2 rounded-md border border-white/20 bg-white/90 px-3 font-semibold text-sm text-zinc-950 transition hover:bg-white"
-							href={`${normaliseServerUrl(settings.serverUrl)}/openapi`}
+							aria-disabled={!bridgeOnline}
+							className={`inline-flex h-10 items-center gap-2 rounded-md border border-white/20 bg-white/90 px-3 font-semibold text-sm text-zinc-950 transition hover:bg-white ${
+								bridgeOnline ? "" : "pointer-events-none opacity-50"
+							}`}
+							href={
+								bridgeOnline
+									? `${normaliseServerUrl(settings.serverUrl)}/openapi`
+									: undefined
+							}
 							rel="noreferrer"
+							tabIndex={bridgeOnline ? undefined : -1}
 							target="_blank"
 						>
 							<BookOpenIcon size={16} />
@@ -289,9 +313,17 @@ function Dashboard() {
 							</div>
 						) : null}
 
+						{state?.bridge.availability === "offline" ? (
+							<BridgeUnavailableNotice
+								copied={bridgeCommandCopied}
+								onCopy={() => void copyBridgeCommand()}
+							/>
+						) : null}
+
 						{selected ? (
 							<ProfileDocs
 								copied={copied}
+								docsAvailable={bridgeOnline}
 								onCopy={() => void copyHandoff(selected)}
 								onOpenRemoteDocs={() => void openRemoteDocs(selected)}
 								profile={selected}
@@ -318,13 +350,51 @@ function Dashboard() {
 	);
 }
 
+function BridgeUnavailableNotice({
+	copied,
+	onCopy,
+}: {
+	copied: boolean;
+	onCopy: () => void;
+}) {
+	return (
+		<section className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-amber-300 bg-amber-100 px-4 py-3 text-amber-950 shadow-sm">
+			<WarningCircleIcon className="shrink-0" size={20} weight="fill" />
+			<div className="min-w-[220px] flex-1">
+				<p className="font-semibold text-sm">Bridge offline</p>
+				<p className="mt-0.5 text-sm">
+					Ask your agent to start the Harpist bridge. Docs will appear once it
+					reconnects.
+				</p>
+				<code className="mt-2 block w-fit max-w-full break-all rounded-sm bg-amber-950/10 px-2 py-1 font-mono text-xs">
+					{AGENT_BRIDGE_START_COMMAND}
+				</code>
+			</div>
+			<button
+				className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-amber-900/25 bg-white/70 px-3 font-semibold text-amber-950 text-sm transition hover:bg-white"
+				onClick={onCopy}
+				type="button"
+			>
+				{copied ? (
+					<CheckCircleIcon size={16} weight="fill" />
+				) : (
+					<CopyIcon size={16} />
+				)}
+				{copied ? "Command copied" : "Copy command"}
+			</button>
+		</section>
+	);
+}
+
 function ProfileDocs({
 	copied,
+	docsAvailable,
 	onCopy,
 	onOpenRemoteDocs,
 	profile,
 }: {
 	copied: boolean;
+	docsAvailable: boolean;
 	onCopy: () => void;
 	onOpenRemoteDocs: () => void;
 	profile: SiteProfile;
@@ -340,7 +410,7 @@ function ProfileDocs({
 	const authMethods = authMethodsForProfile(profile);
 	const authDetail = capturedAuthDetailLabel(profile);
 	const profileMessage = needsRefinement
-		? "Needs refinement"
+		? "Ready for agent"
 		: (profile.lastBridgeMessage ?? "Stored locally");
 
 	return (
@@ -362,6 +432,7 @@ function ProfileDocs({
 					<div className="flex items-center gap-2">
 						<button
 							className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 font-semibold text-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-45"
+							disabled={!docsAvailable}
 							onClick={onOpenRemoteDocs}
 							type="button"
 						>
@@ -374,7 +445,7 @@ function ProfileDocs({
 							type="button"
 						>
 							<CopyIcon size={16} />
-							<span>{copied ? "Copied" : "Copy handoff"}</span>
+							<span>{copied ? "Prompt copied" : "Copy agent prompt"}</span>
 						</button>
 					</div>
 				</div>

@@ -67,7 +67,7 @@ describe("replay response formatting", () => {
 				"Cookie: <redacted>",
 				"",
 				"{",
-				'  "hello": "world"',
+				'  "hello": "<redacted>"',
 				"}",
 				"",
 				"Response",

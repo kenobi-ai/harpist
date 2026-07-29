@@ -177,4 +177,76 @@ describe("refine endpoint annotations", () => {
 			tags: ["Example", "Projects"],
 		});
 	});
+
+	test("rekeys a previously collapsed RPC endpoint from raw samples", () => {
+		const collapsed = endpoint({
+			description: "Get profile picture URLs",
+			exactKey: "GET api.example.test/api/Reports/GetProfilePictureUrls",
+			notes: "Lists the profile picture URLs used by the report screen.",
+			operationName: "getProfilePictureUrls",
+			path: "/api/Reports/GetProfilePictureUrls",
+			template: "/api/Reports/{id}",
+			templateKey: "GET api.example.test/api/Reports/{id}",
+		});
+		const samples: PendingEntry[] = [
+			{
+				method: "GET",
+				requestHeaders: {},
+				startedDateTime: "2026-07-01T00:00:00.000Z",
+				status: 200,
+				url: "https://api.example.test/api/Reports/GetProfilePictureUrls",
+			},
+			{
+				method: "GET",
+				requestHeaders: {},
+				startedDateTime: "2026-07-01T00:00:01.000Z",
+				status: 200,
+				url: "https://api.example.test/api/Reports/GetUpdatedProgressStats",
+			},
+		];
+
+		const refreshed = refreshEndpointObservations([collapsed], samples);
+
+		expect(refreshed).toHaveLength(2);
+		expect(refreshed[0]).toMatchObject({
+			description: "Get profile picture URLs",
+			operationName: "getProfilePictureUrls",
+			template: "/api/Reports/GetProfilePictureUrls",
+		});
+		expect(refreshed[1]?.template).toBe("/api/Reports/GetUpdatedProgressStats");
+		expect(
+			refreshed.some((item) => item.template === "/api/Reports/{id}"),
+		).toBe(false);
+	});
+
+	test("applies identity overrides and durable removals to observations", () => {
+		const sample: PendingEntry = {
+			method: "GET",
+			requestHeaders: {},
+			startedDateTime: "2026-07-01T00:00:00.000Z",
+			status: 200,
+			url: "https://api.example.test/v1/items/customer123456789012",
+		};
+		const exactKey = "GET api.example.test/v1/items/customer123456789012";
+		const overridden = refreshEndpointObservations([], [sample], {
+			identityOverrides: [
+				{
+					exactKey,
+					template: "/v1/items/current",
+					templateKey: "GET api.example.test/v1/items/current",
+				},
+			],
+		});
+
+		expect(overridden[0]).toMatchObject({
+			exactKey,
+			template: "/v1/items/current",
+			templateKey: "GET api.example.test/v1/items/current",
+		});
+		expect(
+			refreshEndpointObservations([], [sample], {
+				removedTemplateKeys: ["GET api.example.test/v1/items/{id}"],
+			}),
+		).toEqual([]);
+	});
 });

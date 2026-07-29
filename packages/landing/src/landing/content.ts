@@ -102,7 +102,7 @@ export const openSourceLedger = [
 	["recorder", "Chrome extension"],
 	["bridge", "local service + CLI"],
 	["contracts", "oRPC + OpenAPI"],
-	["agent handoff", "portable skill + plain text"],
+	["agent prompt", "portable skill + plain text"],
 ] as const;
 
 export const installSkillCommand = "npx skills add kenobi-ai/harpist";

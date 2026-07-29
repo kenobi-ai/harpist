@@ -196,6 +196,12 @@ export type EndpointSummary = {
 	templateKey: string;
 };
 
+export type EndpointIdentityOverride = {
+	exactKey: string;
+	template: string;
+	templateKey: string;
+};
+
 export type EndpointQueryParamSummary = {
 	name: string;
 	repeated: boolean;
@@ -284,6 +290,7 @@ export type SiteProfile = {
 	createdAt: string;
 	derivedEndpointCount: number;
 	displayName: string;
+	endpointIdentityOverrides?: EndpointIdentityOverride[];
 	endpointTemplateKeys: string[];
 	endpoints: EndpointSummary[];
 	host: string;
@@ -297,6 +304,7 @@ export type SiteProfile = {
 	remoteProjectId?: string;
 	scannedEndpointCount: number;
 	scannedEndpointKeys: string[];
+	removedEndpointTemplateKeys?: string[];
 	status: BridgeStatus;
 	updatedAt: string;
 };
@@ -309,6 +317,7 @@ export type PopupState = {
 	activeRecording: ActiveRecording | null;
 	bridge: {
 		active: boolean;
+		availability: "checking" | "offline" | "online";
 		lastSyncedAt?: string;
 		message?: string;
 		pendingRecordingCount?: number;
@@ -319,6 +328,7 @@ export type PopupState = {
 		entryCount: number;
 		recording: boolean;
 		stopping?: boolean;
+		tabCount: number;
 		tabId: number | null;
 	};
 	diagnostics: ExtensionDiagnostic[];
@@ -356,8 +366,32 @@ const EMPTY_AUTH: AuthSummary = {
 	type: "none",
 };
 
-const idSegmentPattern =
-	/^(?:\d+|[a-f0-9]{8,}|[a-f0-9]{8}-[a-f0-9-]{13,}|[A-Za-z0-9_-]{20,})$/;
+const numericIdSegmentPattern = /^\d+$/;
+const hexIdSegmentPattern =
+	/^(?:[a-f0-9]{16}|[a-f0-9]{24}|[a-f0-9]{32}|[a-f0-9]{40}|[a-f0-9]{64})$/i;
+const uuidIdSegmentPattern = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const ulidSegmentPattern = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
+const opaqueIdSegmentPattern = /^[A-Za-z0-9_-]{20,}$/;
+const operationNameSegmentPattern = /^[A-Za-z][A-Za-z0-9]*$/;
+
+const isIdSegment = (segment: string) => {
+	if (
+		numericIdSegmentPattern.test(segment) ||
+		uuidIdSegmentPattern.test(segment) ||
+		ulidSegmentPattern.test(segment) ||
+		(hexIdSegmentPattern.test(segment) && /\d/.test(segment))
+	) {
+		return true;
+	}
+	if (
+		operationNameSegmentPattern.test(segment) &&
+		/[a-z]/.test(segment) &&
+		/[A-Z]/.test(segment)
+	) {
+		return false;
+	}
+	return opaqueIdSegmentPattern.test(segment) && /\d{6,}/.test(segment);
+};
 
 export const normaliseServerUrl = (url: string) => url.replace(/\/+$/, "");
 
@@ -390,6 +424,11 @@ export const recordingNeedsRefinement = (
 export const latestRecordingNeedsRefinement = (
 	profile?: Pick<SiteProfile, "lastRecordingId" | "recordings"> | null,
 ) => recordingNeedsRefinement(latestRecordingForProfile(profile));
+
+export const latestProfileNeedingRefinement = (profiles: ProfilesStore) =>
+	Object.values(profiles)
+		.filter((profile) => latestRecordingNeedsRefinement(profile))
+		.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0];
 
 export const activePageFromTab = (tab: {
 	title?: string;
@@ -1049,13 +1088,21 @@ export const redactLatestAuth = (
 	latestAuth
 		? {
 				...latestAuth,
-				values: latestAuth.values.map(({ value, ...item }) => ({
+				values: latestAuth.values.map(({ value: _value, ...item }) => ({
 					...item,
 					redacted: true as const,
-					valuePreview: secretPreview(value),
 				})),
 			}
 		: undefined;
+
+export const redactSiteProfile = (profile: SiteProfile) => ({
+	...profile,
+	latestAuth: redactLatestAuth(profile.latestAuth),
+	recordings: profile.recordings.map((recording) => ({
+		...recording,
+		latestAuth: redactLatestAuth(recording.latestAuth),
+	})),
+});
 
 const templatePath = (pathname: string) => {
 	const segments = pathname.split("/").filter(Boolean);
@@ -1063,8 +1110,27 @@ const templatePath = (pathname: string) => {
 		return "/";
 	}
 	return `/${segments
-		.map((segment) => (idSegmentPattern.test(segment) ? "{id}" : segment))
+		.map((segment) => (isIdSegment(segment) ? "{id}" : segment))
 		.join("/")}`;
+};
+
+export const applyEndpointIdentityOverrides = (
+	endpoints: EndpointSummary[],
+	overrides: EndpointIdentityOverride[] = [],
+) => {
+	const byExactKey = new Map(
+		overrides.map((override) => [override.exactKey, override]),
+	);
+	return endpoints.map((endpoint) => {
+		const override = byExactKey.get(endpoint.exactKey);
+		return override
+			? {
+					...endpoint,
+					template: override.template,
+					templateKey: override.templateKey,
+				}
+			: endpoint;
+	});
 };
 
 const queryParamsFromUrl = (url: URL): EndpointQueryParamSummary[] => {
@@ -1795,14 +1861,23 @@ export const mergeProfile = (
 	for (const key of summary.scannedKeys) {
 		scannedEndpointKeys.add(key);
 	}
-	const endpointTemplateKeys = new Set(existing?.endpointTemplateKeys ?? []);
-	for (const key of summary.templateKeys) {
-		endpointTemplateKeys.add(key);
-	}
-	const endpoints = mergeEndpoints([
-		...(existing?.endpoints ?? []),
-		...summary.endpoints,
-	]).slice(0, 500);
+	const endpointIdentityOverrides = existing?.endpointIdentityOverrides ?? [];
+	const removedEndpointTemplateKeys =
+		existing?.removedEndpointTemplateKeys ?? [];
+	const removed = new Set(removedEndpointTemplateKeys);
+	const endpoints = mergeEndpoints(
+		applyEndpointIdentityOverrides(
+			[...(existing?.endpoints ?? []), ...summary.endpoints],
+			endpointIdentityOverrides,
+		).filter((endpoint) => !removed.has(endpoint.templateKey)),
+	).slice(0, 500);
+	const endpointTemplateKeys = [
+		...new Set(
+			endpoints
+				.filter((endpoint) => endpoint.included !== false)
+				.map((endpoint) => endpoint.templateKey),
+		),
+	].slice(0, 1000);
 	const remoteDocsUrl =
 		bridge.projectId && bridge.serverUrl
 			? `${normaliseServerUrl(bridge.serverUrl)}/profiles/${encodeURIComponent(
@@ -1816,10 +1891,11 @@ export const mergeProfile = (
 			: summary.auth,
 		authBundle: summary.authBundle,
 		createdAt: existing?.createdAt ?? now,
-		derivedEndpointCount: endpointTemplateKeys.size,
+		derivedEndpointCount: endpointTemplateKeys.length,
 		displayName: existing?.displayName ?? meta.host,
+		endpointIdentityOverrides,
 		endpoints,
-		endpointTemplateKeys: [...endpointTemplateKeys].slice(0, 1000),
+		endpointTemplateKeys,
 		host: meta.host,
 		lastBridgeMessage: bridge.message ?? existing?.lastBridgeMessage,
 		lastRecordingId: summary.recording.id,
@@ -1834,6 +1910,7 @@ export const mergeProfile = (
 		remoteProjectId: bridge.projectId ?? existing?.remoteProjectId,
 		scannedEndpointCount: scannedEndpointKeys.size,
 		scannedEndpointKeys: [...scannedEndpointKeys].slice(0, 1000),
+		removedEndpointTemplateKeys,
 		status: bridge.status,
 		updatedAt: now,
 	};
@@ -1870,7 +1947,9 @@ export const buildAgentHandoffText = (
 		profile.lastRecordingId
 			? `Recording: ${profile.lastRecordingId} (${profile.derivedEndpointCount} endpoints).`
 			: `Latest recording: ${profile.derivedEndpointCount} endpoints.`,
-		latestRecordingNeedsRefinement(profile) ? "Status: Needs refinement." : "",
+		latestRecordingNeedsRefinement(profile)
+			? "Status: Ready for agent refinement and documentation."
+			: "",
 		`Auth: ${authMethodsText(profile)}.`,
 		accessDetail && accessLabel !== accessDetail
 			? `Access detail: ${accessDetail}.`

@@ -13,8 +13,7 @@ import type {
 	ReplayRequestInput,
 } from "./replay";
 import { replayOperationChoices } from "./replay-display";
-
-const mutatingMethods = new Set(["DELETE", "PATCH", "POST", "PUT"]);
+import { methodRequiresConfirmation } from "./replay-safety";
 
 export const isInteractiveTerminal = () =>
 	Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -294,7 +293,7 @@ const bodyDefault = (bundle: ReplayBundle) => {
 };
 
 const methodCanHaveBody = (method: string) =>
-	mutatingMethods.has(method.toUpperCase());
+	methodRequiresConfirmation(method);
 
 export const promptReplayRequestInput = async (
 	bundle: ReplayBundle,
@@ -339,7 +338,7 @@ export const promptReplayRequestInput = async (
 };
 
 export const confirmReplayExecution = (bundle: ReplayBundle) => {
-	if (!mutatingMethods.has(bundle.method.toUpperCase())) {
+	if (!methodRequiresConfirmation(bundle.method)) {
 		return Promise.resolve(true);
 	}
 	return confirm({

@@ -93,6 +93,9 @@ const ansi = {
 const secretHeaderPattern =
 	/^(?:authorization|cookie|proxy-authorization|x-api-key|api-key|x-auth-token|x-access-token|x-session-token|x-csrf-token|x-xsrf-token|x-amz-security-token)$/i;
 
+const safeVisibleHeaderPattern =
+	/^(?:accept|accept-language|content-type|origin|priority|sec-[a-z0-9-]+|traceparent|user-agent)$/i;
+
 const keepHeaderPattern =
 	/^(?:accept|authorization|content-type|cookie|origin|priority|referer|sec-|traceparent|user-agent|x-|api-key)/i;
 
@@ -686,7 +689,7 @@ const withJsonContentType = (headers: ReplayHeader[]) => {
 
 const redactedHeadersFrom = (headers: ReplayHeader[]) =>
 	headers.map((header) =>
-		header.secret
+		header.secret || !safeVisibleHeaderPattern.test(header.name)
 			? {
 					...header,
 					redacted: true,
@@ -733,6 +736,82 @@ const applyQueryInput = (url: URL, query: Record<string, ReplayQueryValue>) => {
 	}
 };
 
+const redactJsonValue = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map(redactJsonValue);
+	}
+	if (typeof value === "object" && value !== null) {
+		return Object.fromEntries(
+			Object.entries(value).map(([name, item]) => [
+				name,
+				redactJsonValue(item),
+			]),
+		);
+	}
+	return value === null ? null : redacted;
+};
+
+const redactedBodyFrom = (body?: string, contentType?: string) => {
+	if (body === undefined) {
+		return;
+	}
+	if (
+		/(?:^|[/+])json(?:$|[;\s])/i.test(contentType ?? "") ||
+		/^\s*[[{]/.test(body)
+	) {
+		try {
+			return JSON.stringify(redactJsonValue(JSON.parse(body)));
+		} catch {}
+	}
+	if (/application\/x-www-form-urlencoded/i.test(contentType ?? "")) {
+		const input = new URLSearchParams(body);
+		const output = new URLSearchParams();
+		for (const name of new Set(input.keys())) {
+			for (const _value of input.getAll(name)) {
+				output.append(name, redacted);
+			}
+		}
+		return output.toString();
+	}
+	return redacted;
+};
+
+const redactedUrlFrom = (rawUrl: string, template?: string) => {
+	const url = new URL(rawUrl);
+	if (template) {
+		const params = Object.fromEntries(
+			[...template.matchAll(/\{([^}]+)\}/g)].map((match) => [
+				match[1] ?? "id",
+				redacted,
+			]),
+		);
+		replacePathParams(url, template, params);
+	}
+	for (const name of new Set(url.searchParams.keys())) {
+		const count = url.searchParams.getAll(name).length;
+		url.searchParams.delete(name);
+		for (let index = 0; index < count; index += 1) {
+			url.searchParams.append(name, redacted);
+		}
+	}
+	return url.toString();
+};
+
+const redactedCurlFrom = (input: {
+	body?: string;
+	contentType?: string;
+	endpoint: Pick<EndpointSummary, "template">;
+	headers: ReplayHeader[];
+	method: string;
+	url: string;
+}) =>
+	curlFrom({
+		body: redactedBodyFrom(input.body, input.contentType),
+		headers: redactedHeadersFrom(input.headers),
+		method: input.method,
+		url: redactedUrlFrom(input.url, input.endpoint.template),
+	});
+
 export const applyReplayRequestInput = (
 	bundle: ReplayBundle,
 	input: ReplayRequestInput,
@@ -749,12 +828,12 @@ export const applyReplayRequestInput = (
 	const headers = hasBody
 		? withJsonContentType(bundle.headers)
 		: bundle.headers;
-	const redactedHeaders = redactedHeadersFrom(headers);
+	const contentType = hasBody ? "application/json" : bundle.contentType;
 	const nextUrl = url.toString();
 	return {
 		...bundle,
 		body,
-		contentType: hasBody ? "application/json" : bundle.contentType,
+		contentType,
 		curl: curlFrom({
 			body,
 			headers,
@@ -762,9 +841,11 @@ export const applyReplayRequestInput = (
 			url: nextUrl,
 		}),
 		headers,
-		redactedCurl: curlFrom({
+		redactedCurl: redactedCurlFrom({
 			body,
-			headers: redactedHeaders,
+			contentType,
+			endpoint: bundle.endpoint,
+			headers,
 			method: bundle.method,
 			url: nextUrl,
 		}),
@@ -899,14 +980,29 @@ const formatRequest = (
 	options: ReplayResponseFormatOptions,
 ) => {
 	const color = options.color === true;
-	const headers = requestHeadersFrom(request.headers);
+	const redactedHeaders = redactedHeadersFrom(request.headers);
+	const headers = requestHeadersFrom(redactedHeaders);
+	const contentType = redactedHeaders.find(
+		(header) => header.name.toLowerCase() === "content-type",
+	)?.value;
 	const lines = [
 		colorize(ansi.bold, "Request", color),
-		colorize(ansi.magenta, `${request.method} ${request.url}`, color),
+		colorize(
+			ansi.magenta,
+			`${request.method} ${redactedUrlFrom(request.url)}`,
+			color,
+		),
 		...formatHeaders(headers, color),
 	];
 	if (request.body !== undefined) {
-		lines.push("", formatBody(request.body, headers, options));
+		lines.push(
+			"",
+			formatBody(
+				redactedBodyFrom(request.body, contentType) ?? redacted,
+				headers,
+				options,
+			),
+		);
 	}
 	return lines;
 };
@@ -1025,9 +1121,6 @@ export const buildReplayBundle = (input: {
 	const headers = replayHeaders(entry, {
 		includeSecrets: true,
 	});
-	const redactedHeaders = replayHeaders(entry, {
-		includeSecrets: false,
-	});
 	const body = entry.postData;
 	const warnings: string[] = [];
 	if (authBundle.status !== "ready") {
@@ -1109,9 +1202,11 @@ export const buildReplayBundle = (input: {
 		latestAuth: redactLatestAuth(input.profile.latestAuth),
 		method: entry.method,
 		recordingId: sampleRecording.id,
-		redactedCurl: curlFrom({
+		redactedCurl: redactedCurlFrom({
 			body,
-			headers: redactedHeaders,
+			contentType: entry.postDataMime,
+			endpoint,
+			headers,
 			method: entry.method,
 			url: entry.url,
 		}),

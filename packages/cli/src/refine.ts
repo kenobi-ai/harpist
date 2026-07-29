@@ -2,11 +2,13 @@ import type { CapturedCookie, PendingEntry } from "../../core/src/har";
 import type {
 	AccessSummary,
 	AuthSummary,
+	EndpointIdentityOverride,
 	EndpointSummary,
 	ProfileArtifacts,
 	SiteProfile,
 } from "../../core/src/profiles";
 import {
+	applyEndpointIdentityOverrides,
 	deriveAuthBundle,
 	deriveAuthSummary,
 	deriveLatestAuth,
@@ -630,13 +632,39 @@ const mergeObservedEndpoint = (
 export const refreshEndpointObservations = (
 	endpoints: EndpointSummary[],
 	samples: PendingEntry[],
+	options: {
+		identityOverrides?: EndpointIdentityOverride[];
+		removedTemplateKeys?: string[];
+	} = {},
 ) => {
+	const removedTemplateKeys = new Set(options.removedTemplateKeys ?? []);
+	const observedEndpoints = applyEndpointIdentityOverrides(
+		summariseEndpoints(samples),
+		options.identityOverrides,
+	).filter((endpoint) => !removedTemplateKeys.has(endpoint.templateKey));
+	const observedByExactKey = new Map(
+		observedEndpoints.map((endpoint) => [endpoint.exactKey, endpoint]),
+	);
+	const existingByExactKey = new Map<string, EndpointSummary>();
 	const byTemplate = new Map<string, EndpointSummary>();
-	for (const endpoint of endpoints) {
+	for (const endpoint of applyEndpointIdentityOverrides(
+		endpoints,
+		options.identityOverrides,
+	)) {
+		if (removedTemplateKeys.has(endpoint.templateKey)) {
+			continue;
+		}
+		existingByExactKey.set(endpoint.exactKey, endpoint);
+		const observed = observedByExactKey.get(endpoint.exactKey);
+		if (observed && observed.templateKey !== endpoint.templateKey) {
+			continue;
+		}
 		byTemplate.set(endpoint.templateKey, endpoint);
 	}
-	for (const observed of summariseEndpoints(samples)) {
-		const existing = byTemplate.get(observed.templateKey);
+	for (const observed of observedEndpoints) {
+		const existing =
+			existingByExactKey.get(observed.exactKey) ??
+			byTemplate.get(observed.templateKey);
 		byTemplate.set(
 			observed.templateKey,
 			existing ? mergeObservedEndpoint(existing, observed) : observed,
@@ -852,6 +880,10 @@ export const refineLatestProfile = async (
 	const endpoints = refreshEndpointObservations(
 		profile.endpoints,
 		observedSampleEntries,
+		{
+			identityOverrides: profile.endpointIdentityOverrides,
+			removedTemplateKeys: profile.removedEndpointTemplateKeys,
+		},
 	);
 	const decisions = withUniqueOperationNames(
 		endpoints.map((endpoint) => {
@@ -946,7 +978,8 @@ export const refineLatestProfile = async (
 		endpointTemplateKeys: included.map(
 			(decision) => decision.endpoint.templateKey,
 		),
-		lastBridgeMessage: "Profile refined",
+		lastBridgeMessage:
+			"Draft API profile created; agent documentation pass required",
 		latestAuth,
 		remoteDocsUrl: `${options.bridgeUrl}/profiles/${encodeURIComponent(
 			profile.host,

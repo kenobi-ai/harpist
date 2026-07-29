@@ -36,8 +36,8 @@ The bridge listens on `http://127.0.0.1:4277`. Leave it running while you record
 
 1. Open the site you want to document.
 2. Click **Add recording** in the Harpist extension.
-3. Use the site normally, then stop the recording.
-4. Ask an agent with the Harpist skill to refine the recording, verify replay, and generate the contract.
+3. Use the site normally, then click **Finish recording** or Chrome's debugging **Cancel** button. Harpist records the starting tab and any tabs it opens; unrelated tabs are ignored.
+4. Click **Copy agent prompt** and paste it into an agent with the Harpist skill. The recording is already saved; bridge sync runs separately and retries in the background.
 
 For example:
 
@@ -181,6 +181,17 @@ Harpist stores recordings, request and response bodies, and captured authenticat
 | `HARPIST_PORT` | `4277` | Bridge port |
 | `HARPIST_DATA_DIR` | `~/.harpist-data` | Profiles, recordings, credentials, and generated artifacts |
 
+### Security model
+
+Harpist deliberately has powerful capabilities, so security scanners may classify the skill or CLI as high risk:
+
+- the CLI can download through `bunx`, starts a loopback network service, and reads browser-captured recordings;
+- recordings can contain cookies, bearer tokens, API keys, request bodies, and response data;
+- `auth login` can open or observe browser tabs; and
+- `auth replay` can send captured authentication to a live API.
+
+The bridge binds to `127.0.0.1` by default. Browser pages cannot read its raw profile, replay, or contract APIs; the docs view receives a redacted contract. Local profile, recording, refinement, contract, and docs commands do not call the recorded site's API. Review a replay with `--redacted-curl` first: it removes auth, dynamic path values, query values, and body values. Methods outside GET/HEAD/OPTIONS ask for confirmation interactively and are refused non-interactively unless `--yes` is supplied after user approval. Avoid unredacted `--curl` output because it can expose credentials and captured request data.
+
 ## Useful CLI commands
 
 The commands below run the source checkout. Replace `bun run harpist` with `bunx harpist` when using the published package.
@@ -190,22 +201,23 @@ The commands below run the source checkout. Replace `bun run harpist` with `bunx
 bun run harpist bridge [--agent] [--idle-timeout <duration>]
 bun run harpist version
 bun run harpist purge
-bun run harpist profiles list
-bun run harpist profiles latest [host]
-bun run harpist profiles get <host>
-bun run harpist recordings latest [host]
-bun run harpist recordings latest [host] --full
-bun run harpist recordings get <host> <id> [--full]
+bun run harpist profiles list [--output <path>] [--force]
+bun run harpist profiles latest [host] [--output <path>] [--force]
+bun run harpist profiles get <host> [--output <path>] [--force]
+bun run harpist recordings latest [host] [--full] [--output <path>] [--force]
+bun run harpist recordings get <host> <id> [--full] [--output <path>] [--force]
 bun run harpist refine latest [host]
-bun run harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
+bun run harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose] [--yes]
 bun run harpist auth list [host] [--json]
 bun run harpist auth use [host] [credentialId|--clear]
 bun run harpist auth check [host] [credentialId] [--all] [--json]
 bun run harpist auth login [host] [--url <url>] [--no-open] [--no-wait] [--timeout <duration>]
 bun run harpist auth set-login-url [host] [url]
-bun run harpist contract-profile get <host>
-bun run harpist contract get <host>
-bun run harpist openapi get <host>
+bun run harpist endpoints upsert <host> <endpoint.json|->
+bun run harpist endpoints remove <host> <templateKey>
+bun run harpist contract-profile get <host> [--output <path>] [--force]
+bun run harpist contract get <host> [--output <path>] [--force]
+bun run harpist openapi get <host> [--output <path>] [--force]
 bun run harpist docs <host>
 bun run harpist docs apply <host> <docs.json|->
 bun run harpist docs review <host>
@@ -213,7 +225,9 @@ bun run harpist handoff [host]
 ```
 <!-- harpist:cli-commands:end -->
 
-`auth replay` executes a recorded operation with captured browser credentials. In a terminal it prompts for the site, operation, and missing input; use `--param`, `--query`, `--body`, or `--json` for scripted input. Add `--verbose` for request and response metadata, or `--curl` to print a runnable command.
+`auth replay` executes a recorded operation with captured browser credentials. In a terminal it prompts for the site, operation, missing input, and confirmation before a mutating request. Use `--param`, `--query`, `--body`, or `--json` for scripted input. Prefer `--redacted-curl` for review; add `--verbose` for request and response metadata.
+
+Large profile, recording, contract, and OpenAPI reads support `--output <path>`. File output avoids shell or agent output limits, and existing files are protected unless `--force` is passed.
 
 ## Publishing
 

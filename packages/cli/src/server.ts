@@ -5,6 +5,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { redactSiteProfile } from "../../core/src/profiles";
 import type { BridgeHealthSnapshot } from "./bridge-runtime";
 import { docsPage, openApiWithReplayExamples } from "./profile-docs";
 import { buildReplayBundle } from "./replay";
@@ -31,9 +32,7 @@ const allowedCorsOrigin = (origin: string) => {
 		const url = new URL(origin);
 		if (
 			url.protocol === "chrome-extension:" ||
-			url.protocol === "moz-extension:" ||
-			url.hostname === "127.0.0.1" ||
-			url.hostname === "localhost"
+			url.protocol === "moz-extension:"
 		) {
 			return origin;
 		}
@@ -42,6 +41,37 @@ const allowedCorsOrigin = (origin: string) => {
 	}
 	return "";
 };
+
+const isTrustedApiRequest = (request: Request) => {
+	const origin = request.headers.get("origin");
+	if (origin) {
+		try {
+			const protocol = new URL(origin).protocol;
+			return protocol === "chrome-extension:" || protocol === "moz-extension:";
+		} catch {
+			return false;
+		}
+	}
+	return ![...request.headers.keys()].some((name) =>
+		name.toLowerCase().startsWith("sec-fetch-"),
+	);
+};
+
+const docsContentSecurityPolicy = (nonce: string) =>
+	[
+		"default-src 'self'",
+		"base-uri 'none'",
+		"connect-src 'self'",
+		"font-src https://fonts.gstatic.com",
+		"form-action 'none'",
+		"frame-ancestors 'none'",
+		"frame-src 'none'",
+		"img-src 'self' data: https://harpist.kenobi.ai",
+		"object-src 'none'",
+		`script-src 'nonce-${nonce}' https://cdn.jsdelivr.net`,
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+		"worker-src 'none'",
+	].join("; ");
 
 export const createHarpistBridgeServer = (options: {
 	bridgeUrl: string;
@@ -74,6 +104,28 @@ export const createHarpistBridgeServer = (options: {
 		],
 	});
 
+	app.use("*", async (c, next) => {
+		c.header("Cache-Control", "no-store");
+		c.header("Permissions-Policy", "camera=(), geolocation=(), microphone=()");
+		c.header("Referrer-Policy", "no-referrer");
+		c.header("X-Content-Type-Options", "nosniff");
+		c.header("X-Frame-Options", "DENY");
+		await next();
+	});
+
+	app.use("/rpc/*", async (c, next) => {
+		if (!isTrustedApiRequest(c.req.raw)) {
+			return c.json(
+				{
+					error:
+						"Bridge API requests are limited to the Harpist extension and local non-browser clients.",
+				},
+				403,
+			);
+		}
+		return next();
+	});
+
 	app.use(
 		"/rpc/*",
 		cors({
@@ -99,13 +151,20 @@ export const createHarpistBridgeServer = (options: {
 		return c.html(wakePage(presence?.extensionId));
 	});
 
-	app.get("/profiles/:host/docs", (c) => c.html(docsPage(c.req.param("host"))));
+	app.get("/profiles/:host/docs", (c) => {
+		const nonce = crypto.randomUUID().replaceAll("-", "");
+		c.header("Content-Security-Policy", docsContentSecurityPolicy(nonce));
+		return c.html(docsPage(c.req.param("host"), { nonce }));
+	});
 
 	app.get("/profiles/:host/scalar", (c) =>
 		c.redirect(`/profiles/${encodeURIComponent(c.req.param("host"))}/docs`),
 	);
 
 	app.get("/profiles/:host/profile.json", async (c) => {
+		if (!isTrustedApiRequest(c.req.raw)) {
+			return c.json({ error: "Browser access is not allowed." }, 403);
+		}
 		const profile = await options.store.getProfile(c.req.param("host"));
 		if (!profile) {
 			return c.json(
@@ -115,10 +174,13 @@ export const createHarpistBridgeServer = (options: {
 				404,
 			);
 		}
-		return c.json(profile);
+		return c.json(redactSiteProfile(profile));
 	});
 
 	app.get("/profiles/:host/replay.txt", async (c) => {
+		if (!isTrustedApiRequest(c.req.raw)) {
+			return c.text("Browser access is not allowed.", 403);
+		}
 		const host = c.req.param("host");
 		const profile = await options.store.getProfile(host);
 		if (!profile) {
@@ -139,7 +201,7 @@ export const createHarpistBridgeServer = (options: {
 							.map((warning) => `# warning: ${warning}`)
 							.join("\n")}\n`
 					: "";
-			return c.text(`${warnings}${bundle.curl}`);
+			return c.text(`${warnings}${bundle.redactedCurl}`);
 		} catch (error) {
 			return c.text(
 				error instanceof Error ? error.message : String(error),
@@ -149,6 +211,9 @@ export const createHarpistBridgeServer = (options: {
 	});
 
 	app.get("/profiles/:host/openapi.json", async (c) => {
+		if (!isTrustedApiRequest(c.req.raw)) {
+			return c.json({ error: "Browser access is not allowed." }, 403);
+		}
 		const host = c.req.param("host");
 		const profile = await options.store.getProfile(host);
 		const openapi = profile
@@ -166,6 +231,9 @@ export const createHarpistBridgeServer = (options: {
 	});
 
 	app.get("/profiles/:host/contract-profile.json", async (c) => {
+		if (!isTrustedApiRequest(c.req.raw)) {
+			return c.json({ error: "Browser access is not allowed." }, 403);
+		}
 		const host = c.req.param("host");
 		const profile = await options.store.getProfile(host);
 		const contractProfile = profile
@@ -216,6 +284,18 @@ export const createHarpistBridgeServer = (options: {
 	});
 
 	app.use("*", async (c, next) => {
+		if (
+			!(c.req.path === "/openapi" || c.req.path.startsWith("/openapi/")) &&
+			!isTrustedApiRequest(c.req.raw)
+		) {
+			return c.json(
+				{
+					error:
+						"Bridge API requests are limited to the Harpist extension and local non-browser clients.",
+				},
+				403,
+			);
+		}
 		const result = await openApiHandler.handle(c.req.raw, {
 			context,
 		});

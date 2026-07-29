@@ -8,6 +8,7 @@ import {
 	DEFAULT_SETTINGS,
 	type ExtensionDiagnostic,
 	hostLabel,
+	latestRecordingForProfile,
 	latestRecordingNeedsRefinement,
 	messageOf,
 	normaliseServerUrl,
@@ -37,7 +38,11 @@ import {
 } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { browser } from "#imports";
+import { AGENT_BRIDGE_START_COMMAND } from "../../lib/bridge";
+import { copyText } from "../../lib/clipboard";
+import { buildDebugSnapshot } from "../../lib/debug-snapshot";
 import { writeErrorDiagnostic } from "../../lib/diagnostics";
+import { selectPopupProfile } from "../../lib/profile-selection";
 
 const MESSAGE_TIMEOUT_MS = 12_000;
 const DIAGNOSTIC_MAX_AGE_MS = 2 * 60 * 1000;
@@ -86,12 +91,13 @@ const sendMessage = async <T,>(
 
 type WorkflowStatus =
 	| "Bridge active"
+	| "Bridge offline"
+	| "Checking bridge"
 	| "Complete"
 	| "Finishing recording"
-	| "Needs refinement"
 	| "No recording"
-	| "Recording in progress"
-	| "Waiting for handoff";
+	| "Ready for agent"
+	| "Recording in progress";
 
 const DEFAULT_SPRITE_FRAME = 12;
 const FIRST_SPRITE_FRAME = 1;
@@ -184,6 +190,7 @@ const readLocalFallbackState = async (): Promise<PopupState> => {
 		activeRecording,
 		bridge: {
 			active: false,
+			availability: "checking",
 			message: "Background busy",
 			pendingRecordingCount: 0,
 			syncing: false,
@@ -193,6 +200,7 @@ const readLocalFallbackState = async (): Promise<PopupState> => {
 			entryCount: 0,
 			recording: Boolean(activeRecording),
 			stopping: false,
+			tabCount: activeRecording ? 1 : 0,
 			tabId: activeRecording?.tabId ?? null,
 		},
 		diagnostics:
@@ -202,28 +210,11 @@ const readLocalFallbackState = async (): Promise<PopupState> => {
 	};
 };
 
-const copyText = async (text: string) => {
-	const textArea = document.createElement("textarea");
-	textArea.value = text;
-	textArea.setAttribute("readonly", "true");
-	textArea.style.left = "-9999px";
-	textArea.style.position = "fixed";
-	textArea.style.top = "0";
-	document.body.append(textArea);
-	textArea.focus();
-	textArea.select();
-	const copied = document.execCommand("copy");
-	textArea.remove();
-	if (copied) {
-		return;
-	}
-	await navigator.clipboard.writeText(text);
-};
-
 function App() {
 	const [state, setState] = useState<PopupState | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [bridgeCommandCopied, setBridgeCommandCopied] = useState(false);
 	const [debugCopied, setDebugCopied] = useState(false);
 	const [handoffCopied, setHandoffCopied] = useState(false);
 	const [spriteState, setSpriteState] = useState({
@@ -274,13 +265,16 @@ function App() {
 
 	const documentation = state?.activeDocumentation ?? null;
 	const activeHost = state?.activePage?.host ?? null;
-	const activeProfile = activeHost ? state?.profiles[activeHost] : undefined;
-	const documentationProfile = documentation
-		? state?.profiles[documentation.host]
+	const profile = state
+		? selectPopupProfile({
+				activeHost,
+				documentationHost: documentation?.host,
+				profiles: state.profiles,
+			})
 		: undefined;
-	const profile = documentationProfile ?? activeProfile;
 	const isStopping = state?.capture.stopping ?? false;
 	const isRecording = state?.capture.recording ?? false;
+	const bridgeOnline = state?.bridge.availability === "online";
 	const profileHost = profile?.host ?? null;
 	const needsRefinement = latestRecordingNeedsRefinement(profile);
 	useEffect(() => {
@@ -326,6 +320,11 @@ function App() {
 	useEffect(() => {
 		setHandoffCopied(false);
 	}, [profileHost]);
+	useEffect(() => {
+		if (state?.bridge.availability === "online") {
+			setBridgeCommandCopied(false);
+		}
+	}, [state?.bridge.availability]);
 
 	const copyDebugInfo = () => {
 		const debugInfo = {
@@ -335,7 +334,7 @@ function App() {
 			location: window.location.href,
 			manifest: browser.runtime.getManifest(),
 			runtimeId: browser.runtime.id,
-			state: stateRef.current,
+			state: buildDebugSnapshot(stateRef.current),
 		};
 		void copyText(JSON.stringify(debugInfo, null, 2))
 			.then(() => setDebugCopied(true))
@@ -343,10 +342,17 @@ function App() {
 				setError(`Could not copy debug info: ${messageOf(copyError)}`);
 			});
 	};
+	const copyBridgeCommand = () => {
+		void copyText(AGENT_BRIDGE_START_COMMAND)
+			.then(() => setBridgeCommandCopied(true))
+			.catch((copyError: unknown) => {
+				setError(`Could not copy bridge command: ${messageOf(copyError)}`);
+			});
+	};
 	const status = workflowStatus(
 		isRecording,
 		isStopping,
-		state?.bridge.active ?? false,
+		state?.bridge.availability ?? "checking",
 		profile,
 		handoffCopied,
 	);
@@ -358,7 +364,10 @@ function App() {
 		? "Checking website"
 		: isRecording
 			? state.activeRecording?.host
-			: (documentation?.host ?? activeHost ?? profile?.host);
+			: (documentation?.host ??
+				(needsRefinement ? profile?.host : undefined) ??
+				activeHost ??
+				profile?.host);
 	const bridgeMessage = state?.bridge.syncing
 		? state.bridge.pendingRecordingCount
 			? `Syncing ${state.bridge.pendingRecordingCount} recording${
@@ -366,13 +375,21 @@ function App() {
 				}`
 			: "Refreshing bridge"
 		: activeHost && !profile
-			? state?.bridge.active
+			? state?.bridge.availability === "online"
 				? "No recording for this site"
-				: "Bridge not checked"
-			: (profile?.lastBridgeMessage ??
-				state?.bridge.message ??
-				"Bridge not checked");
+				: (state?.bridge.message ?? "Bridge not checked")
+			: state?.bridge.availability === "offline"
+				? (state.bridge.message ?? "Bridge offline")
+				: (profile?.lastBridgeMessage ??
+					state?.bridge.message ??
+					"Bridge not checked");
 	const supportingContentLocked = isRecording || isStopping || !profile;
+	const showBridgeUnavailable =
+		state?.bridge.availability === "offline" &&
+		Boolean(profile) &&
+		!needsRefinement &&
+		!isRecording &&
+		!isStopping;
 	const spriteUrl = browser.runtime.getURL(
 		spritePathForFrame(spriteState.frame),
 	);
@@ -436,18 +453,15 @@ function App() {
 	};
 
 	const openDocs = async (selected?: SiteProfile) => {
-		if (!selected) {
+		if (!(selected && bridgeOnline)) {
 			return;
 		}
-		const hash = `#${encodeURIComponent(selected.host)}`;
 		await browser.tabs.create({
 			url:
 				selected.remoteDocsUrl ??
-				(state?.bridge.active
-					? `${normaliseServerUrl(
-							state.settings.serverUrl,
-						)}/profiles/${encodeURIComponent(selected.host)}/docs`
-					: browser.runtime.getURL(`/dashboard.html${hash}`)),
+				`${normaliseServerUrl(
+					state.settings.serverUrl,
+				)}/profiles/${encodeURIComponent(selected.host)}/docs`,
 		});
 	};
 
@@ -484,28 +498,45 @@ function App() {
 		}
 	};
 
+	const recordMore = async () => {
+		if (!(profile && state)) {
+			return;
+		}
+		if (state.activePage?.host === profile.host) {
+			await runRecordingAction();
+			return;
+		}
+		const sourceUrl =
+			latestRecordingForProfile(profile)?.sourceUrl ?? profile.origin;
+		setBusy(true);
+		setError(null);
+		try {
+			await browser.tabs.create({
+				active: true,
+				url: sourceUrl,
+			});
+		} catch (actionError) {
+			setError(messageOf(actionError));
+			void writeErrorDiagnostic("popup.openRecordedSite", actionError, {
+				context: { host: profile.host },
+			});
+		} finally {
+			setBusy(false);
+		}
+	};
+
 	const copyHandoff = async () => {
 		if (!(profile && state)) {
 			return;
 		}
 		try {
-			await navigator.clipboard.writeText(
+			await copyText(
 				buildAgentHandoffText(
 					state.profiles[profile.host] ?? profile,
 					state.settings,
 				),
 			);
 			setHandoffCopied(true);
-			void sendMessage({
-				activeHost: profile.host,
-				type: "SCHEDULE_SYNC_BRIDGE",
-			}).catch((syncError: unknown) =>
-				writeErrorDiagnostic("popup.scheduleHandoffSync", syncError, {
-					context: {
-						host: profile.host,
-					},
-				}),
-			);
 		} catch (copyError) {
 			setError(messageOf(copyError));
 			void writeErrorDiagnostic("popup.copyHandoff", copyError, {
@@ -605,13 +636,20 @@ function App() {
 						</div>
 					) : null}
 
+					{showBridgeUnavailable ? (
+						<BridgeUnavailableNotice
+							copied={bridgeCommandCopied}
+							onCopy={copyBridgeCommand}
+						/>
+					) : null}
+
 					{documentation ? (
 						<DocumentationPane
 							busy={busy}
 							onGoToSite={() => void openSiteToRecordMore()}
 						/>
 					) : needsRefinement && profile ? (
-						<div className="relative min-h-[190px]">
+						<div className="relative min-h-[230px]">
 							<div
 								aria-hidden
 								className="pointer-events-none select-none space-y-4 blur-[2px] opacity-35"
@@ -623,7 +661,7 @@ function App() {
 								/>
 								<div className="grid grid-cols-2 gap-2">
 									<ActionButton disabled icon="Docs" label="Docs" />
-									<ActionButton disabled icon="Handoff" label="Handoff" />
+									<ActionButton disabled icon="Prompt" label="Agent prompt" />
 								</div>
 								<div className="flex items-center justify-between gap-2 pt-1">
 									<p className="min-w-0 truncate text-xs text-amber-900/70">
@@ -632,13 +670,17 @@ function App() {
 									<StatusBadge status={status} />
 								</div>
 							</div>
-							<NeedsRefinementPane
+							<RecordingReadyPane
 								busy={busy}
-								canRecord={Boolean(state?.activePage)}
 								handoffCopied={handoffCopied}
 								onCopy={() => void copyHandoff()}
-								onRecordAgain={() => void runRecordingAction()}
+								onRecordMore={() => void recordMore()}
 								onUndo={() => void undoLatestRecording()}
+								recordMoreLabel={
+									state?.activePage?.host === profile.host
+										? "Record more"
+										: "Open recorded site"
+								}
 							/>
 						</div>
 					) : (
@@ -666,6 +708,18 @@ function App() {
 												: "Add recording"}
 								</span>
 							</button>
+							{isRecording ? (
+								<p className="mt-2 text-center text-amber-900/75 text-xs leading-relaxed">
+									Chrome shows its notice in every tab. Harpist captures only
+									this tab and tabs it opens
+									{state?.capture.tabCount
+										? ` (${state.capture.tabCount} tab${
+												state.capture.tabCount === 1 ? "" : "s"
+											})`
+										: ""}
+									. Finish here or press Cancel in Chrome.
+								</p>
+							) : null}
 
 							<div
 								aria-hidden={supportingContentLocked}
@@ -684,7 +738,9 @@ function App() {
 								<div className="grid grid-cols-2 gap-2">
 									<button
 										className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/35 bg-amber-500 font-bold text-amber-950 text-sm shadow-[0_4px_0_#92400e,0_7px_12px_rgb(120_53_15/0.14),inset_0_1px_0_rgb(255_255_255/0.42)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.2] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/50 after:content-[''] hover:translate-y-[2px] hover:bg-amber-400 hover:shadow-[0_3px_0_#92400e,0_5px_9px_rgb(120_53_15/0.13),inset_0_1px_0_rgb(255_255_255/0.48)] active:translate-y-[3px] active:shadow-[0_1px_0_#92400e,0_3px_6px_rgb(120_53_15/0.11),inset_0_1px_0_rgb(255_255_255/0.42)] disabled:cursor-not-allowed disabled:opacity-45"
-										disabled={!profile || supportingContentLocked}
+										disabled={
+											!profile || supportingContentLocked || !bridgeOnline
+										}
 										onClick={() => void openDocs(profile)}
 										type="button"
 									>
@@ -705,7 +761,7 @@ function App() {
 											) : (
 												<CopyIcon size={16} />
 											)}
-											{handoffCopied ? "Copied" : "Handoff"}
+											{handoffCopied ? "Prompt copied" : "Agent prompt"}
 										</span>
 									</button>
 								</div>
@@ -722,6 +778,44 @@ function App() {
 				</div>
 			</section>
 		</main>
+	);
+}
+
+function BridgeUnavailableNotice({
+	copied,
+	onCopy,
+}: {
+	copied: boolean;
+	onCopy: () => void;
+}) {
+	return (
+		<section className="rounded-md border border-amber-900/30 bg-amber-100 p-3 text-amber-950 shadow-sm">
+			<div className="flex items-start gap-2">
+				<BridgeIcon className="mt-0.5 shrink-0" size={18} weight="fill" />
+				<div className="min-w-0 flex-1">
+					<p className="font-bold text-sm">Bridge offline</p>
+					<p className="mt-1 text-xs leading-relaxed">
+						Ask your agent to start the Harpist bridge. Docs will appear once it
+						reconnects.
+					</p>
+					<code className="mt-2 block break-all rounded-sm bg-amber-950/10 px-2 py-1.5 font-mono text-[10px] leading-relaxed">
+						{AGENT_BRIDGE_START_COMMAND}
+					</code>
+					<button
+						className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-sm border border-amber-900/25 bg-amber-50 px-2.5 font-bold text-amber-900 text-xs transition hover:bg-white"
+						onClick={onCopy}
+						type="button"
+					>
+						{copied ? (
+							<CheckCircleIcon size={14} weight="fill" />
+						) : (
+							<CopyIcon size={14} />
+						)}
+						{copied ? "Command copied" : "Copy command"}
+					</button>
+				</div>
+			</div>
+		</section>
 	);
 }
 
@@ -753,28 +847,32 @@ function DocumentationPane({
 	);
 }
 
-function NeedsRefinementPane({
+function RecordingReadyPane({
 	busy,
-	canRecord,
 	handoffCopied,
 	onCopy,
-	onRecordAgain,
+	onRecordMore,
 	onUndo,
+	recordMoreLabel,
 }: {
 	busy: boolean;
-	canRecord: boolean;
 	handoffCopied: boolean;
 	onCopy: () => void;
-	onRecordAgain: () => void;
+	onRecordMore: () => void;
 	onUndo: () => void;
+	recordMoreLabel: "Open recorded site" | "Record more";
 }) {
 	return (
 		<section className="absolute inset-0 z-10 flex flex-col justify-center rounded-md border border-amber-900/25 bg-amber-50/95 p-3 text-amber-950 shadow-sm">
 			<div className="flex items-center justify-center gap-2 font-bold text-sm">
-				<PencilSimpleLineIcon size={16} weight="fill" />
-				<span>Needs refinement</span>
+				<CheckCircleIcon size={16} weight="fill" />
+				<span>Recording ready</span>
 			</div>
-			<div className="mt-3 grid grid-cols-2 gap-2">
+			<p className="mt-1 text-center text-amber-900/75 text-xs leading-relaxed">
+				Saved on this device. Copy the prompt into your agent; recording sync
+				happens separately.
+			</p>
+			<div className="mt-3 [&>button]:w-full [&>button]:!h-12 [&>button]:!border-rose-900/30 [&>button]:!bg-rose-300 [&>button]:!text-rose-950">
 				<button
 					className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-amber-900/25 bg-amber-100 font-bold text-amber-900 text-sm shadow-[0_3px_0_rgb(120_53_15/0.55),0_6px_10px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.7)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.18] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:inset-x-0 after:top-0 after:h-px after:bg-white/70 after:content-[''] hover:translate-y-[2px] hover:bg-amber-50 hover:shadow-[0_2px_0_rgb(120_53_15/0.5),0_4px_8px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.72)] active:translate-y-[3px] active:shadow-[0_1px_0_rgb(120_53_15/0.45),0_2px_5px_rgb(120_53_15/0.08),inset_0_1px_0_rgb(255_255_255/0.68)] disabled:cursor-not-allowed disabled:opacity-45"
 					disabled={busy}
@@ -787,30 +885,32 @@ function NeedsRefinementPane({
 						) : (
 							<CopyIcon size={16} />
 						)}
-						{handoffCopied ? "Copied" : "Handoff"}
+						{handoffCopied ? "Prompt copied" : "Copy agent prompt"}
 					</span>
 				</button>
+			</div>
+			<div className="mt-3 grid grid-cols-2 gap-2">
 				<button
-					className="relative isolate inline-flex h-11 translate-y-0 cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-sm border border-rose-900/30 bg-rose-300 px-3 font-bold text-rose-950 text-sm shadow-[0_4px_0_#9f1239,0_8px_14px_rgb(127_29_29/0.14),inset_0_1px_0_rgb(255_255_255/0.48)] transition-[transform,box-shadow,background-color,opacity] duration-150 ease-out before:pointer-events-none before:absolute before:inset-0 before:bg-[url('/grain.svg')] before:bg-[length:72px_72px] before:opacity-[0.22] before:mix-blend-multiply before:content-[''] after:pointer-events-none after:absolute after:inset-x-0 after:top-0 after:h-px after:bg-white/55 after:content-[''] hover:translate-y-[2px] hover:bg-rose-200 hover:shadow-[0_3px_0_#9f1239,0_6px_11px_rgb(127_29_29/0.13),inset_0_1px_0_rgb(255_255_255/0.5)] active:translate-y-[3px] active:shadow-[0_1px_0_#9f1239,0_3px_7px_rgb(127_29_29/0.11),inset_0_1px_0_rgb(255_255_255/0.45)] disabled:cursor-not-allowed disabled:opacity-45"
-					disabled={busy || !canRecord}
-					onClick={onRecordAgain}
+					className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-amber-900/20 bg-amber-900/5 px-3 font-bold text-amber-900 text-xs transition hover:bg-amber-900/10 disabled:cursor-not-allowed disabled:opacity-45"
+					disabled={busy}
+					onClick={onRecordMore}
 					type="button"
 				>
 					<span className="relative z-10 inline-flex items-center gap-2">
 						<VoicemailIcon size={16} weight="fill" />
-						Record again
+						{recordMoreLabel}
 					</span>
 				</button>
+				<button
+					className="inline-flex h-10 items-center justify-center gap-2 rounded-sm border border-amber-900/20 bg-amber-900/5 px-3 font-bold text-amber-900 text-xs transition hover:bg-amber-900/10 disabled:cursor-not-allowed disabled:opacity-45"
+					disabled={busy}
+					onClick={onUndo}
+					type="button"
+				>
+					<ArrowCounterClockwiseIcon size={14} />
+					Undo recording
+				</button>
 			</div>
-			<button
-				className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-sm border border-amber-900/20 bg-amber-900/5 px-3 font-bold text-amber-900 text-xs transition hover:bg-amber-900/10 disabled:cursor-not-allowed disabled:opacity-45"
-				disabled={busy}
-				onClick={onUndo}
-				type="button"
-			>
-				<ArrowCounterClockwiseIcon size={14} />
-				Undo recording
-			</button>
 		</section>
 	);
 }
@@ -821,7 +921,7 @@ function ActionButton({
 	label,
 }: {
 	disabled?: boolean;
-	icon: "Docs" | "Handoff";
+	icon: "Docs" | "Prompt";
 	label: string;
 }) {
 	const Icon = icon === "Docs" ? BookOpenTextIcon : CopyIcon;
@@ -840,7 +940,7 @@ function ActionButton({
 const workflowStatus = (
 	isRecording: boolean,
 	isStopping: boolean,
-	bridgeActive: boolean,
+	bridgeAvailability: PopupState["bridge"]["availability"],
 	profile?: SiteProfile,
 	handoffCopied?: boolean,
 ): WorkflowStatus => {
@@ -853,22 +953,33 @@ const workflowStatus = (
 	if (!profile) {
 		return "No recording";
 	}
+	if (bridgeAvailability === "checking") {
+		return "Checking bridge";
+	}
+	if (bridgeAvailability === "offline") {
+		return "Bridge offline";
+	}
 	if (latestRecordingNeedsRefinement(profile)) {
-		return "Needs refinement";
+		return "Ready for agent";
 	}
 	if (handoffCopied) {
 		return "Complete";
 	}
-	if (bridgeActive) {
-		return "Bridge active";
-	}
-	return "Waiting for handoff";
+	return "Bridge active";
 };
 
 function StatusBadge({ status }: { status: WorkflowStatus }) {
 	const statusView = {
 		"Bridge active": {
 			className: "bg-emerald-900/10 text-emerald-700",
+			Icon: BridgeIcon,
+		},
+		"Bridge offline": {
+			className: "bg-rose-900/10 text-rose-700",
+			Icon: WarningCircleIcon,
+		},
+		"Checking bridge": {
+			className: "bg-amber-900/10 text-amber-900",
 			Icon: BridgeIcon,
 		},
 		Complete: {
@@ -879,9 +990,9 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
 			className: "bg-rose-900/10 text-rose-700",
 			Icon: StopCircleIcon,
 		},
-		"Needs refinement": {
-			className: "bg-amber-900/10 text-amber-900",
-			Icon: PencilSimpleLineIcon,
+		"Ready for agent": {
+			className: "bg-emerald-900/10 text-emerald-700",
+			Icon: CheckCircleIcon,
 		},
 		"No recording": {
 			className: "bg-amber-900/10 text-amber-900",
@@ -890,10 +1001,6 @@ function StatusBadge({ status }: { status: WorkflowStatus }) {
 		"Recording in progress": {
 			className: "bg-rose-900/10 text-rose-700",
 			Icon: BroadcastIcon,
-		},
-		"Waiting for handoff": {
-			className: "bg-amber-900/10 text-amber-900",
-			Icon: WarningCircleIcon,
 		},
 	} satisfies Record<
 		WorkflowStatus,

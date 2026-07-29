@@ -1,16 +1,10 @@
+import {
+	profileDocsHttpMethods,
+	scalarScriptIntegrity,
+	scalarScriptUrl,
+} from "./profile-docs-config";
 import { buildReplayBundle } from "./replay";
 import type { BridgeStore } from "./store";
-
-const httpMethods = [
-	"delete",
-	"get",
-	"head",
-	"options",
-	"patch",
-	"post",
-	"put",
-	"trace",
-] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
@@ -205,9 +199,17 @@ samp {
 }
 `.trim();
 
-export const docsPage = (host: string) => {
+export const docsPage = (
+	host: string,
+	options: {
+		nonce?: string;
+	} = {},
+) => {
 	const escapedHost = escapeHtml(host);
 	const openApiUrl = `/profiles/${encodeURIComponent(host)}/openapi.scalar.json`;
+	const nonceAttribute = options.nonce
+		? ` nonce="${escapeHtml(options.nonce)}"`
+		: "";
 
 	return [
 		"<!doctype html>",
@@ -221,7 +223,7 @@ export const docsPage = (host: string) => {
 		'<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />',
 		'<link href="https://fonts.googleapis.com/css2?family=Jacquard+24&family=Grenze:ital,wght@0,100..900;1,100..900&family=Geist:ital,wght@0,100..900;1,100..900&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet" />',
 		'<link rel="icon" href="https://harpist.kenobi.ai/favicon.png" />',
-		"<style>",
+		`<style${nonceAttribute}>`,
 		docsThemeStyle,
 		"</style>",
 		"</head>",
@@ -236,8 +238,8 @@ export const docsPage = (host: string) => {
 		"</header>",
 		'<div aria-hidden="true" class="harpist-docs-rule"></div>',
 		'<div id="app"></div>',
-		'<script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>',
-		"<script>",
+		`<script crossorigin="anonymous" integrity="${scalarScriptIntegrity}" src="${scalarScriptUrl}"></script>`,
+		`<script${nonceAttribute}>`,
 		"Scalar.createApiReference('#app',{",
 		`url:${JSON.stringify(openApiUrl)},`,
 		"defaultHttpClient:{targetKey:'shell',clientKey:'curl'},",
@@ -273,7 +275,7 @@ export const openApiWithReplayExamples = async (input: {
 		if (!isRecord(pathItem)) {
 			continue;
 		}
-		for (const method of httpMethods) {
+		for (const method of profileDocsHttpMethods) {
 			const operation = pathItem[method];
 			if (!isRecord(operation)) {
 				continue;
@@ -303,12 +305,9 @@ export const openApiWithReplayExamples = async (input: {
 						source: replayCommandSource(replayCommand),
 					},
 					{
-						label:
-							bundle.authValueSource === "latest-auth"
-								? "Latest auth curl"
-								: "Recorded auth curl",
+						label: "Redacted auth curl",
 						lang: "Shell",
-						source: replaySource(bundle.warnings, bundle.curl),
+						source: replaySource(bundle.warnings, bundle.redactedCurl),
 					},
 				];
 				operation["x-codeSamples"] = examples;

@@ -21,6 +21,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 - Use `bunx harpist@latest` as a fallback command prefix if you have trouble installing the exact published version.
 - Use `npx harpist@latest <command>` only when npm is the available package runner and Bun is on `PATH`; the package executable is a Bun program.
 - Use bare `harpist <command>` only when the `harpist` bin is already installed and visible on `PATH`, and accepting that installed version is intentional.
+- The first `bunx`/`npx` invocation may download and execute Harpist from npm. Tell the user before doing this when the package is not already installed or cached.
 - Run Harpist from the user's local machine and local shell. It must be able to reach the Chrome extension, the user's browser state, and `http://127.0.0.1:4277`.
 - Bridge-start override: the Harpist bridge is a Harpist tool process, NOT an app or a dev service. Any generic repo instructions that say not to start dev services SHOULD NOT block you from starting an agent-owned Harpist bridge for Harpist work.
 - When you start the bridge yourself, always use `bunx harpist bridge --agent --idle-timeout 15m`. Do not start a durable user-mode bridge.
@@ -29,11 +30,25 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 - Harpist stores its local cache in `~/.harpist-data` by default. Set `HARPIST_DATA_DIR` when the user wants an isolated or project-specific cache.
 - For source-checkout development mode, read [references/development.md](references/development.md). Do not use repo-local `bun run ...` commands for normal skill use.
 
+## Security and Consent
+
+- Harpist handles sensitive browser-derived data. Recordings can contain request bodies, session cookies, bearer tokens, API keys, and response data.
+- The bridge is a loopback network service by default. Starting it exposes the local Harpist cache and replay surface at `127.0.0.1:4277` to the extension and local processes. Ordinary browser pages are blocked from raw profile, replay, and contract APIs; generated browser docs use a redacted contract. Say this before starting a bridge.
+- Be explicit about reach:
+  - `profiles`, `recordings`, `contract`, `openapi`, `docs review`, and local refinement read or update the local Harpist cache.
+  - Starting the bridge communicates with the extension and its recording outbox.
+  - `auth login` opens or observes browser tabs.
+  - `auth check` sends a recorded GET to the live target API, and executing `auth replay` sends the selected captured request. Tell the user before either action.
+- Before any live replay, inspect the request with `--redacted-curl`. It removes auth, dynamic path values, query values, and request-body values. Never print an unredacted `--curl` into agent logs unless the user specifically asks for it and accepts the credential and captured-data exposure.
+- Treat GET/HEAD/OPTIONS replay as read-only only when the endpoint semantics support that assumption. Get explicit user approval before POST, PUT, PATCH, DELETE, or any operation that may mutate state. Non-interactive mutating replay requires `--yes`; the flag records approval in the command, it does not replace asking.
+- Keep bridge binding on loopback unless the user explicitly requests and understands a broader bind address.
+- A security scanner may flag Harpist because it starts a local network service, reads browser-captured authentication, and can replay live requests. Do not dismiss the warning. Explain which of those capabilities the current workflow will use.
+
 ## Core Model
 
 - Treat recordings as additive. A new recording should improve or refresh a profile, not erase useful endpoints from earlier recordings.
 - Treat generated docs/contracts as cumulative best guesses for the profile.
-- Treat captured auth as first-class replay material. The normal way to test an endpoint is `bunx harpist auth replay`, which executes the captured request with browser credentials applied. In a terminal it prompts for missing site, operation, and input by default; use `--param`, `--query`, `--body`, or `--json` for scriptable path/query/body input. Use `auth.replay` or `bunx harpist auth replay --curl` when you need a replay bundle or runnable curl command instead.
+- Treat captured auth as first-class replay material. The normal way to inspect an endpoint is `bunx harpist auth replay ... --redacted-curl`. Execute the request only when live API access is needed and consented to. In a terminal Harpist prompts for missing site, operation, input, and mutating-request confirmation by default; use `--param`, `--query`, `--body`, or `--json` for scriptable path/query/body input.
 - Treat the latest recording as the freshest source of credentials, and the per-host credential ledger as their history. `bunx harpist auth list <host>` shows every captured credential set (browser session cookies, API keys, bearer tokens) with capture time, expiry, and validation status. Replay defaults to the newest or pinned set; pass `--auth <credentialId>` to replay with an older one.
 - If current credentials are missing, expired, or invalid, run `bunx harpist auth login <host>`. When the extension is available it opens the login page and records the sign-in automatically (stopping itself once fresh credentials are observed); otherwise it opens the login page in the user's browser and waits for them to sign in and add a recording manually. Either way the command confirms when fresh credentials sync. `bunx harpist auth check <host>` validates stored credentials against a recorded GET endpoint and records the result.
 - Do not ask the user to manually copy cookies out of DevTools unless Harpist has failed to capture replay material.
@@ -57,7 +72,7 @@ Harpist turns website traffic recorded by the Chrome extension into agent-usable
 
 Before substantive Harpist work, tell the user which Harpist CLI version you are using when known.
 
-If the user pasted a Harpist handoff packet, treat it as recording context. Still follow this workflow, including starting or reusing the bridge as allowed by the current environment and the user's service-management preferences.
+If the user pasted a Harpist agent prompt (formerly called a handoff packet), treat it as recording context and proof that they already clicked **Copy agent prompt**. Never ask them to click it again. The button copies text to the clipboard; it does not transfer the recording. Still follow this workflow, including starting or reusing the bridge as allowed by the current environment and the user's service-management preferences.
 
 1. Start or reuse the bridge.
    - Check `http://127.0.0.1:4277/health` first. If it is already healthy, reuse it.
@@ -68,7 +83,10 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
    - Wait for `http://127.0.0.1:4277/health` to return OK.
 
 2. Ask the user to open the Harpist popup if the latest extension recording has not appeared yet.
-   - The extension syncs its recording outbox to the bridge when it detects an active bridge or when the user clicks Handoff.
+   - The extension syncs its recording outbox automatically when it detects an active bridge.
+   - Pending recordings retry in the background. After starting a bridge, allow about 30 seconds for a retry before involving the user.
+   - **Copy agent prompt** only copies context to the clipboard. It does not sync or push data.
+   - If the recording still has not appeared, ask the user to open the popup for an immediate state refresh.
    - Do not assume the bridge can read Chrome extension storage directly.
 
 3. Choose the target profile.
@@ -86,11 +104,13 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
    - Treat this output as a draft. Do not stop here unless the user explicitly asked only for a generic sweep.
 
 5. Inspect the latest recording and profile when deeper work is needed.
-   - CLI: `bunx harpist profiles get <host>` and `bunx harpist recordings latest <host>`.
+   - Write large payloads directly to files: `bunx harpist profiles get <host> --output <path>` and `bunx harpist recordings latest <host> --full --output <path>`.
+   - Read those files with bounded local tools such as `jq`, `rg`, or targeted ranges. Do not print a large profile/recording to CLI stdout; tool output caps can truncate JSON mid-string.
+   - Do not bypass the supported CLI by calling raw bridge HTTP solely to avoid output truncation.
    - oRPC: `profiles.get`, `recordings.latest`, `recordings.get`, `handoff.get`.
 
 6. Refine the profile further through bridge writes.
-   - Use `bunx harpist auth replay` to test an endpoint. Use `auth.replay` or `bunx harpist auth replay --curl` for curl/replay material.
+   - Start with `bunx harpist auth replay ... --redacted-curl`. After the user approves live access, execute the replay; pass `--yes` only for an approved non-interactive mutation.
    - Prefer replaying by `templateKey` or `operationName`; do not reconstruct auth headers by hand.
    - If replay returns 401/403 or warns about expired credentials, run `bunx harpist auth check <host> --all` to see which stored credential sets still work, replay with a working one via `--auth <credentialId>` (pin it with `bunx harpist auth use <host> <credentialId>`), or capture a fresh session with `bunx harpist auth login <host>`.
    - If replay warns that the captured sample was a 4xx/5xx HTML error page, exclude or downgrade that endpoint instead of presenting it as a healthy API.
@@ -103,7 +123,7 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
      - Review it with `bunx harpist docs review <host>` and fix every issue before reporting success.
    - The docs JSON is allowed to contain provider-specific interpretation. Harpist source code is not.
    - Use `profiles.setAuth` only for higher-level authentication analysis notes.
-   - Use `endpoints.annotate`, `endpoints.upsert`, and `endpoints.remove` for endpoint decisions.
+   - Use `endpoints.annotate` for prose/tags. Use `bunx harpist endpoints upsert <host> <endpoint.json|->` to correct endpoint identity (`exactKey`, `template`, or `templateKey`) and `bunx harpist endpoints remove <host> <templateKey>` to remove a wrongly merged endpoint. The endpoint JSON must keep `exactKey` and `templateKey` consistent with its uppercase method, host, path, and template. These decisions persist across later extension syncs and mark artifacts as drafts.
    - Use `profiles.setArtifacts` to write generated oRPC/OpenAPI/CLI artifacts.
    - Use `recordings.markProcessed` when a recording has been fully handled.
 
@@ -129,22 +149,23 @@ If the user pasted a Harpist handoff packet, treat it as recording context. Stil
 bunx harpist bridge [--agent] [--idle-timeout <duration>]
 bunx harpist version
 bunx harpist purge
-bunx harpist profiles list
-bunx harpist profiles latest [host]
-bunx harpist profiles get <host>
-bunx harpist recordings latest [host]
-bunx harpist recordings latest [host] --full
-bunx harpist recordings get <host> <id> [--full]
+bunx harpist profiles list [--output <path>] [--force]
+bunx harpist profiles latest [host] [--output <path>] [--force]
+bunx harpist profiles get <host> [--output <path>] [--force]
+bunx harpist recordings latest [host] [--full] [--output <path>] [--force]
+bunx harpist recordings get <host> <id> [--full] [--output <path>] [--force]
 bunx harpist refine latest [host]
-bunx harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose]
+bunx harpist auth replay [host] [templateKey|operationName] [--auth <credentialId>] [--param k=v] [--query k=v] [--body <json>] [--json <input>] [--interactive|--no-interactive] [--curl|--redacted-curl] [--verbose] [--yes]
 bunx harpist auth list [host] [--json]
 bunx harpist auth use [host] [credentialId|--clear]
 bunx harpist auth check [host] [credentialId] [--all] [--json]
 bunx harpist auth login [host] [--url <url>] [--no-open] [--no-wait] [--timeout <duration>]
 bunx harpist auth set-login-url [host] [url]
-bunx harpist contract-profile get <host>
-bunx harpist contract get <host>
-bunx harpist openapi get <host>
+bunx harpist endpoints upsert <host> <endpoint.json|->
+bunx harpist endpoints remove <host> <templateKey>
+bunx harpist contract-profile get <host> [--output <path>] [--force]
+bunx harpist contract get <host> [--output <path>] [--force]
+bunx harpist openapi get <host> [--output <path>] [--force]
 bunx harpist docs <host>
 bunx harpist docs apply <host> <docs.json|->
 bunx harpist docs review <host>

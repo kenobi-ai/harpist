@@ -1,6 +1,5 @@
 import {
 	BinocularsIcon,
-	DatabaseIcon,
 	HouseLineIcon,
 	KanbanIcon,
 } from "@phosphor-icons/react";

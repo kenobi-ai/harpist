@@ -193,7 +193,7 @@ const authSummarySchema = z.object({
 	type: authTypeSchema.optional(),
 });
 
-const endpointSummarySchema = z.object({
+export const endpointSummarySchema = z.object({
 	access: accessSummarySchema.optional(),
 	description: z.string().optional(),
 	exactKey: z.string(),
@@ -232,6 +232,12 @@ const endpointSummarySchema = z.object({
 	samples: z.number().int(),
 	statuses: z.array(z.number().int()),
 	tags: z.array(z.string()).optional(),
+	template: z.string(),
+	templateKey: z.string(),
+});
+
+const endpointIdentityOverrideSchema = z.object({
+	exactKey: z.string(),
 	template: z.string(),
 	templateKey: z.string(),
 });
@@ -281,6 +287,7 @@ const siteProfileSchema = z.object({
 	createdAt: z.string(),
 	derivedEndpointCount: z.number().int(),
 	displayName: z.string(),
+	endpointIdentityOverrides: z.array(endpointIdentityOverrideSchema).optional(),
 	endpoints: z.array(endpointSummarySchema),
 	endpointTemplateKeys: z.array(z.string()),
 	host: z.string(),
@@ -294,6 +301,7 @@ const siteProfileSchema = z.object({
 	remoteProjectId: z.string().optional(),
 	scannedEndpointCount: z.number().int(),
 	scannedEndpointKeys: z.array(z.string()),
+	removedEndpointTemplateKeys: z.array(z.string()).optional(),
 	status: z.enum(["idle", "offline", "synced"]),
 	updatedAt: z.string(),
 });

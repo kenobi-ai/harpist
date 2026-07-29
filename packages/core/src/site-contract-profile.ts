@@ -418,12 +418,7 @@ const queryParametersForEndpoint = (endpoint: EndpointSummary) =>
 		(endpoint.queryParams ?? []).map((param) => [
 			param.name,
 			{
-				description:
-					param.values.length > 0
-						? `Observed query parameter. Example: ${JSON.stringify(
-								param.values[0],
-							)}.`
-						: "Observed query parameter.",
+				description: "Observed query parameter.",
 				required: false,
 				schema: param.repeated ? stringArraySchema : stringSchema,
 			},

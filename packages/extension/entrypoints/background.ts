@@ -26,6 +26,7 @@ import {
 	summariseRecording,
 } from "@harpist/core/profiles";
 import { browser, defineBackground } from "#imports";
+import type { UnexpectedCaptureStop } from "../lib/capture";
 import {
 	readDiagnostics,
 	writeDiagnostic,
@@ -46,6 +47,7 @@ type Controller = {
 	state: () => {
 		entryCount: number;
 		recording: boolean;
+		tabCount: number;
 		tabId: number | null;
 	};
 	stop: () => Promise<PendingEntry[]>;
@@ -75,6 +77,7 @@ type SyncResult = {
 
 const SLOW_OPERATION_MS = 5000;
 const BACKGROUND_SYNC_MIN_INTERVAL_MS = 10_000;
+const BACKGROUND_OFFLINE_RETRY_MS = 3000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 2500;
 const BRIDGE_WRITE_TIMEOUT_MS = 6000;
 const STOP_RECORDING_SLOW_PHASE_MS = 1000;
@@ -82,7 +85,9 @@ const REFINED_PROFILES_KEY = "harpist.refinedProfiles";
 const PENDING_PROFILE_RESTORES_KEY = "harpist.pendingProfileRestores";
 const ACTIVE_RECORDING_KEY = "harpist.activeRecording";
 const PROFILE_RESTORE_PENDING_MESSAGE = "Profile restore pending";
-const DEBUG_BUILD_MARKER = "stop-fire-and-poll-v3";
+const DEBUG_BUILD_MARKER = "multi-tab-cancel-save-v1";
+const SYNC_RETRY_ALARM_NAME = "harpist-sync-retry";
+const SYNC_RETRY_MINUTES = 0.5;
 
 type PendingProfileRestore = {
 	createdAt: string;
@@ -114,7 +119,21 @@ const withTimeout = async <T>(
 const getCaptureController = async () => {
 	if (!captureController) {
 		const { createCaptureController } = await import("../lib/capture");
-		captureController = createCaptureController();
+		captureController = createCaptureController({
+			onUnexpectedStop: async (result) => {
+				try {
+					await handleUnexpectedCaptureStop(result);
+				} catch (error) {
+					await writeErrorDiagnostic("recording.unexpectedStop.save", error, {
+						context: {
+							entryCount: result.entries.length,
+							reason: result.reason,
+							rootTabId: result.rootTabId,
+						},
+					});
+				}
+			},
+		});
 	}
 	return captureController;
 };
@@ -255,11 +274,35 @@ const maxSyncedAt = (recordings: RecordingIndexStore) =>
 const unsyncedRecordingCount = (recordings: RecordingIndexStore) =>
 	Object.values(recordings).filter((recording) => !recording.syncedAt).length;
 
+const maintainSyncRetryAlarm = async (recordings: RecordingIndexStore) => {
+	if (!browser.alarms) {
+		return;
+	}
+	if (unsyncedRecordingCount(recordings) === 0) {
+		await browser.alarms.clear(SYNC_RETRY_ALARM_NAME);
+		return;
+	}
+	if (await browser.alarms.get(SYNC_RETRY_ALARM_NAME)) {
+		return;
+	}
+	await browser.alarms.create(SYNC_RETRY_ALARM_NAME, {
+		delayInMinutes: SYNC_RETRY_MINUTES,
+		periodInMinutes: SYNC_RETRY_MINUTES,
+	});
+};
+
 const rememberRecordingIndex = (recordings: RecordingIndexStore) => {
 	lastRecordingIndexState = {
 		pendingRecordingCount: unsyncedRecordingCount(recordings),
 		syncedAt: maxSyncedAt(recordings),
 	};
+	void maintainSyncRetryAlarm(recordings).catch((error: unknown) =>
+		writeErrorDiagnostic("sync.retryAlarm", error, {
+			context: {
+				pendingRecordingCount: lastRecordingIndexState.pendingRecordingCount,
+			},
+		}),
+	);
 	return lastRecordingIndexState;
 };
 
@@ -699,7 +742,10 @@ const scheduleSyncWithBridge = (
 	}
 	if (
 		!(options.force || options.urgent) &&
-		Date.now() - lastScheduledSyncAt < BACKGROUND_SYNC_MIN_INTERVAL_MS
+		Date.now() - lastScheduledSyncAt <
+			(lastSyncState?.active === false
+				? BACKGROUND_OFFLINE_RETRY_MS
+				: BACKGROUND_SYNC_MIN_INTERVAL_MS)
 	) {
 		return null;
 	}
@@ -742,7 +788,7 @@ const readState = async (
 	const profiles = await getProfiles();
 	const bridge = syncInFlight
 		? {
-				active: lastSyncState?.active ?? true,
+				active: lastSyncState?.active ?? false,
 				message: "Syncing with bridge",
 				syncedAt: lastSyncState?.syncedAt ?? lastRecordingIndexState.syncedAt,
 			}
@@ -763,6 +809,11 @@ const readState = async (
 		activeRecording,
 		bridge: {
 			active: bridge.active,
+			availability: lastSyncState
+				? lastSyncState.active
+					? "online"
+					: "offline"
+				: "checking",
 			lastSyncedAt: bridge.syncedAt,
 			message: bridge.message,
 			pendingRecordingCount: lastRecordingIndexState.pendingRecordingCount,
@@ -773,6 +824,7 @@ const readState = async (
 			...(controller?.state() ?? {
 				entryCount: 0,
 				recording: false,
+				tabCount: 0,
 				tabId: null,
 			}),
 			stopping: Boolean(stopRecordingInFlight),
@@ -812,20 +864,34 @@ const readDebugInfo = async () => {
 	};
 };
 
+const activateRecording = async (
+	controller: Controller,
+	recording: ActiveRecording,
+) => {
+	await controller.start(recording.tabId);
+	activeRecording = recording;
+	try {
+		await saveActiveRecording(recording);
+		setBadge(true);
+	} catch (error) {
+		activeRecording = null;
+		await controller.stop().catch(() => []);
+		setBadge(false);
+		throw error;
+	}
+};
+
 const startRecording = async (controller: Controller) => {
 	const tab = await activeTab();
 	const page = activePageFromTab(tab);
 	if (!page) {
 		throw new Error("Open a website tab before recording.");
 	}
-	await controller.start(tab.id as number);
-	activeRecording = {
+	await activateRecording(controller, {
 		...page,
 		startedAt: new Date().toISOString(),
 		tabId: tab.id as number,
-	};
-	await saveActiveRecording(activeRecording);
-	setBadge(true);
+	});
 	return readState(controller);
 };
 
@@ -842,13 +908,26 @@ const fallbackMeta = (entries: PendingEntry[]): ActiveRecording => {
 	};
 };
 
-const stopRecording = async (controller: Controller): Promise<StopResult> => {
+const stopRecording = async (
+	controller: Controller,
+	options: {
+		entries?: PendingEntry[];
+		reason?: UnexpectedCaptureStop["reason"];
+	} = {},
+): Promise<StopResult> => {
 	const startedAt = Date.now();
 	const stopStartedAt = Date.now();
-	const entries = await controller.stop();
-	await stopPhaseDiagnostic("stopRecording.detachDebugger", stopStartedAt, {
-		entryCount: entries.length,
-	});
+	const entries = options.entries ?? (await controller.stop());
+	await stopPhaseDiagnostic(
+		options.entries
+			? "stopRecording.unexpectedDebuggerDetach"
+			: "stopRecording.detachDebugger",
+		stopStartedAt,
+		{
+			entryCount: entries.length,
+			...(options.reason ? { reason: options.reason } : {}),
+		},
+	);
 	if (entries.length === 0 && !activeRecording) {
 		throw new Error("No recording is in progress.");
 	}
@@ -890,7 +969,7 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 		await saveRefinedProfileSnapshot(previousProfile);
 	}
 	const profile = mergeProfile(profiles[meta.host], meta, summary, {
-		message: "Needs refinement",
+		message: "Ready for agent",
 		status: "idle",
 	});
 	profiles[meta.host] = profile;
@@ -907,10 +986,7 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 		host: meta.host,
 	});
 	await saveActiveRecording(null);
-	lastRecordingIndexState = {
-		...lastRecordingIndexState,
-		pendingRecordingCount: lastRecordingIndexState.pendingRecordingCount + 1,
-	};
+	rememberRecordingIndex(await getRecordingIndex());
 	await stopPhaseDiagnostic(
 		"stopRecording.persistRecording",
 		persistStartedAt,
@@ -941,6 +1017,7 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 		entryCount: summary.recording.entryCount,
 		host: meta.host,
 		recordingId: summary.recording.id,
+		...(options.reason ? { stopReason: options.reason } : {}),
 		strippedBodyCount: compacted.strippedBodyCount,
 	});
 
@@ -951,13 +1028,46 @@ const stopRecording = async (controller: Controller): Promise<StopResult> => {
 	};
 };
 
-const stopRecordingOnce = (controller: Controller) => {
+const stopRecordingOnce = (
+	controller: Controller,
+	options: {
+		entries?: PendingEntry[];
+		reason?: UnexpectedCaptureStop["reason"];
+	} = {},
+) => {
 	if (!stopRecordingInFlight) {
-		stopRecordingInFlight = stopRecording(controller).finally(() => {
+		stopRecordingInFlight = stopRecording(controller, options).finally(() => {
 			stopRecordingInFlight = null;
 		});
 	}
 	return stopRecordingInFlight;
+};
+
+const handleUnexpectedCaptureStop = async (result: UnexpectedCaptureStop) => {
+	clearAutoCaptureTimer();
+	setBadge(false);
+	if (result.entries.length === 0) {
+		activeRecording = null;
+		await saveActiveRecording(null);
+		await writeDiagnostic({
+			context: {
+				reason: result.reason,
+				rootTabId: result.rootTabId,
+			},
+			level: "info",
+			message: "Recording ended before any network traffic was captured.",
+			operation: "recording.unexpectedStop",
+		});
+		return;
+	}
+	const controller = captureController;
+	if (!controller) {
+		throw new Error("Capture controller unavailable after debugger detach.");
+	}
+	await stopRecordingOnce(controller, {
+		entries: result.entries,
+		reason: result.reason,
+	});
 };
 
 const undoLatestRecording = async (host?: string) => {
@@ -992,6 +1102,7 @@ const undoLatestRecording = async (host?: string) => {
 		host: targetHost,
 		id: latestRecording.id,
 	});
+	rememberRecordingIndex(await getRecordingIndex());
 	await savePendingProfileRestore({
 		createdAt: new Date().toISOString(),
 		host: targetHost,
@@ -1080,20 +1191,28 @@ const executeCaptureAuth = async (payload: {
 			"A recording is already in progress; opened the login page without auto-recording.",
 		);
 	}
-	const tab = await browser.tabs.create({ active: true, url: url.toString() });
+	const tab = await browser.tabs.create({ active: true, url: "about:blank" });
 	if (tab.id === undefined) {
 		throw new Error("Could not open a tab for the login page.");
 	}
-	await controller.start(tab.id);
-	activeRecording = {
+	await activateRecording(controller, {
 		host: payload.host,
 		origin: `https://${payload.host}`,
 		startedAt: new Date().toISOString(),
 		tabId: tab.id,
 		title: `Login capture — ${payload.host}`,
 		url: url.toString(),
-	};
-	setBadge(true);
+	});
+	try {
+		await browser.tabs.update(tab.id, { url: url.toString() });
+	} catch (error) {
+		clearAutoCaptureTimer();
+		await controller.stop();
+		activeRecording = null;
+		await saveActiveRecording(null);
+		setBadge(false);
+		throw error;
+	}
 	watchAutoCapture(controller, payload.host);
 };
 
@@ -1267,6 +1386,11 @@ const handleMessage = async (message: {
 
 export default defineBackground({
 	main() {
+		void getRecordingIndex()
+			.then(rememberRecordingIndex)
+			.catch((error: unknown) =>
+				writeErrorDiagnostic("sync.retryAlarm.initialise", error),
+			);
 		browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 			void handleMessage(
 				(message ?? {}) as {
@@ -1293,14 +1417,24 @@ export default defineBackground({
 		// Firefox has no externally_connectable; poll on the platform-minimum
 		// alarm cadence instead. The bridge treats command pulls as
 		// maintenance traffic, so this never keeps an idle bridge alive.
+		browser.alarms?.onAlarm.addListener((alarm) => {
+			if (alarm.name === SYNC_RETRY_ALARM_NAME) {
+				void getSettings()
+					.then(async (settings) => {
+						await (scheduleSyncWithBridge(settings, {
+							urgent: true,
+						}) ?? Promise.resolve());
+					})
+					.catch((error: unknown) =>
+						writeErrorDiagnostic("sync.retryAlarm.run", error),
+					);
+			} else if (import.meta.env.FIREFOX && alarm.name === COMMAND_ALARM_NAME) {
+				void pullAndRunCommands();
+			}
+		});
 		if (import.meta.env.FIREFOX) {
 			void browser.alarms?.create(COMMAND_ALARM_NAME, {
 				periodInMinutes: 0.5,
-			});
-			browser.alarms?.onAlarm.addListener((alarm) => {
-				if (alarm.name === COMMAND_ALARM_NAME) {
-					void pullAndRunCommands();
-				}
 			});
 		}
 	},

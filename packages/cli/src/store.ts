@@ -1,5 +1,12 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import {
+	chmod,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { CredentialValidation } from "../../core/src/credentials";
 import type {
 	CapturedCookie,
@@ -9,6 +16,8 @@ import type {
 import {
 	type ActiveRecording,
 	type AuthSummary,
+	applyEndpointIdentityOverrides,
+	type EndpointIdentityOverride,
 	type EndpointSummary,
 	type LatestAuth,
 	latestRecordingNeedsRefinement,
@@ -62,19 +71,32 @@ const readJsonOrNull = async <T>(file: string): Promise<T | null> => {
 	}
 };
 
-const writeJson = async (file: string, value: unknown) => {
+const writeAtomically = async (file: string, value: string) => {
 	await mkdir(dirname(file), {
+		mode: 0o700,
 		recursive: true,
 	});
-	await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+	const temporaryFile = join(
+		dirname(file),
+		`.${basename(file)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+	);
+	try {
+		await writeFile(temporaryFile, value, {
+			encoding: "utf8",
+			mode: 0o600,
+		});
+		await rename(temporaryFile, file);
+		await chmod(file, 0o600);
+	} catch (error) {
+		await rm(temporaryFile, { force: true }).catch(() => undefined);
+		throw error;
+	}
 };
 
-const writeText = async (file: string, value: string) => {
-	await mkdir(dirname(file), {
-		recursive: true,
-	});
-	await writeFile(file, value, "utf8");
-};
+const writeJson = (file: string, value: unknown) =>
+	writeAtomically(file, `${JSON.stringify(value, null, 2)}\n`);
+
+const writeText = (file: string, value: string) => writeAtomically(file, value);
 
 const headersFromHar = (headers: unknown): Record<string, string> => {
 	if (!Array.isArray(headers)) {
@@ -214,10 +236,20 @@ const sortProfiles = (profiles: SiteProfile[]) =>
 const canonicalDocsUrl = (bridgeUrl: string, host: string) =>
 	`${normaliseServerUrl(bridgeUrl)}/profiles/${encodeURIComponent(host)}/docs`;
 
+const draftArtifacts = (artifacts?: ProfileArtifacts) =>
+	artifacts
+		? {
+				...artifacts,
+				status: "draft" as const,
+				updatedAt: new Date().toISOString(),
+			}
+		: undefined;
+
 const refreshEndpointCounts = (profile: SiteProfile): SiteProfile => {
-	const scanned = new Set(
-		profile.endpoints.map((endpoint) => endpoint.exactKey),
-	);
+	const scanned = new Set(profile.scannedEndpointKeys);
+	for (const endpoint of profile.endpoints) {
+		scanned.add(endpoint.exactKey);
+	}
 	const derived = new Set(
 		profile.endpoints
 			.filter((endpoint) => endpoint.included !== false)
@@ -226,11 +258,67 @@ const refreshEndpointCounts = (profile: SiteProfile): SiteProfile => {
 	return {
 		...profile,
 		derivedEndpointCount: derived.size,
-		endpointTemplateKeys: [...derived],
+		endpointTemplateKeys: [...derived].sort((left, right) =>
+			left.localeCompare(right),
+		),
 		scannedEndpointCount: scanned.size,
-		scannedEndpointKeys: [...scanned],
+		scannedEndpointKeys: [...scanned].sort((left, right) =>
+			left.localeCompare(right),
+		),
 		updatedAt: new Date().toISOString(),
 	};
+};
+
+const validateEndpointIdentity = (endpoint: EndpointSummary) => {
+	if (
+		endpoint.method !== endpoint.method.toUpperCase() ||
+		!/^[A-Z][A-Z0-9!#$%&'*+.^_`|~-]*$/.test(endpoint.method)
+	) {
+		throw new Error(
+			`Endpoint method '${endpoint.method}' must be an uppercase HTTP token.`,
+		);
+	}
+	for (const [name, value] of [
+		["path", endpoint.path],
+		["template", endpoint.template],
+	] as const) {
+		if (!value.startsWith("/") || /[?#]/.test(value)) {
+			throw new Error(
+				`Endpoint ${name} '${value}' must be an absolute path without query or fragment text.`,
+			);
+		}
+	}
+	if (!endpoint.host || /\s|[/#?]/.test(endpoint.host)) {
+		throw new Error(`Endpoint host '${endpoint.host}' is invalid.`);
+	}
+	const exactKey = `${endpoint.method} ${endpoint.host}${endpoint.path}`;
+	const templateKey = `${endpoint.method} ${endpoint.host}${endpoint.template}`;
+	if (endpoint.exactKey !== exactKey) {
+		throw new Error(
+			`Endpoint exactKey must be '${exactKey}' for its method, host, and path.`,
+		);
+	}
+	if (endpoint.templateKey !== templateKey) {
+		throw new Error(
+			`Endpoint templateKey must be '${templateKey}' for its method, host, and template.`,
+		);
+	}
+};
+
+const mergeEndpointIdentityOverrides = (
+	incoming: EndpointIdentityOverride[] = [],
+	existing: EndpointIdentityOverride[] = [],
+) => {
+	const byExactKey = new Map<string, EndpointIdentityOverride>();
+	for (const override of incoming) {
+		byExactKey.set(override.exactKey, override);
+	}
+	for (const override of existing) {
+		byExactKey.set(override.exactKey, override);
+	}
+	return [...byExactKey.values()].sort((left, right) =>
+		left.exactKey.localeCompare(right.exactKey),
+	);
 };
 
 const newestLatestAuth = (
@@ -257,15 +345,62 @@ const mergeProfileSnapshot = (
 		!existing || incoming.updatedAt.localeCompare(existing.updatedAt) > 0
 			? incoming
 			: existing;
+	const endpointIdentityOverrides = mergeEndpointIdentityOverrides(
+		incoming.endpointIdentityOverrides,
+		existing?.endpointIdentityOverrides,
+	);
+	const existingRemoved = new Set(existing?.removedEndpointTemplateKeys ?? []);
+	const existingEndpointKeys = new Set(
+		(existing?.endpoints ?? []).map((endpoint) => endpoint.templateKey),
+	);
+	const removedEndpointTemplateKeys = [
+		...new Set([
+			...(incoming.removedEndpointTemplateKeys ?? []),
+			...(existing?.removedEndpointTemplateKeys ?? []),
+		]),
+	]
+		.filter(
+			(templateKey) =>
+				existingRemoved.has(templateKey) ||
+				!existingEndpointKeys.has(templateKey),
+		)
+		.sort((left, right) => left.localeCompare(right));
+	const removed = new Set(removedEndpointTemplateKeys);
+	const overrideExactKeys = new Set(
+		endpointIdentityOverrides.map((override) => override.exactKey),
+	);
 	const endpointByKey = new Map<string, EndpointSummary>();
-	for (const endpoint of existing?.endpoints ?? []) {
+	for (const endpoint of applyEndpointIdentityOverrides(
+		existing?.endpoints ?? [],
+		endpointIdentityOverrides,
+	)) {
+		if (removed.has(endpoint.templateKey)) {
+			continue;
+		}
 		endpointByKey.set(endpoint.templateKey, endpoint);
 	}
-	for (const endpoint of incoming.endpoints) {
-		endpointByKey.set(endpoint.templateKey, {
-			...endpointByKey.get(endpoint.templateKey),
-			...endpoint,
-		});
+	for (const endpoint of applyEndpointIdentityOverrides(
+		incoming.endpoints,
+		endpointIdentityOverrides,
+	)) {
+		if (removed.has(endpoint.templateKey)) {
+			continue;
+		}
+		const existingEndpoint = endpointByKey.get(endpoint.templateKey);
+		endpointByKey.set(
+			endpoint.templateKey,
+			overrideExactKeys.has(endpoint.exactKey)
+				? {
+						...endpoint,
+						...existingEndpoint,
+						template: endpoint.template,
+						templateKey: endpoint.templateKey,
+					}
+				: {
+						...existingEndpoint,
+						...endpoint,
+					},
+		);
 	}
 	const recordingById = new Map<string, RecordingSummary>();
 	for (const recording of incoming.recordings) {
@@ -282,6 +417,7 @@ const mergeProfileSnapshot = (
 		...base,
 		agentNotes: existing?.agentNotes ?? incoming.agentNotes,
 		artifacts: existing?.artifacts ?? incoming.artifacts,
+		endpointIdentityOverrides,
 		endpoints: [...endpointByKey.values()].sort((left, right) =>
 			left.templateKey.localeCompare(right.templateKey),
 		),
@@ -292,12 +428,13 @@ const mergeProfileSnapshot = (
 			.slice(0, 20),
 		remoteDocsUrl: canonicalDocsUrl(bridgeUrl, incoming.host),
 		remoteProjectId: incoming.host,
+		removedEndpointTemplateKeys,
 		status: "synced",
 	});
 	return {
 		...merged,
 		lastBridgeMessage: latestRecordingNeedsRefinement(merged)
-			? "Needs refinement"
+			? "Ready for agent"
 			: "Bridge synced",
 	};
 };
@@ -404,7 +541,7 @@ export const createBridgeStore = (dataDir: string) => {
 		const remoteDocsUrl = canonicalDocsUrl(input.bridgeUrl, input.meta.host);
 		const profile = {
 			...mergeProfile(index.profiles[input.meta.host], input.meta, summary, {
-				message: "Needs refinement",
+				message: "Ready for agent",
 				projectId: input.meta.host,
 				serverUrl: input.bridgeUrl,
 				status: "synced",
@@ -613,6 +750,13 @@ export const createBridgeStore = (dataDir: string) => {
 			>,
 		) => {
 			const profile = await requireProfile(host);
+			if (
+				!profile.endpoints.some(
+					(endpoint) => endpoint.templateKey === templateKey,
+				)
+			) {
+				throw new Error(`Unknown endpoint '${templateKey}'.`);
+			}
 			const endpoints = profile.endpoints.map((endpoint) =>
 				endpoint.templateKey === templateKey
 					? {
@@ -694,12 +838,27 @@ export const createBridgeStore = (dataDir: string) => {
 			readProfileArtifactJson<unknown>(host, "openapiPath"),
 		removeEndpoint: async (host: string, templateKey: string) => {
 			const profile = await requireProfile(host);
+			if (
+				!profile.endpoints.some(
+					(endpoint) => endpoint.templateKey === templateKey,
+				)
+			) {
+				throw new Error(`Unknown endpoint '${templateKey}'.`);
+			}
 			return saveProfile(
 				refreshEndpointCounts({
 					...profile,
+					artifacts: draftArtifacts(profile.artifacts),
 					endpoints: profile.endpoints.filter(
 						(endpoint) => endpoint.templateKey !== templateKey,
 					),
+					lastBridgeMessage: "Endpoint edit needs documentation review",
+					removedEndpointTemplateKeys: [
+						...new Set([
+							...(profile.removedEndpointTemplateKeys ?? []),
+							templateKey,
+						]),
+					].sort((left, right) => left.localeCompare(right)),
 				}),
 			);
 		},
@@ -747,16 +906,40 @@ export const createBridgeStore = (dataDir: string) => {
 			});
 		},
 		upsertEndpoint: async (host: string, endpoint: EndpointSummary) => {
+			validateEndpointIdentity(endpoint);
+			if (endpoint.host !== host) {
+				throw new Error(
+					`Endpoint host '${endpoint.host}' does not match target profile '${host}'.`,
+				);
+			}
 			const profile = await requireProfile(host);
+			const endpointIdentityOverrides = mergeEndpointIdentityOverrides(
+				profile.endpointIdentityOverrides,
+				[
+					{
+						exactKey: endpoint.exactKey,
+						template: endpoint.template,
+						templateKey: endpoint.templateKey,
+					},
+				],
+			);
 			const existing = profile.endpoints.filter(
-				(item) => item.templateKey !== endpoint.templateKey,
+				(item) =>
+					item.templateKey !== endpoint.templateKey &&
+					item.exactKey !== endpoint.exactKey,
 			);
 			return saveProfile(
 				refreshEndpointCounts({
 					...profile,
+					artifacts: draftArtifacts(profile.artifacts),
+					endpointIdentityOverrides,
 					endpoints: [...existing, endpoint].sort((left, right) =>
 						left.templateKey.localeCompare(right.templateKey),
 					),
+					lastBridgeMessage: "Endpoint edit needs documentation review",
+					removedEndpointTemplateKeys: (
+						profile.removedEndpointTemplateKeys ?? []
+					).filter((templateKey) => templateKey !== endpoint.templateKey),
 				}),
 			);
 		},

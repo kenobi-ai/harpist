@@ -15,6 +15,8 @@ describe("generated profile docs page", () => {
 		expect(page).toContain(
 			'url:"/profiles/api.example.test/openapi.scalar.json"',
 		);
+		expect(page).toContain("@scalar/api-reference@1.63.0");
+		expect(page).toContain('integrity="sha384-');
 	});
 
 	test("escapes the visible host while keeping the OpenAPI URL script-safe", () => {
@@ -30,5 +32,12 @@ describe("generated profile docs page", () => {
 				`/profiles/${encodeURIComponent(host)}/openapi.scalar.json`,
 			)}`,
 		);
+	});
+
+	test("adds a nonce to inline docs assets", () => {
+		const page = docsPage("api.example.test", { nonce: "test-nonce" });
+
+		expect(page).toContain('<style nonce="test-nonce">');
+		expect(page).toContain('<script nonce="test-nonce">');
 	});
 });

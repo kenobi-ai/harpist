@@ -1,171 +1,76 @@
 import type { CapturedCookie, PendingEntry } from "@harpist/core/har";
 import { browser } from "#imports";
+import {
+	detachCaptureTabs,
+	drainCaptureBodyReads,
+	safeDetachCaptureTab,
+} from "./capture-cleanup";
+import {
+	type CaptureControllerOptions,
+	type CaptureSession,
+	contentTypeOf,
+	cookieFromExtraInfo,
+	isMissingResponseBody,
+	isoFromWallTime,
+	type LoadingFinished,
+	mergeCookies,
+	mergeHeaders,
+	type RequestWillBeSent,
+	type RequestWillBeSentExtraInfo,
+	type ResponseBody,
+	type ResponseReceived,
+	requestKey,
+	shouldCaptureResponseBody,
+	type UnexpectedCaptureStop,
+} from "./capture-network";
 
-type RequestWillBeSent = {
-	request: {
-		headers?: Record<string, string>;
-		method: string;
-		postData?: string;
-		url: string;
-	};
-	requestId: string;
-	wallTime?: number;
-};
-
-type ResponseReceived = {
-	requestId: string;
-	response: {
-		headers?: Record<string, string>;
-		mimeType?: string;
-		status: number;
-		statusText?: string;
-	};
-};
-
-type RequestWillBeSentExtraInfo = {
-	associatedCookies?: Array<{
-		cookie?: {
-			domain?: string;
-			expires?: number;
-			httpOnly?: boolean;
-			name?: string;
-			sameSite?: string;
-			secure?: boolean;
-			session?: boolean;
-			value?: string;
-		};
-	}>;
-	headers?: Record<string, string>;
-	requestId: string;
-};
-
-type LoadingFinished = {
-	encodedDataLength?: number;
-	requestId: string;
-};
-
-type ResponseBody = {
-	base64Encoded?: boolean;
-	body?: string;
-};
-
-const isMissingResponseBody = (error: unknown) =>
-	typeof error === "object" &&
-	error !== null &&
-	"code" in error &&
-	(error as { code?: unknown }).code === -32_000;
-
-const shouldCaptureResponseBody = (entry: PendingEntry) => {
-	const mime = entry.responseMime ?? "";
-	if (/(?:json|\+json)/i.test(mime)) {
-		return true;
-	}
-	if (/(?:html|text\/plain)/i.test(mime)) {
-		return true;
-	}
-	return false;
-};
+export type { UnexpectedCaptureStop } from "./capture-network";
 
 export type CaptureState = {
 	entryCount: number;
 	recording: boolean;
+	tabCount: number;
 	tabId: number | null;
 };
 
-const isoFromWallTime = (wallTime?: number) =>
-	wallTime ? new Date(wallTime * 1000).toISOString() : new Date().toISOString();
-
-const contentTypeOf = (
-	headers?: Record<string, string>,
-): string | undefined => {
-	if (!headers) {
-		return;
-	}
-	for (const [name, value] of Object.entries(headers)) {
-		if (name.toLowerCase() === "content-type") {
-			return value;
-		}
-	}
-};
-
-const mergeHeaders = (
-	base?: Record<string, string>,
-	extra?: Record<string, string>,
-) => ({
-	...(base ?? {}),
-	...(extra ?? {}),
-});
-
-const cookieFromExtraInfo = (
-	item: NonNullable<RequestWillBeSentExtraInfo["associatedCookies"]>[number],
-): CapturedCookie | null => {
-	const cookie = item.cookie;
-	if (!cookie?.name) {
-		return null;
-	}
-	return {
-		domain: cookie.domain,
-		expiresAt:
-			typeof cookie.expires === "number" && cookie.expires > 0
-				? new Date(cookie.expires * 1000).toISOString()
-				: undefined,
-		httpOnly: cookie.httpOnly,
-		name: cookie.name,
-		sameSite: cookie.sameSite,
-		secure: cookie.secure,
-		session: cookie.session,
-		value: cookie.value,
-	};
-};
-
-const mergeCookies = (
-	base?: CapturedCookie[],
-	extra?: CapturedCookie[],
-): CapturedCookie[] | undefined => {
-	const byName = new Map<string, CapturedCookie>();
-	for (const cookie of [...(base ?? []), ...(extra ?? [])]) {
-		byName.set(cookie.name, {
-			...byName.get(cookie.name),
-			...cookie,
-		});
-	}
-	return byName.size > 0 ? [...byName.values()] : undefined;
-};
-
-export const createCaptureController = () => {
-	let session: {
-		entries: Map<string, PendingEntry>;
-		extraRequestCookies: Map<string, CapturedCookie[]>;
-		extraRequestHeaders: Map<string, Record<string, string>>;
-		tabId: number;
-	} | null = null;
+export const createCaptureController = (
+	options: CaptureControllerOptions = {},
+) => {
+	let session: CaptureSession | null = null;
 	let registered = false;
 
-	const onRequest = (data: RequestWillBeSent) => {
-		if (!session) {
+	const onRequest = (tabId: number, data: RequestWillBeSent) => {
+		const active = session;
+		if (!active?.tabIds.has(tabId)) {
 			return;
 		}
-		const extraHeaders = session.extraRequestHeaders.get(data.requestId);
+		const key = requestKey(tabId, data.requestId);
+		const extraHeaders = active.extraRequestHeaders.get(key);
 		const requestHeaders = mergeHeaders(data.request.headers, extraHeaders);
-		session.entries.set(data.requestId, {
+		active.entries.set(key, {
 			method: data.request.method.toUpperCase(),
 			postData: data.request.postData,
 			postDataMime: contentTypeOf(requestHeaders),
-			requestCookies: session.extraRequestCookies.get(data.requestId),
+			requestCookies: active.extraRequestCookies.get(key),
 			requestHeaders,
 			startedDateTime: isoFromWallTime(data.wallTime),
 			url: data.request.url,
 		});
 	};
 
-	const onRequestExtraInfo = (data: RequestWillBeSentExtraInfo) => {
-		if (!session) {
+	const onRequestExtraInfo = (
+		tabId: number,
+		data: RequestWillBeSentExtraInfo,
+	) => {
+		const active = session;
+		if (!active?.tabIds.has(tabId)) {
 			return;
 		}
+		const key = requestKey(tabId, data.requestId);
 		const cookies = data.associatedCookies
 			?.map(cookieFromExtraInfo)
 			.filter((cookie): cookie is CapturedCookie => cookie !== null);
-		const entry = session.entries.get(data.requestId);
+		const entry = active.entries.get(key);
 		if (entry) {
 			entry.requestHeaders = mergeHeaders(entry.requestHeaders, data.headers);
 			entry.requestCookies = mergeCookies(entry.requestCookies, cookies);
@@ -174,19 +79,19 @@ export const createCaptureController = () => {
 			return;
 		}
 		if (data.headers) {
-			session.extraRequestHeaders.set(data.requestId, data.headers);
+			active.extraRequestHeaders.set(key, data.headers);
 		}
 		const mergedCookies = mergeCookies(
-			session.extraRequestCookies.get(data.requestId),
+			active.extraRequestCookies.get(key),
 			cookies,
 		);
 		if (mergedCookies) {
-			session.extraRequestCookies.set(data.requestId, mergedCookies);
+			active.extraRequestCookies.set(key, mergedCookies);
 		}
 	};
 
-	const onResponse = (data: ResponseReceived) => {
-		const entry = session?.entries.get(data.requestId);
+	const onResponse = (tabId: number, data: ResponseReceived) => {
+		const entry = session?.entries.get(requestKey(tabId, data.requestId));
 		if (!entry) {
 			return;
 		}
@@ -196,11 +101,12 @@ export const createCaptureController = () => {
 		entry.statusText = data.response.statusText;
 	};
 
-	const onFinished = async (data: LoadingFinished) => {
-		if (!session) {
-			return;
-		}
-		const entry = session.entries.get(data.requestId);
+	const captureResponseBody = async (
+		active: CaptureSession,
+		tabId: number,
+		data: LoadingFinished,
+	) => {
+		const entry = active.entries.get(requestKey(tabId, data.requestId));
 		if (!entry || entry.status === undefined) {
 			return;
 		}
@@ -210,7 +116,7 @@ export const createCaptureController = () => {
 		try {
 			const body = (await browser.debugger.sendCommand(
 				{
-					tabId: session.tabId,
+					tabId,
 				},
 				"Network.getResponseBody",
 				{
@@ -227,6 +133,18 @@ export const createCaptureController = () => {
 		}
 	};
 
+	const onFinished = (tabId: number, data: LoadingFinished) => {
+		const active = session;
+		if (!active?.tabIds.has(tabId)) {
+			return;
+		}
+		let task: Promise<void>;
+		task = captureResponseBody(active, tabId, data).finally(() => {
+			active.pendingBodyReads.delete(task);
+		});
+		active.pendingBodyReads.add(task);
+	};
+
 	const onDebuggerEvent = (
 		source: {
 			tabId?: number;
@@ -234,33 +152,24 @@ export const createCaptureController = () => {
 		method: string,
 		params?: unknown,
 	) => {
-		if (!session || source.tabId !== session.tabId || !params) {
+		const tabId = source.tabId;
+		if (
+			!session ||
+			tabId === undefined ||
+			!session.tabIds.has(tabId) ||
+			!params
+		) {
 			return;
 		}
 		if (method === "Network.requestWillBeSent") {
-			onRequest(params as RequestWillBeSent);
+			onRequest(tabId, params as RequestWillBeSent);
 		} else if (method === "Network.requestWillBeSentExtraInfo") {
-			onRequestExtraInfo(params as RequestWillBeSentExtraInfo);
+			onRequestExtraInfo(tabId, params as RequestWillBeSentExtraInfo);
 		} else if (method === "Network.responseReceived") {
-			onResponse(params as ResponseReceived);
+			onResponse(tabId, params as ResponseReceived);
 		} else if (method === "Network.loadingFinished") {
-			void onFinished(params as LoadingFinished);
+			onFinished(tabId, params as LoadingFinished);
 		}
-	};
-
-	const onDebuggerDetach = (source: { tabId?: number }) => {
-		if (session && source.tabId === session.tabId) {
-			session = null;
-		}
-	};
-
-	const registerListeners = () => {
-		if (registered) {
-			return;
-		}
-		browser.debugger.onEvent.addListener(onDebuggerEvent);
-		browser.debugger.onDetach.addListener(onDebuggerDetach);
-		registered = true;
 	};
 
 	const removeListeners = () => {
@@ -269,53 +178,163 @@ export const createCaptureController = () => {
 		}
 		browser.debugger.onEvent.removeListener(onDebuggerEvent);
 		browser.debugger.onDetach.removeListener(onDebuggerDetach);
+		browser.tabs.onCreated.removeListener(onTabCreated);
 		registered = false;
 	};
 
+	const finishUnexpectedly = (
+		active: CaptureSession,
+		reason: UnexpectedCaptureStop["reason"],
+	) => {
+		if (session !== active) {
+			return;
+		}
+		session = null;
+		removeListeners();
+		void (async () => {
+			await Promise.allSettled(active.pendingAttachments.values());
+			await drainCaptureBodyReads(active);
+			await detachCaptureTabs(active.tabIds);
+			const result: UnexpectedCaptureStop = {
+				entries: [...active.entries.values()],
+				reason,
+				rootTabId: active.rootTabId,
+			};
+			await options.onUnexpectedStop?.(result);
+		})().catch((error) =>
+			console.error("[harpist] unexpected stop handling failed", error),
+		);
+	};
+
+	const onDebuggerDetach = (source: { tabId?: number }, reason: string) => {
+		const active = session;
+		const tabId = source.tabId;
+		if (
+			!active ||
+			tabId === undefined ||
+			!(active.tabIds.has(tabId) || active.pendingAttachments.has(tabId))
+		) {
+			return;
+		}
+		active.tabIds.delete(tabId);
+		if (tabId === active.rootTabId || active.tabIds.size === 0) {
+			finishUnexpectedly(
+				active,
+				reason === "canceled_by_user" || reason === "target_closed"
+					? reason
+					: "unknown",
+			);
+		}
+	};
+
+	const attachTab = (tabId: number) => {
+		const active = session;
+		if (
+			!active ||
+			active.tabIds.has(tabId) ||
+			active.pendingAttachments.has(tabId)
+		) {
+			return Promise.resolve();
+		}
+		const attachment = (async () => {
+			try {
+				await browser.debugger.attach({ tabId }, "1.3");
+				if (session !== active) {
+					await safeDetachCaptureTab(tabId);
+					return;
+				}
+				active.tabIds.add(tabId);
+				await browser.debugger.sendCommand({ tabId }, "Network.enable");
+				if (session !== active) {
+					active.tabIds.delete(tabId);
+					await safeDetachCaptureTab(tabId);
+				}
+			} catch (error) {
+				active.tabIds.delete(tabId);
+				if (tabId === active.rootTabId) {
+					throw error;
+				}
+				await safeDetachCaptureTab(tabId);
+				console.warn("[harpist] child tab attach failed", error);
+			} finally {
+				active.pendingAttachments.delete(tabId);
+			}
+		})();
+		active.pendingAttachments.set(tabId, attachment);
+		return attachment;
+	};
+
+	const onTabCreated = (tab: { id?: number; openerTabId?: number }) => {
+		const active = session;
+		if (
+			!active ||
+			tab.id === undefined ||
+			tab.openerTabId === undefined ||
+			!(
+				active.tabIds.has(tab.openerTabId) ||
+				active.pendingAttachments.has(tab.openerTabId)
+			)
+		) {
+			return;
+		}
+		void attachTab(tab.id);
+	};
+
+	const registerListeners = () => {
+		if (registered) {
+			return;
+		}
+		browser.debugger.onEvent.addListener(onDebuggerEvent);
+		browser.debugger.onDetach.addListener(onDebuggerDetach);
+		browser.tabs.onCreated.addListener(onTabCreated);
+		registered = true;
+	};
+
 	const stop = async (): Promise<PendingEntry[]> => {
-		if (!session) {
+		const active = session;
+		if (!active) {
 			return [];
 		}
-		const { entries, tabId } = session;
 		session = null;
-		try {
-			await browser.debugger.detach({
-				tabId,
-			});
-		} catch (error) {
-			console.warn("[harpist] detach failed", error);
-		}
 		removeListeners();
-		return [...entries.values()];
+		await Promise.allSettled(active.pendingAttachments.values());
+		await drainCaptureBodyReads(active);
+		await detachCaptureTabs(active.tabIds);
+		return [...active.entries.values()];
 	};
 
 	const start = async (tabId: number) => {
 		await stop();
-		registerListeners();
-		await browser.debugger.attach(
-			{
-				tabId,
-			},
-			"1.3",
-		);
-		await browser.debugger.sendCommand(
-			{
-				tabId,
-			},
-			"Network.enable",
-		);
 		session = {
 			entries: new Map(),
 			extraRequestCookies: new Map(),
 			extraRequestHeaders: new Map(),
-			tabId,
+			pendingAttachments: new Map(),
+			pendingBodyReads: new Set(),
+			rootTabId: tabId,
+			tabIds: new Set(),
 		};
+		registerListeners();
+		try {
+			await attachTab(tabId);
+			if (!session) {
+				throw new Error("Recording was canceled before capture started.");
+			}
+		} catch (error) {
+			session = null;
+			removeListeners();
+			await safeDetachCaptureTab(tabId);
+			throw error;
+		}
 	};
 
 	const state = (): CaptureState => ({
 		entryCount: session ? session.entries.size : 0,
 		recording: session !== null,
-		tabId: session?.tabId ?? null,
+		tabCount: session
+			? new Set([...session.tabIds, ...session.pendingAttachments.keys()]).size
+			: 0,
+		tabId: session?.rootTabId ?? null,
 	});
 
 	const entries = (): PendingEntry[] =>

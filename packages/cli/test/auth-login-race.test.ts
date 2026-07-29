@@ -55,7 +55,7 @@ describe("auth login extension race", () => {
 	});
 
 	afterEach(async () => {
-		bridge.stop(true);
+		bridge?.stop(true);
 		await rm(directory, {
 			force: true,
 			recursive: true,
@@ -65,8 +65,11 @@ describe("auth login extension race", () => {
 	test("wakes the extension and skips the direct open once claimed", async () => {
 		await store.recordExtensionPresence("ext-abc");
 		const opened: string[] = [];
+		let claimInFlight = Promise.resolve();
 		const claimer = setInterval(() => {
-			void store.commands.pull("ext-abc");
+			claimInFlight = claimInFlight.then(async () => {
+				await store.commands.pull("ext-abc");
+			});
 		}, 100);
 
 		try {
@@ -77,6 +80,7 @@ describe("auth login extension race", () => {
 			});
 		} finally {
 			clearInterval(claimer);
+			await claimInFlight;
 		}
 
 		expect(opened).toEqual([`${bridgeUrl}/wake`]);

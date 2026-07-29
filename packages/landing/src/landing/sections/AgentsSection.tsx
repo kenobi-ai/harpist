@@ -91,7 +91,7 @@ export function AgentsSection() {
 					<div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 						<div>
 							<p className="font-marginalia italic text-amber-300 text-sm">
-								the handoff
+								the agent output
 							</p>
 							<div className="mt-2 flex flex-wrap gap-2">
 								{agentOutputs.map((output) => (

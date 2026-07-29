@@ -1,5 +1,12 @@
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import {
+	chmod,
+	mkdir,
+	readFile,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 export type BridgeCommand = {
 	claimedAt?: string;
@@ -63,10 +70,22 @@ export const createCommandQueue = (dataDir: string) => {
 	};
 
 	const write = async (queue: CommandQueueFile) => {
-		await mkdir(dirname(file), { recursive: true });
-		const temp = `${file}.${process.pid}.tmp`;
-		await writeFile(temp, `${JSON.stringify(queue, null, 2)}\n`, "utf8");
-		await rename(temp, file);
+		await mkdir(dirname(file), { mode: 0o700, recursive: true });
+		const temporaryFile = join(
+			dirname(file),
+			`.${basename(file)}.${process.pid}.${crypto.randomUUID()}.tmp`,
+		);
+		try {
+			await writeFile(temporaryFile, `${JSON.stringify(queue, null, 2)}\n`, {
+				encoding: "utf8",
+				mode: 0o600,
+			});
+			await rename(temporaryFile, file);
+			await chmod(file, 0o600);
+		} catch (error) {
+			await rm(temporaryFile, { force: true }).catch(() => undefined);
+			throw error;
+		}
 	};
 
 	const mutate = async (

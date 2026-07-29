@@ -3,5 +3,6 @@
 		"allowImportingTsExtensions": true,
 		"jsx": "react-jsx"
 	},
+	"exclude": ["dist", "test"],
 	"extends": "./.wxt/tsconfig.json"
 }

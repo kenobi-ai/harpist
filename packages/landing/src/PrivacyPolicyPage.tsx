@@ -22,7 +22,7 @@ export function PrivacyPolicyPage() {
 							Harpist Privacy Policy
 						</h1>
 						<p className="mt-4 text-stone-900/70 text-sm uppercase tracking-widest">
-							Effective July 6, 2026
+							Effective July 29, 2026
 						</p>
 
 						<div className="mt-8 grid gap-8 text-sm leading-6">
@@ -44,9 +44,13 @@ export function PrivacyPolicyPage() {
 								</h2>
 								<p className="mt-3">
 									When you start a recording, Harpist may capture the network
-									requests and responses made by the active browser tab. That
-									can include URLs, methods, headers, cookies, request bodies,
-									response bodies, status codes, timestamps, and the page host.
+									requests and responses made by the tab where recording began
+									and by tabs that it opens, including further descendant tabs.
+									Unrelated existing or newly opened tabs are not attached. The
+									Chrome debugging notice may still appear across the browser
+									window. Captured data can include URLs, methods, headers,
+									cookies, request bodies, response bodies, status codes,
+									timestamps, and the page host.
 								</p>
 							</section>
 
@@ -58,7 +62,29 @@ export function PrivacyPolicyPage() {
 									Recordings are stored in the extension&apos;s local browser
 									storage. If you run the Harpist bridge, the extension syncs
 									recordings to the bridge URL you configure. By default, that
-									is a local address on your machine: http://localhost:4277.
+									is a local address on your machine: http://127.0.0.1:4277.
+									Copying the agent prompt only copies text to your clipboard;
+									recording sync happens separately and may retry in the
+									background.
+								</p>
+								<p className="mt-3">
+									The optional local documentation page downloads pinned
+									interface code, fonts, and an icon from jsDelivr, Google
+									Fonts, and harpist.kenobi.ai. Those requests use no referrer
+									and do not include recordings or captured credentials.
+								</p>
+							</section>
+
+							<section>
+								<h2 className="border-stone-900/25 border-b pb-2 font-bold text-sm uppercase tracking-wider">
+									Live API Replay
+								</h2>
+								<p className="mt-3">
+									The local CLI can replay a captured request when you or your
+									agent invoke that command. Replay sends the selected request
+									and captured authentication to the original target API. Local
+									profile, recording, refinement, contract, and documentation
+									commands do not perform that replay.
 								</p>
 							</section>
 
@@ -92,8 +118,9 @@ export function PrivacyPolicyPage() {
 								</h2>
 								<p className="mt-3">
 									Harpist requests browser permissions needed to record traffic,
-									save recordings, inspect the active tab, download generated
-									files, and communicate with the local bridge you configure.
+									save recordings, inspect the starting and descendant tabs,
+									download generated files, and communicate with the local
+									bridge you configure.
 								</p>
 							</section>
 
